@@ -1,7 +1,7 @@
 .page-view {
   width: 100%;
   margin: 0;
-  padding: 0;
+  padding: 2rem;
 }
 
 .loading, .error {
@@ -103,8 +103,8 @@
 
 /* Document view */
 .document-view {
-  line-height: 1.8;
-  padding: 2rem 2rem 2rem 2rem;
+  line-height: 1.44;
+  padding: 0rem 2rem 2rem 2rem;
 }
 
 .markdown-content {
