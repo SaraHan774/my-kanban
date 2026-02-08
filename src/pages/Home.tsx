@@ -225,9 +225,6 @@ export function Home() {
   return (
     <div className="home-board">
       <div className="board-header">
-        <div className="board-header-left">
-          <h1>My Kanban</h1>
-        </div>
         <div className="board-actions">
           <div className="board-view-toggle">
             <button
