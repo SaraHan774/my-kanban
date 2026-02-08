@@ -15,11 +15,13 @@ const persistSettings = (state: {
   columnColors: Record<string, string>;
   slashCommands: AppSlashCommand[];
   theme: 'light' | 'dark' | 'auto';
+  columnOrder: string[];
 }) => {
   configService.save({
     columnColors: state.columnColors,
     slashCommands: state.slashCommands,
     theme: state.theme,
+    columnOrder: state.columnOrder,
   });
 };
 
@@ -73,6 +75,10 @@ interface AppState {
   updateSlashCommand: (cmd: AppSlashCommand) => void;
   removeSlashCommand: (id: string) => void;
   resetSlashCommands: () => void;
+
+  // Column order (persisted)
+  columnOrder: string[];
+  setColumnOrder: (order: string[]) => void;
 
   // Settings persistence
   loadSettingsFromFile: () => Promise<void>;
@@ -171,6 +177,15 @@ export const useStore = create<AppState>((set, get) => ({
       return { slashCommands: DEFAULT_SLASH_COMMANDS };
     }),
 
+  // Column order
+  columnOrder: initialSettings.columnOrder,
+  setColumnOrder: (order) => {
+    set((state) => {
+      persistSettings({ ...state, columnOrder: order });
+      return { columnOrder: order };
+    });
+  },
+
   // Load settings from .kanban-config.json (called when FS access is granted)
   loadSettingsFromFile: async () => {
     const fileSettings = await configService.loadFromFile();
@@ -180,6 +195,7 @@ export const useStore = create<AppState>((set, get) => ({
         columnColors: fileSettings.columnColors,
         slashCommands: fileSettings.slashCommands,
         theme: fileSettings.theme,
+        columnOrder: fileSettings.columnOrder,
       });
       // Sync localStorage cache
       configService.saveToLocalStorage(fileSettings);
@@ -190,6 +206,7 @@ export const useStore = create<AppState>((set, get) => ({
         columnColors: state.columnColors,
         slashCommands: state.slashCommands,
         theme: state.theme,
+        columnOrder: state.columnOrder,
       });
     }
   },

@@ -204,6 +204,16 @@
   border-top-color: var(--accent-primary);
 }
 
+.kanban-column.column-dragging {
+  opacity: 0.4;
+  transform: scale(0.97);
+}
+
+.kanban-column.column-drop-target {
+  border: 2px dashed var(--accent-primary);
+  border-top-width: 3px;
+}
+
 .column-header {
   padding: 0.75rem 1rem;
   display: flex;
@@ -213,10 +223,32 @@
   flex-shrink: 0;
 }
 
+.column-header {
+  cursor: grab;
+}
+
+.column-header:active {
+  cursor: grabbing;
+}
+
 .column-header h3 {
   margin: 0;
   font-size: 0.9rem;
   font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+}
+
+.column-drag-handle {
+  font-size: 1rem;
+  color: var(--text-secondary);
+  opacity: 0.4;
+  transition: opacity 0.15s;
+}
+
+.column-header:hover .column-drag-handle {
+  opacity: 1;
 }
 
 .card-count {

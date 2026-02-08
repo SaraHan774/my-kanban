@@ -325,5 +325,4 @@ export class FileSystemService {
   }
 }
 
-// Singleton instance
-export const fileSystemService = new FileSystemService();
+// Singleton is now exported from fileSystemFactory.ts

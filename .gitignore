@@ -33,3 +33,7 @@ workspace/
 .kanban-config.json
 
 references/
+
+# Tauri
+src-tauri/target/
+src-tauri/gen/

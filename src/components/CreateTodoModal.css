@@ -90,3 +90,22 @@
 .todo-item-delete:hover {
   color: #ef4444;
 }
+
+.todo-success {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 1.5rem 0;
+}
+
+.todo-success-icon {
+  font-size: 2.5rem;
+  color: #22c55e;
+}
+
+.todo-success p {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 500;
+}

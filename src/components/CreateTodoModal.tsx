@@ -15,6 +15,7 @@ export function CreateTodoModal({ onClose }: CreateTodoModalProps) {
   const [currentItem, setCurrentItem] = useState('');
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
+  const [createdCalendarUrl, setCreatedCalendarUrl] = useState<string | null>(null);
   const itemInputRef = useRef<HTMLInputElement>(null);
 
   // Detect existing "todo" column casing, default to "Todo"
@@ -38,7 +39,7 @@ export function CreateTodoModal({ onClose }: CreateTodoModalProps) {
   };
 
   const handleItemKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === 'Enter') {
+    if (e.key === 'Enter' && !e.nativeEvent.isComposing) {
       e.preventDefault();
       handleAddItem();
     }
@@ -75,7 +76,24 @@ export function CreateTodoModal({ onClose }: CreateTodoModalProps) {
       }
 
       addPage(page);
-      onClose();
+
+      // Build Google Calendar URL
+      const params = new URLSearchParams({
+        action: 'TEMPLATE',
+        text: title.trim(),
+      });
+      if (dueDate) {
+        const dateStr = dueDate.replace(/-/g, '');
+        // All-day event: end date is next day (exclusive)
+        const nextDay = new Date(dueDate);
+        nextDay.setDate(nextDay.getDate() + 1);
+        const endStr = nextDay.toISOString().slice(0, 10).replace(/-/g, '');
+        params.set('dates', `${dateStr}/${endStr}`);
+      }
+      if (checkItems.length > 0) {
+        params.set('details', checkItems.map(item => `☐ ${item}`).join('\n'));
+      }
+      setCreatedCalendarUrl(`https://calendar.google.com/calendar/render?${params.toString()}`);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to create todo');
     } finally {
@@ -91,6 +109,29 @@ export function CreateTodoModal({ onClose }: CreateTodoModalProps) {
           <button className="btn-icon" onClick={onClose}>✕</button>
         </div>
 
+        {createdCalendarUrl ? (
+          <div className="todo-body">
+            <div className="todo-success">
+              <span className="material-symbols-outlined todo-success-icon">check_circle</span>
+              <p>Todo created!</p>
+            </div>
+            <div className="modal-actions">
+              <a
+                href={createdCalendarUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="btn btn-primary"
+                style={{ display: 'inline-flex', alignItems: 'center', gap: '0.375rem', textDecoration: 'none' }}
+              >
+                <span className="material-symbols-outlined" style={{ fontSize: '1.125rem' }}>calendar_month</span>
+                Google Calendar
+              </a>
+              <button type="button" className="btn btn-secondary" onClick={onClose}>
+                Close
+              </button>
+            </div>
+          </div>
+        ) : (
         <div className="todo-body">
           <div className="form-group">
             <label htmlFor="todo-title">Title</label>
@@ -178,6 +219,7 @@ export function CreateTodoModal({ onClose }: CreateTodoModalProps) {
             </button>
           </div>
         </div>
+        )}
       </div>
     </div>
   );

@@ -12,12 +12,14 @@ export function Home() {
   const {
     hasFileSystemAccess, setHasFileSystemAccess, setSidebarOpen,
     pages, updatePageInStore, columnColors,
+    columnOrder, setColumnOrder,
   } = useStore();
 
   const [boardView, setBoardView] = useState<'kanban' | 'list'>('kanban');
   const [listSortField, setListSortField] = useState<'title' | 'createdAt' | 'dueDate'>('title');
   const [listSortDir, setListSortDir] = useState<'asc' | 'desc'>('asc');
   const [draggedCardId, setDraggedCardId] = useState<string | null>(null);
+  const [draggedColumn, setDraggedColumn] = useState<string | null>(null);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [showTodoModal, setShowTodoModal] = useState(false);
 
@@ -144,7 +146,7 @@ export function Home() {
   }
 
   // Derive columns from all unique kanbanColumn values (case-insensitive dedup)
-  const columns = Array.from(
+  const unsortedColumns = Array.from(
     pages.map(p => p.kanbanColumn).filter(Boolean).reduce((map, col) => {
       const key = (col as string).toLowerCase();
       if (!map.has(key)) map.set(key, col as string);
@@ -152,16 +154,64 @@ export function Home() {
     }, new Map<string, string>()).values()
   );
 
+  // Sort columns by persisted order; unknown columns go to the end
+  const columns = [...unsortedColumns].sort((a, b) => {
+    const aIdx = columnOrder.indexOf(a.toLowerCase());
+    const bIdx = columnOrder.indexOf(b.toLowerCase());
+    if (aIdx === -1 && bIdx === -1) return 0;
+    if (aIdx === -1) return 1;
+    if (bIdx === -1) return -1;
+    return aIdx - bIdx;
+  });
+
   const hasUncategorized = pages.some(p => !p.kanbanColumn);
 
-  // --- Drag & drop ---
-  const handleDragStart = (cardId: string) => {
+  // --- Card drag & drop ---
+  const handleDragStart = (cardId: string, e: React.DragEvent) => {
     setDraggedCardId(cardId);
+    e.dataTransfer.setData('text/card', cardId);
   };
 
   const handleDragOver = (e: React.DragEvent) => {
     e.preventDefault();
     e.dataTransfer.dropEffect = 'move';
+  };
+
+  // --- Column drag & drop ---
+  const handleColumnDragStart = (col: string, e: React.DragEvent) => {
+    setDraggedColumn(col);
+    e.dataTransfer.setData('text/column', col);
+    e.dataTransfer.effectAllowed = 'move';
+  };
+
+  const handleColumnDragOver = (e: React.DragEvent) => {
+    // Only accept column drags, not card drags
+    if (draggedColumn) {
+      e.preventDefault();
+      e.dataTransfer.dropEffect = 'move';
+    }
+  };
+
+  const handleColumnDrop = (targetCol: string) => {
+    if (!draggedColumn || draggedColumn === targetCol) {
+      setDraggedColumn(null);
+      return;
+    }
+
+    // Build a full order list from the current columns (lowercase keys)
+    const currentOrder = columns.map(c => c.toLowerCase());
+    const fromIdx = currentOrder.indexOf(draggedColumn.toLowerCase());
+    const toIdx = currentOrder.indexOf(targetCol.toLowerCase());
+    if (fromIdx === -1 || toIdx === -1) {
+      setDraggedColumn(null);
+      return;
+    }
+
+    const newOrder = [...currentOrder];
+    newOrder.splice(fromIdx, 1);
+    newOrder.splice(toIdx, 0, draggedColumn.toLowerCase());
+    setColumnOrder(newOrder);
+    setDraggedColumn(null);
   };
 
   const handleDrop = async (columnTag: string) => {
@@ -274,12 +324,18 @@ export function Home() {
             return (
               <div
                 key={col}
-                className={`kanban-column ${draggedCardId ? 'droppable' : ''}`}
-                onDragOver={handleDragOver}
-                onDrop={() => handleDrop(col)}
+                className={`kanban-column ${draggedCardId ? 'droppable' : ''} ${draggedColumn === col ? 'column-dragging' : ''} ${draggedColumn && draggedColumn !== col ? 'column-drop-target' : ''}`}
+                onDragOver={(e) => { handleDragOver(e); handleColumnDragOver(e); }}
+                onDrop={() => { if (draggedColumn) handleColumnDrop(col); else handleDrop(col); }}
               >
-                <div className="column-header" style={{ borderTopColor: color }}>
-                  <h3>{col}</h3>
+                <div
+                  className="column-header"
+                  style={{ borderTopColor: color }}
+                  draggable
+                  onDragStart={(e) => handleColumnDragStart(col, e)}
+                  onDragEnd={() => setDraggedColumn(null)}
+                >
+                  <h3><span className="material-symbols-outlined column-drag-handle">drag_indicator</span>{col}</h3>
                   <span className="card-count">{columnCards.length}</span>
                 </div>
                 <div className="column-content">
@@ -288,7 +344,7 @@ export function Home() {
                       key={card.id}
                       className={`kanban-card ${draggedCardId === card.id ? 'dragging' : ''}`}
                       draggable
-                      onDragStart={() => handleDragStart(card.id)}
+                      onDragStart={(e) => handleDragStart(card.id, e)}
                       onDragEnd={() => setDraggedCardId(null)}
                     >
                       <Link to={`/page/${card.id}`} className="card-link">
@@ -326,7 +382,7 @@ export function Home() {
                     key={card.id}
                     className={`kanban-card ${draggedCardId === card.id ? 'dragging' : ''}`}
                     draggable
-                    onDragStart={() => handleDragStart(card.id)}
+                    onDragStart={(e) => handleDragStart(card.id, e)}
                     onDragEnd={() => setDraggedCardId(null)}
                   >
                     <Link to={`/page/${card.id}`} className="card-link">

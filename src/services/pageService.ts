@@ -4,7 +4,7 @@
  */
 
 import { Page, PageFrontmatter, FilterCriteria, SortOptions } from '@/types';
-import { fileSystemService } from './fileSystem';
+import { fileSystemService } from './fileSystemFactory';
 import { markdownService } from './markdown';
 
 export class PageService {

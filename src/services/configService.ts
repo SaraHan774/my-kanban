@@ -4,7 +4,7 @@
  * Falls back to localStorage when file system is unavailable.
  */
 
-import { fileSystemService } from './fileSystem';
+import { fileSystemService } from './fileSystemFactory';
 import { AppSlashCommand, DEFAULT_SLASH_COMMANDS } from '@/data/defaultSlashCommands';
 
 const CONFIG_FILE = '.kanban-config.json';
@@ -13,17 +13,20 @@ const CONFIG_FILE = '.kanban-config.json';
 const LS_COLUMN_COLORS = 'kanban-column-colors';
 const LS_SLASH_COMMANDS = 'kanban-slash-commands';
 const LS_THEME = 'kanban-theme';
+const LS_COLUMN_ORDER = 'kanban-column-order';
 
 export interface KanbanSettings {
   columnColors: Record<string, string>;
   slashCommands: AppSlashCommand[];
   theme: 'light' | 'dark' | 'auto';
+  columnOrder: string[];
 }
 
 const DEFAULT_SETTINGS: KanbanSettings = {
   columnColors: {},
   slashCommands: DEFAULT_SLASH_COMMANDS,
   theme: 'auto',
+  columnOrder: [],
 };
 
 class ConfigService {
@@ -40,6 +43,7 @@ class ConfigService {
         columnColors: parsed.columnColors ?? DEFAULT_SETTINGS.columnColors,
         slashCommands: parsed.slashCommands ?? DEFAULT_SETTINGS.slashCommands,
         theme: parsed.theme ?? DEFAULT_SETTINGS.theme,
+        columnOrder: parsed.columnOrder ?? DEFAULT_SETTINGS.columnOrder,
       };
     } catch {
       return null;
@@ -79,6 +83,11 @@ class ConfigService {
     const theme = localStorage.getItem(LS_THEME) as KanbanSettings['theme'] | null;
     if (theme) settings.theme = theme;
 
+    try {
+      const order = localStorage.getItem(LS_COLUMN_ORDER);
+      if (order) settings.columnOrder = JSON.parse(order);
+    } catch { /* ignore */ }
+
     return settings;
   }
 
@@ -89,6 +98,7 @@ class ConfigService {
     localStorage.setItem(LS_COLUMN_COLORS, JSON.stringify(settings.columnColors));
     localStorage.setItem(LS_SLASH_COMMANDS, JSON.stringify(settings.slashCommands));
     localStorage.setItem(LS_THEME, settings.theme);
+    localStorage.setItem(LS_COLUMN_ORDER, JSON.stringify(settings.columnOrder));
   }
 
   /**
