@@ -1,0 +1,35 @@
+# Workspace Template
+
+This is a sample workspace structure to help you get started with My Kanban.
+
+## How to Use
+
+1. Copy the contents of this folder to your selected workspace location
+2. The app will automatically detect these pages
+3. Modify, delete, or add new pages as needed
+
+## Structure
+
+```
+workspace/
+├── Getting Started/
+│   └── index.md
+├── Personal/
+│   ├── index.md
+│   ├── Daily Tasks/
+│   │   └── index.md
+│   └── Notes/
+│       └── index.md
+└── Work/
+    ├── index.md
+    └── Current Sprint/
+        └── index.md
+```
+
+## Tips
+
+- Each folder represents a page
+- The `index.md` file contains the page content
+- Folders can be nested infinitely (sub-pages)
+- Use meaningful folder names (they become page titles by default)
+- Edit the YAML frontmatter to customize metadata
