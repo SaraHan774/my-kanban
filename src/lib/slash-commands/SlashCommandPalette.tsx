@@ -1,10 +1,12 @@
 import { useEffect, useRef } from 'react';
 import { SlashCommand } from './types';
+import { PalettePosition } from './useSlashCommands';
 import './SlashCommandPalette.css';
 
 interface SlashCommandPaletteProps {
   commands: SlashCommand[];
   selectedIndex: number;
+  position: PalettePosition;
   onSelect: (cmd: SlashCommand) => void;
   onClose: () => void;
 }
@@ -12,6 +14,7 @@ interface SlashCommandPaletteProps {
 export function SlashCommandPalette({
   commands,
   selectedIndex,
+  position,
   onSelect,
 }: SlashCommandPaletteProps) {
   const listRef = useRef<HTMLDivElement>(null);
@@ -32,6 +35,7 @@ export function SlashCommandPalette({
       className="slash-palette"
       role="listbox"
       aria-label="Slash commands"
+      style={{ top: position.top, left: position.left }}
       onMouseDown={(e) => e.preventDefault()}
     >
       <div className="slash-palette-list" ref={listRef}>

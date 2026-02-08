@@ -1,9 +1,7 @@
 .slash-palette {
   position: absolute;
-  top: 0;
-  left: 1rem;
-  right: 1rem;
   z-index: 20;
+  width: 280px;
   background-color: var(--slash-bg, #ffffff);
   border: 1px solid var(--slash-border, #e0e0e0);
   border-radius: 8px;

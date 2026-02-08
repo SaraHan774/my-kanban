@@ -1,6 +1,72 @@
 import { useState, useCallback, useMemo, useRef, ChangeEvent, KeyboardEvent, RefObject } from 'react';
 import { SlashCommand } from './types';
 
+export interface PalettePosition {
+  top: number;
+  left: number;
+}
+
+/**
+ * Mirror-div technique: creates a hidden div that mirrors the textarea's styling
+ * to calculate the pixel coordinates of a given character position.
+ */
+function getCaretCoordinates(
+  textarea: HTMLTextAreaElement,
+  position: number
+): { top: number; left: number; lineHeight: number } {
+  const div = document.createElement('div');
+  const computed = window.getComputedStyle(textarea);
+
+  // Position off-screen
+  div.style.position = 'absolute';
+  div.style.top = '0';
+  div.style.left = '-9999px';
+  div.style.visibility = 'hidden';
+  div.style.whiteSpace = 'pre-wrap';
+  div.style.wordWrap = 'break-word';
+  div.style.overflow = 'hidden';
+  div.style.width = computed.width;
+
+  // Copy all relevant text-layout styles from the textarea
+  const stylesToCopy = [
+    'font-family', 'font-size', 'font-weight', 'font-style',
+    'letter-spacing', 'word-spacing', 'line-height',
+    'text-indent', 'text-transform',
+    'padding-top', 'padding-right', 'padding-bottom', 'padding-left',
+    'border-top-width', 'border-right-width', 'border-bottom-width', 'border-left-width',
+    'box-sizing', 'tab-size',
+  ];
+
+  for (const prop of stylesToCopy) {
+    div.style.setProperty(prop, computed.getPropertyValue(prop));
+  }
+
+  // Text before cursor
+  div.appendChild(document.createTextNode(textarea.value.substring(0, position)));
+
+  // Zero-width marker at cursor position
+  const marker = document.createElement('span');
+  marker.appendChild(document.createTextNode('\u200b'));
+  div.appendChild(marker);
+
+  // Text after cursor (needed for accurate line wrapping)
+  div.appendChild(document.createTextNode(textarea.value.substring(position)));
+
+  document.body.appendChild(div);
+
+  const lineHeight = parseInt(computed.lineHeight) || Math.round(parseFloat(computed.fontSize) * 1.5);
+
+  const result = {
+    top: marker.offsetTop - textarea.scrollTop + lineHeight,
+    left: marker.offsetLeft,
+    lineHeight,
+  };
+
+  document.body.removeChild(div);
+
+  return result;
+}
+
 interface UseSlashCommandsOptions {
   textareaRef: RefObject<HTMLTextAreaElement | null>;
   content: string;
@@ -14,6 +80,7 @@ interface UseSlashCommandsReturn {
   isOpen: boolean;
   filteredCommands: SlashCommand[];
   selectedIndex: number;
+  palettePosition: PalettePosition | null;
 
   // Convenience API — wire directly to textarea
   handleChange: (e: ChangeEvent<HTMLTextAreaElement>) => void;
@@ -40,6 +107,7 @@ export function useSlashCommands({
   const [isOpen, setIsOpen] = useState(false);
   const [query, setQuery] = useState('');
   const [selectedIndex, setSelectedIndex] = useState(0);
+  const [palettePosition, setPalettePosition] = useState<PalettePosition | null>(null);
   const isComposing = useRef(false);
   const slashStartPos = useRef<number | null>(null);
 
@@ -54,6 +122,7 @@ export function useSlashCommands({
   const closePalette = useCallback(() => {
     setIsOpen(false);
     setQuery('');
+    setPalettePosition(null);
     slashStartPos.current = null;
   }, []);
 
@@ -71,7 +140,6 @@ export function useSlashCommands({
           slashPos >= cursorPos ||
           text[slashPos] !== '/'
         ) {
-          // Slash was deleted or cursor moved before it
           closePalette();
           return;
         }
@@ -79,7 +147,6 @@ export function useSlashCommands({
         const afterSlash = textBeforeCursor.slice(slashPos + 1);
 
         if (afterSlash.includes(' ') || afterSlash.includes('\n')) {
-          // Space or newline after slash query — close
           closePalette();
           return;
         }
@@ -105,8 +172,15 @@ export function useSlashCommands({
       setIsOpen(true);
       setQuery('');
       setSelectedIndex(0);
+
+      // Calculate palette position from cursor coordinates
+      const textarea = textareaRef.current;
+      if (textarea) {
+        const coords = getCaretCoordinates(textarea, slashPos);
+        setPalettePosition({ top: coords.top, left: coords.left });
+      }
     },
-    [isOpen, closePalette]
+    [isOpen, closePalette, textareaRef]
   );
 
   const executeCommand = useCallback(
@@ -206,6 +280,7 @@ export function useSlashCommands({
     isOpen,
     filteredCommands,
     selectedIndex,
+    palettePosition,
     handleChange,
     handleKeyDown,
     handleCompositionStart,

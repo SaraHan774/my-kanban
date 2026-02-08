@@ -259,10 +259,11 @@ export function PageEditor({ page, onSave, onCancel }: PageEditorProps) {
         />
       ) : (
         <div className="editor-textarea-wrapper">
-          {slash.isOpen && (
+          {slash.isOpen && slash.palettePosition && (
             <SlashCommandPalette
               commands={slash.filteredCommands}
               selectedIndex={slash.selectedIndex}
+              position={slash.palettePosition}
               onSelect={slash.executeCommand}
               onClose={slash.closePalette}
             />
