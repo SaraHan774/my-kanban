@@ -93,10 +93,8 @@ export class PageService {
       ...options
     };
 
-    // Create the index.md file
-    const content = options.viewType === 'kanban'
-      ? `# ${title}\n\nKanban board view`
-      : `# ${title}\n\nYour notes here...`;
+    // Create the index.md file with empty content
+    const content = '';
 
     const markdown = markdownService.serialize(frontmatter, content);
     await fileSystemService.writeFile(`${pagePath}/index.md`, markdown);
