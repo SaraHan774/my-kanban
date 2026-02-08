@@ -1,53 +1,36 @@
 /**
  * Core Page interface - represents a page/card in the system
- * Every entity in the app is a Page (Notion-style unified model)
+ *
+ * Kanban model:
+ *  - A board page has viewType='kanban'. Its `tags` define the columns.
+ *  - A card (child of a board) has `kanbanColumn` set to one of the parent's tags.
+ *  - The board can be displayed as kanban or list (UI toggle, not a separate type).
  */
 export interface Page {
   // Metadata (stored in YAML frontmatter)
-  id: string;  // UUID
+  id: string;
   title: string;
-  tags: string[];
-  createdAt: string;  // ISO 8601
+  tags: string[];               // On a board, these ARE the kanban columns
+  createdAt: string;
   updatedAt: string;
   dueDate?: string;
   viewType: ViewType;
-  kanbanColumn?: string;  // ID of column this page is in (if parent is kanban)
-  kanbanColumns?: KanbanColumn[];  // Columns if this page is a kanban board
-  pomodoroSessions?: PomodoroSession[];
+  kanbanColumn?: string;         // Which column this card belongs to (= one of parent's tags)
   googleCalendarEventId?: string;
 
   // Runtime properties (not stored in frontmatter)
-  path: string;  // File system path (e.g., "workspace/Project A/Task 1")
-  content: string;  // Markdown content (below frontmatter)
-  children?: Page[];  // Sub-pages (dynamically loaded)
-  parent?: Page;  // Parent page reference
+  path: string;
+  content: string;
+  children?: Page[];
+  parent?: Page;
 }
 
 /**
  * Page view types
+ *  - 'document': a regular page (or a card inside a board)
+ *  - 'kanban': a board whose children are grouped into columns by tags
  */
-export type ViewType = 'document' | 'kanban' | 'list';
-
-/**
- * Kanban column definition
- */
-export interface KanbanColumn {
-  id: string;
-  name: string;
-  order: number;
-  color?: string;
-}
-
-/**
- * Pomodoro timer session
- */
-export interface PomodoroSession {
-  id: string;
-  startTime: string;  // ISO 8601
-  duration: number;  // minutes (25, 50, etc.)
-  completed: boolean;
-  notes?: string;
-}
+export type ViewType = 'document' | 'kanban';
 
 /**
  * Frontmatter interface - what gets serialized to YAML
@@ -61,8 +44,6 @@ export interface PageFrontmatter {
   dueDate?: string;
   viewType: ViewType;
   kanbanColumn?: string;
-  kanbanColumns?: KanbanColumn[];
-  pomodoroSessions?: PomodoroSession[];
   googleCalendarEventId?: string;
 }
 

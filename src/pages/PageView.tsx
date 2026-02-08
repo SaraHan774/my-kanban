@@ -1,33 +1,34 @@
 import { useEffect, useState } from 'react';
-import { useParams } from 'react-router-dom';
+import { useParams, Link, useNavigate } from 'react-router-dom';
 import { useStore } from '@/store/useStore';
 import { pageService, markdownService } from '@/services';
 import { Page } from '@/types';
+import { PageEditor } from '@/components/PageEditor';
 import './PageView.css';
 
 export function PageView() {
   const { pageId } = useParams<{ pageId: string }>();
-  const { pages } = useStore();
+  const navigate = useNavigate();
+  const { pages, removePage, sidebarOpen, setSidebarOpen } = useStore();
   const [page, setPage] = useState<Page | null>(null);
   const [htmlContent, setHtmlContent] = useState<string>('');
   const [loading, setLoading] = useState(true);
+  const [editing, setEditing] = useState(false);
 
   useEffect(() => {
     if (pageId) {
       loadPage(pageId);
+      setEditing(false);
     }
   }, [pageId, pages]);
 
   const loadPage = async (id: string) => {
     setLoading(true);
     try {
-      // Find page in store
       const foundPage = pages.find(p => p.id === id);
       if (foundPage) {
         const fullPage = await pageService.loadPageWithChildren(foundPage.path);
         setPage(fullPage);
-
-        // Convert markdown to HTML
         const html = await markdownService.toHtml(fullPage.content);
         setHtmlContent(html);
       }
@@ -36,6 +37,24 @@ export function PageView() {
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleDelete = async () => {
+    if (!page) return;
+    if (!window.confirm(`Delete "${page.title}"? This will also delete all sub-pages.`)) return;
+    try {
+      await pageService.deletePage(page.path);
+      removePage(page.id);
+      navigate('/');
+    } catch (error) {
+      console.error('Failed to delete page:', error);
+    }
+  };
+
+  const handleEditorSave = (updatedPage: Page) => {
+    setPage(updatedPage);
+    setEditing(false);
+    markdownService.toHtml(updatedPage.content).then(setHtmlContent);
   };
 
   if (loading) {
@@ -54,17 +73,47 @@ export function PageView() {
     );
   }
 
+  if (editing) {
+    return (
+      <div className="page-view">
+        <PageEditor
+          page={page}
+          onSave={handleEditorSave}
+          onCancel={() => setEditing(false)}
+        />
+      </div>
+    );
+  }
+
   return (
     <div className="page-view">
       <div className="page-header">
-        <h1>{page.title}</h1>
+        <div className="page-header-top">
+          {!sidebarOpen && (
+            <button className="btn-icon" onClick={() => setSidebarOpen(true)} title="Open sidebar">
+              ☰
+            </button>
+          )}
+          <h1>{page.title}</h1>
+          <div className="page-actions">
+            <button className="btn btn-secondary" onClick={() => setEditing(true)}>
+              Edit
+            </button>
+            <button className="btn btn-danger" onClick={handleDelete}>
+              Delete
+            </button>
+          </div>
+        </div>
         <div className="page-meta">
+          {page.kanbanColumn && (
+            <div className="page-column-badge">
+              {page.kanbanColumn}
+            </div>
+          )}
           {page.tags.length > 0 && (
             <div className="tags">
               {page.tags.map(tag => (
-                <span key={tag} className="tag">
-                  {tag}
-                </span>
+                <span key={tag} className="tag">{tag}</span>
               ))}
             </div>
           )}
@@ -73,71 +122,35 @@ export function PageView() {
               Due: {new Date(page.dueDate).toLocaleDateString()}
             </div>
           )}
+          <div className="page-dates">
+            <span>Created: {new Date(page.createdAt).toLocaleDateString()}</span>
+            <span>Updated: {new Date(page.updatedAt).toLocaleDateString()}</span>
+          </div>
         </div>
       </div>
 
-      {page.viewType === 'kanban' ? (
-        <div className="kanban-view">
-          <div className="kanban-board">
-            {page.kanbanColumns?.map(column => (
-              <div key={column.id} className="kanban-column">
-                <div className="column-header" style={{ backgroundColor: column.color }}>
-                  <h3>{column.name}</h3>
-                  <span className="card-count">
-                    {page.children?.filter(c => c.kanbanColumn === column.id).length || 0}
-                  </span>
-                </div>
-                <div className="column-content">
-                  {page.children
-                    ?.filter(c => c.kanbanColumn === column.id)
-                    .map(card => (
-                      <div key={card.id} className="kanban-card">
-                        <h4>{card.title}</h4>
-                        {card.tags.length > 0 && (
-                          <div className="card-tags">
-                            {card.tags.map(tag => (
-                              <span key={tag} className="tag-small">
-                                {tag}
-                              </span>
-                            ))}
-                          </div>
-                        )}
-                        <p className="card-excerpt">
-                          {markdownService.getExcerpt(card.content)}
-                        </p>
-                      </div>
-                    ))}
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      ) : (
-        <div className="document-view">
-          <div
-            className="markdown-content"
-            dangerouslySetInnerHTML={{ __html: htmlContent }}
-          />
-        </div>
-      )}
+      <div className="document-view">
+        <div
+          className="markdown-content"
+          dangerouslySetInnerHTML={{ __html: htmlContent }}
+        />
+      </div>
 
-      {page.children && page.children.length > 0 && page.viewType !== 'kanban' && (
+      {page.children && page.children.length > 0 && (
         <div className="sub-pages">
           <h2>Sub-pages</h2>
           <div className="sub-pages-list">
             {page.children.map(child => (
-              <div key={child.id} className="sub-page-card">
+              <Link key={child.id} to={`/page/${child.id}`} className="sub-page-card">
                 <h3>{child.title}</h3>
                 {child.tags.length > 0 && (
                   <div className="tags">
                     {child.tags.map(tag => (
-                      <span key={tag} className="tag-small">
-                        {tag}
-                      </span>
+                      <span key={tag} className="tag-small">{tag}</span>
                     ))}
                   </div>
                 )}
-              </div>
+              </Link>
             ))}
           </div>
         </div>

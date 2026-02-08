@@ -122,8 +122,6 @@ export class PageService {
       viewType: page.viewType,
       ...(page.dueDate && { dueDate: page.dueDate }),
       ...(page.kanbanColumn && { kanbanColumn: page.kanbanColumn }),
-      ...(page.kanbanColumns && { kanbanColumns: page.kanbanColumns }),
-      ...(page.pomodoroSessions && { pomodoroSessions: page.pomodoroSessions }),
       ...(page.googleCalendarEventId && { googleCalendarEventId: page.googleCalendarEventId })
     };
 
@@ -188,7 +186,7 @@ export class PageService {
     // Apply filters
     if (criteria.tags && criteria.tags.length > 0) {
       pages = pages.filter(page =>
-        criteria.tags!.some(tag => page.tags.includes(tag))
+        criteria.tags!.some(tag => page.tags.some(t => t.toLowerCase() === tag.toLowerCase()))
       );
     }
 
@@ -262,8 +260,6 @@ export class PageService {
       viewType: page.viewType,
       ...(page.dueDate && { dueDate: page.dueDate }),
       ...(page.kanbanColumn && { kanbanColumn: page.kanbanColumn }),
-      ...(page.kanbanColumns && { kanbanColumns: page.kanbanColumns }),
-      ...(page.pomodoroSessions && { pomodoroSessions: page.pomodoroSessions }),
       ...(page.googleCalendarEventId && { googleCalendarEventId: page.googleCalendarEventId })
     };
 

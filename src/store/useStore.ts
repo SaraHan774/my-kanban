@@ -3,7 +3,7 @@
  */
 
 import { create } from 'zustand';
-import { Page, AppConfig, DEFAULT_CONFIG } from '@/types';
+import { Page, AppConfig, DEFAULT_CONFIG, SortOptions } from '@/types';
 
 interface AppState {
   // File system access
@@ -29,16 +29,16 @@ interface AppState {
   sidebarOpen: boolean;
   setSidebarOpen: (open: boolean) => void;
 
-  // Active pomodoro
-  activePomodoroPageId: string | null;
-  setActivePomodoroPageId: (pageId: string | null) => void;
-
   // Filter state
   activeFilters: {
     tags: string[];
     searchText: string;
   };
   setActiveFilters: (filters: { tags: string[]; searchText: string }) => void;
+
+  // Sort state
+  sortOptions: SortOptions | null;
+  setSortOptions: (sort: SortOptions | null) => void;
 }
 
 export const useStore = create<AppState>((set) => ({
@@ -73,14 +73,14 @@ export const useStore = create<AppState>((set) => ({
   sidebarOpen: true,
   setSidebarOpen: (open) => set({ sidebarOpen: open }),
 
-  // Active pomodoro
-  activePomodoroPageId: null,
-  setActivePomodoroPageId: (pageId) => set({ activePomodoroPageId: pageId }),
-
   // Filter state
   activeFilters: {
     tags: [],
     searchText: ''
   },
-  setActiveFilters: (filters) => set({ activeFilters: filters })
+  setActiveFilters: (filters) => set({ activeFilters: filters }),
+
+  // Sort state
+  sortOptions: null,
+  setSortOptions: (sort) => set({ sortOptions: sort })
 }));

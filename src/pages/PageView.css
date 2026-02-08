@@ -1,7 +1,7 @@
 .page-view {
-  max-width: 1200px;
-  margin: 0 auto;
-  padding: 2rem;
+  width: 100%;
+  margin: 0;
+  padding: 0;
 }
 
 .loading, .error {
@@ -11,14 +11,43 @@
   font-size: 1.125rem;
 }
 
+/* Header */
 .page-header {
-  margin-bottom: 2rem;
+  margin: 0 2rem 2rem 2rem;
   padding-bottom: 1rem;
   border-bottom: 1px solid var(--border-color);
 }
 
-.page-header h1 {
+.page-header-top {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
   margin-bottom: 1rem;
+}
+
+.page-header-top h1 {
+  flex: 1;
+  margin: 0;
+}
+
+.page-actions {
+  display: flex;
+  gap: 0.5rem;
+  flex-shrink: 0;
+}
+
+.btn-danger {
+  background-color: transparent;
+  color: #ef4444;
+  border: 1px solid #ef4444;
+  padding: 0.5rem 1rem;
+  border-radius: 6px;
+  font-weight: 500;
+}
+
+.btn-danger:hover {
+  background-color: #ef4444;
+  color: white;
 }
 
 .page-meta {
@@ -26,6 +55,15 @@
   gap: 1rem;
   align-items: center;
   flex-wrap: wrap;
+}
+
+.page-column-badge {
+  background-color: var(--accent-primary);
+  color: white;
+  padding: 0.2rem 0.75rem;
+  border-radius: 12px;
+  font-size: 0.8rem;
+  font-weight: 500;
 }
 
 .tags {
@@ -56,9 +94,17 @@
   font-size: 0.875rem;
 }
 
+.page-dates {
+  display: flex;
+  gap: 1rem;
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+}
+
 /* Document view */
 .document-view {
   line-height: 1.8;
+  padding: 0 2rem 2rem 2rem;
 }
 
 .markdown-content {
@@ -94,89 +140,27 @@
   color: var(--text-secondary);
 }
 
-/* Kanban view */
-.kanban-view {
-  margin-top: 2rem;
-}
-
-.kanban-board {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
-  gap: 1.5rem;
-  overflow-x: auto;
-}
-
-.kanban-column {
-  background-color: var(--bg-secondary);
+.markdown-content img {
+  max-width: 100%;
   border-radius: 8px;
-  overflow: hidden;
-  min-width: 300px;
 }
 
-.column-header {
-  padding: 1rem;
-  background-color: var(--bg-tertiary);
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  border-bottom: 2px solid var(--border-color);
+.markdown-content table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 1rem 0;
 }
 
-.column-header h3 {
-  margin: 0;
-  font-size: 1rem;
+.markdown-content th,
+.markdown-content td {
+  border: 1px solid var(--border-color);
+  padding: 0.5rem 0.75rem;
+  text-align: left;
+}
+
+.markdown-content th {
+  background-color: var(--bg-secondary);
   font-weight: 600;
-}
-
-.card-count {
-  background-color: var(--bg-primary);
-  color: var(--text-secondary);
-  padding: 0.25rem 0.5rem;
-  border-radius: 12px;
-  font-size: 0.75rem;
-  font-weight: 600;
-}
-
-.column-content {
-  padding: 1rem;
-  min-height: 200px;
-  display: flex;
-  flex-direction: column;
-  gap: 0.75rem;
-}
-
-.kanban-card {
-  background-color: var(--bg-primary);
-  padding: 1rem;
-  border-radius: 6px;
-  box-shadow: var(--shadow-sm);
-  cursor: pointer;
-  transition: all 0.2s;
-}
-
-.kanban-card:hover {
-  box-shadow: var(--shadow-md);
-  transform: translateY(-2px);
-}
-
-.kanban-card h4 {
-  margin: 0 0 0.5rem 0;
-  font-size: 1rem;
-  font-weight: 600;
-}
-
-.card-tags {
-  display: flex;
-  gap: 0.25rem;
-  flex-wrap: wrap;
-  margin-bottom: 0.5rem;
-}
-
-.card-excerpt {
-  color: var(--text-secondary);
-  font-size: 0.875rem;
-  line-height: 1.5;
-  margin: 0;
 }
 
 /* Sub-pages */
@@ -200,8 +184,10 @@
   background-color: var(--bg-secondary);
   padding: 1rem;
   border-radius: 6px;
-  cursor: pointer;
-  transition: all 0.2s;
+  transition: all 0.15s;
+  color: inherit;
+  text-decoration: none;
+  display: block;
 }
 
 .sub-page-card:hover {
@@ -211,4 +197,5 @@
 .sub-page-card h3 {
   margin: 0 0 0.5rem 0;
   font-size: 1rem;
+  color: var(--text-primary);
 }

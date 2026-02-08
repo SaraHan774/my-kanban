@@ -8,22 +8,80 @@
 
 export class FileSystemService {
   private rootHandle: FileSystemDirectoryHandle | null = null;
+  private static readonly DB_NAME = 'my-kanban-fs';
+  private static readonly STORE_NAME = 'handles';
 
   /**
    * Request access to a directory from the user
    * This will prompt the user to select a folder
    */
   async requestDirectoryAccess(): Promise<FileSystemDirectoryHandle> {
-    if (!('showDirectoryPicker' in window)) {
+    if (typeof showDirectoryPicker === 'undefined') {
       throw new Error('File System Access API is not supported in this browser');
     }
 
-    this.rootHandle = await window.showDirectoryPicker({
+    const handle = await showDirectoryPicker({
       mode: 'readwrite',
       startIn: 'documents'
     });
 
-    return this.rootHandle;
+    this.rootHandle = handle;
+
+    // Persist handle to IndexedDB so it survives page refresh
+    try {
+      await this.saveHandleToIDB(handle);
+    } catch {
+      // IndexedDB unavailable (e.g. in tests) — continue without persistence
+    }
+
+    return handle;
+  }
+
+  /**
+   * Attempt to restore file system access from a previously saved handle.
+   * Returns 'granted' if restored silently, 'prompt' if user gesture needed,
+   * or 'denied' if no saved handle exists.
+   */
+  async tryRestore(): Promise<'granted' | 'prompt' | 'denied'> {
+    try {
+      const handle = await this.loadHandleFromIDB();
+      if (!handle) return 'denied';
+
+      const permission = await handle.queryPermission({ mode: 'readwrite' });
+
+      if (permission === 'granted') {
+        this.rootHandle = handle;
+        return 'granted';
+      }
+
+      // Handle exists in IDB but needs user gesture to re-grant permission
+      if (permission === 'prompt') {
+        return 'prompt';
+      }
+
+      return 'denied';
+    } catch {
+      return 'denied';
+    }
+  }
+
+  /**
+   * Re-request permission for a previously saved handle (requires user gesture / click)
+   */
+  async requestRestoredPermission(): Promise<boolean> {
+    try {
+      const handle = await this.loadHandleFromIDB();
+      if (!handle) return false;
+
+      const permission = await handle.requestPermission({ mode: 'readwrite' });
+      if (permission === 'granted') {
+        this.rootHandle = handle;
+        return true;
+      }
+      return false;
+    } catch {
+      return false;
+    }
   }
 
   /**
@@ -38,6 +96,42 @@ export class FileSystemService {
    */
   setRootHandle(handle: FileSystemDirectoryHandle): void {
     this.rootHandle = handle;
+  }
+
+  // --- IndexedDB persistence for FileSystemDirectoryHandle ---
+
+  private async saveHandleToIDB(handle: FileSystemDirectoryHandle): Promise<void> {
+    return new Promise((resolve, reject) => {
+      const request = indexedDB.open(FileSystemService.DB_NAME, 1);
+      request.onupgradeneeded = () => {
+        request.result.createObjectStore(FileSystemService.STORE_NAME);
+      };
+      request.onsuccess = () => {
+        const db = request.result;
+        const tx = db.transaction(FileSystemService.STORE_NAME, 'readwrite');
+        tx.objectStore(FileSystemService.STORE_NAME).put(handle, 'root');
+        tx.oncomplete = () => { db.close(); resolve(); };
+        tx.onerror = () => { db.close(); reject(tx.error); };
+      };
+      request.onerror = () => reject(request.error);
+    });
+  }
+
+  private async loadHandleFromIDB(): Promise<FileSystemDirectoryHandle | null> {
+    return new Promise((resolve, reject) => {
+      const request = indexedDB.open(FileSystemService.DB_NAME, 1);
+      request.onupgradeneeded = () => {
+        request.result.createObjectStore(FileSystemService.STORE_NAME);
+      };
+      request.onsuccess = () => {
+        const db = request.result;
+        const tx = db.transaction(FileSystemService.STORE_NAME, 'readonly');
+        const getReq = tx.objectStore(FileSystemService.STORE_NAME).get('root');
+        getReq.onsuccess = () => { db.close(); resolve(getReq.result || null); };
+        getReq.onerror = () => { db.close(); reject(getReq.error); };
+      };
+      request.onerror = () => reject(request.error);
+    });
   }
 
   /**

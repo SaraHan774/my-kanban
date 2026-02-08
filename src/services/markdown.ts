@@ -3,21 +3,28 @@
  * Handles parsing and serializing markdown files with YAML frontmatter
  */
 
-import matter from 'gray-matter';
+import yaml from 'js-yaml';
 import { marked } from 'marked';
 import { PageFrontmatter, RawPageData } from '@/types';
+
+const FRONTMATTER_RE = /^---\r?\n([\s\S]*?)\r?\n---\r?\n?([\s\S]*)$/;
 
 export class MarkdownService {
   /**
    * Parse a markdown file with frontmatter
-   * @param content - Raw markdown content with frontmatter
-   * @param path - File path (for metadata)
    */
   parse(content: string, path: string): RawPageData {
-    const { data, content: markdownContent } = matter(content);
+    let frontmatter: Record<string, unknown> = {};
+    let markdownContent = content;
+
+    const match = content.match(FRONTMATTER_RE);
+    if (match) {
+      frontmatter = (yaml.load(match[1]) as Record<string, unknown>) || {};
+      markdownContent = match[2];
+    }
 
     return {
-      frontmatter: this.normalizeFrontmatter(data),
+      frontmatter: this.normalizeFrontmatter(frontmatter),
       content: markdownContent.trim(),
       path
     };
@@ -25,11 +32,10 @@ export class MarkdownService {
 
   /**
    * Serialize frontmatter and content back to markdown
-   * @param frontmatter - Page frontmatter
-   * @param content - Markdown content
    */
   serialize(frontmatter: PageFrontmatter, content: string): string {
-    return matter.stringify(content, frontmatter);
+    const yamlStr = yaml.dump(frontmatter, { lineWidth: -1, quotingType: '"', forceQuotes: false });
+    return `---\n${yamlStr}---\n${content}\n`;
   }
 
   /**
@@ -56,8 +62,6 @@ export class MarkdownService {
       viewType: data.viewType || 'document',
       ...(data.dueDate && { dueDate: data.dueDate }),
       ...(data.kanbanColumn && { kanbanColumn: data.kanbanColumn }),
-      ...(data.kanbanColumns && { kanbanColumns: data.kanbanColumns }),
-      ...(data.pomodoroSessions && { pomodoroSessions: data.pomodoroSessions }),
       ...(data.googleCalendarEventId && { googleCalendarEventId: data.googleCalendarEventId })
     };
   }
