@@ -254,3 +254,30 @@
   opacity: 0.5;
   cursor: not-allowed;
 }
+
+/* Toast notification */
+.toast-notification {
+  position: fixed !important;
+  bottom: 2rem !important;
+  left: 50% !important;
+  transform: translateX(-50%) !important;
+  display: flex !important;
+  align-items: center !important;
+  gap: 12px !important;
+  padding: 16px 24px !important;
+  background-color: #22c55e !important;
+  color: white !important;
+  border-radius: 12px !important;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15), 0 0 0 1px rgba(255, 255, 255, 0.1) !important;
+  z-index: 999999 !important;
+  font-family: 'Lobster', cursive !important;
+  font-size: 18px !important;
+  min-width: 280px !important;
+  pointer-events: auto !important;
+  opacity: 1 !important;
+}
+
+.toast-notification .material-symbols-outlined {
+  font-size: 28px !important;
+  font-variation-settings: 'FILL' 1 !important;
+}

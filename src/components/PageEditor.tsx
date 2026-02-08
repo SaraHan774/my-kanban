@@ -22,6 +22,7 @@ export function PageEditor({ page, onSave, onCancel }: PageEditorProps) {
   const [saving, setSaving] = useState(false);
   const [preview, setPreview] = useState(false);
   const [previewHtml, setPreviewHtml] = useState('');
+  const [showToast, setShowToast] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
   // Derive existing columns from all pages' kanbanColumn values (case-insensitive dedup)
@@ -95,6 +96,14 @@ export function PageEditor({ page, onSave, onCancel }: PageEditorProps) {
       await pageService.updatePage(updatedPage);
       updatePageInStore(updatedPage);
       onSave(updatedPage);
+
+      // Show success toast
+      console.log('Showing toast...');
+      setShowToast(true);
+      setTimeout(() => {
+        console.log('Hiding toast...');
+        setShowToast(false);
+      }, 3000);
     } catch (error) {
       console.error('Failed to save page:', error);
       alert('Failed to save page. Please try again.');
@@ -104,8 +113,15 @@ export function PageEditor({ page, onSave, onCancel }: PageEditorProps) {
   };
 
   return (
-    <div className="page-editor">
-      <div className="editor-toolbar">
+    <>
+      {showToast && (
+        <div className="toast-notification">
+          <span className="material-symbols-outlined">check_circle</span>
+          <span>Saved successfully!</span>
+        </div>
+      )}
+      <div className="page-editor">
+        <div className="editor-toolbar">
         <div className="editor-toolbar-left">
           <button
             className={`toolbar-btn ${!preview ? 'active' : ''}`}
@@ -241,6 +257,7 @@ export function PageEditor({ page, onSave, onCancel }: PageEditorProps) {
           spellCheck
         />
       )}
-    </div>
+      </div>
+    </>
   );
 }

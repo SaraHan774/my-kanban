@@ -13,14 +13,14 @@ export function PageView() {
   const [page, setPage] = useState<Page | null>(null);
   const [htmlContent, setHtmlContent] = useState<string>('');
   const [loading, setLoading] = useState(true);
-  const [editing, setEditing] = useState(true);
+  const [editing, setEditing] = useState(false);
 
   useEffect(() => {
     if (pageId) {
       loadPage(pageId);
-      setEditing(true);
+      setEditing(false);
     }
-  }, [pageId, pages]);
+  }, [pageId]); // Removed 'pages' to prevent reload on save
 
   const loadPage = async (id: string) => {
     setLoading(true);
@@ -53,7 +53,7 @@ export function PageView() {
 
   const handleEditorSave = (updatedPage: Page) => {
     setPage(updatedPage);
-    setEditing(false);
+    // Keep editing mode active after save
     markdownService.toHtml(updatedPage.content).then(setHtmlContent);
   };
 
