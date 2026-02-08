@@ -8,22 +8,52 @@ export default defineConfig({
     react(),
     VitePWA({
       registerType: 'autoUpdate',
-      includeAssets: ['favicon.ico', 'robots.txt', 'apple-touch-icon.png'],
+      includeAssets: ['icon.svg'],
+      workbox: {
+        globPatterns: ['**/*.{js,css,html,ico,png,svg,woff2}'],
+        runtimeCaching: [
+          {
+            urlPattern: /^https:\/\/fonts\.googleapis\.com\/.*/i,
+            handler: 'CacheFirst',
+            options: {
+              cacheName: 'google-fonts-cache',
+              expiration: {
+                maxEntries: 10,
+                maxAgeSeconds: 60 * 60 * 24 * 365 // 1 year
+              },
+              cacheableResponse: {
+                statuses: [0, 200]
+              }
+            }
+          }
+        ]
+      },
       manifest: {
-        name: 'My Kanban',
+        name: 'My Kanban Board',
         short_name: 'Kanban',
-        description: 'Local file-based Kanban board with Notion-like pages',
-        theme_color: '#ffffff',
+        description: 'Local file-based Kanban board with Notion-like pages and markdown support',
+        theme_color: '#6366f1',
+        background_color: '#ffffff',
+        display: 'standalone',
+        start_url: '/',
+        scope: '/',
+        orientation: 'any',
         icons: [
           {
-            src: 'pwa-192x192.png',
-            sizes: '192x192',
-            type: 'image/png'
-          },
-          {
-            src: 'pwa-512x512.png',
+            src: 'icon.svg',
             sizes: '512x512',
-            type: 'image/png'
+            type: 'image/svg+xml',
+            purpose: 'any maskable'
+          }
+        ],
+        categories: ['productivity', 'utilities'],
+        shortcuts: [
+          {
+            name: 'New Page',
+            short_name: 'New',
+            description: 'Create a new page',
+            url: '/#new',
+            icons: [{ src: 'icon.svg', sizes: '512x512', type: 'image/svg+xml' }]
           }
         ]
       }

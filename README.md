@@ -82,7 +82,27 @@ This is the content of the page.
 - Node.js 18+ (for development)
 - Modern browser with File System Access API support (Chrome, Edge, Opera)
 
-### Installation
+### Option 1: Install as Desktop App (Recommended)
+
+The easiest way to use My Kanban is to install it as a desktop application:
+
+1. **Visit the hosted app** (or run it locally - see Option 2)
+2. **Look for the install prompt** at the bottom of the screen
+3. **Click "Install"** to add it to your desktop
+4. **Launch from your applications** folder or start menu
+
+Once installed:
+- ✅ Works like a native desktop app
+- ✅ Accessible from your app launcher/dock
+- ✅ Runs in standalone window (no browser UI)
+- ✅ Works offline after first load
+- ✅ Automatic updates when online
+
+**Manual Installation (if prompt doesn't appear):**
+- **Chrome/Edge**: Click the ⊕ icon in the address bar → "Install"
+- **Desktop**: Look for "Install My Kanban" in browser menu
+
+### Option 2: Run Locally for Development
 
 1. **Install dependencies:**
    ```bash
@@ -97,10 +117,9 @@ This is the content of the page.
 3. **Open in browser:**
    Navigate to `http://localhost:5173`
 
-4. **Select workspace folder:**
-   - Click "Select Workspace Folder"
-   - Choose a folder where your data will be stored
-   - The app will create a `workspace/` subfolder inside
+4. **Install as desktop app:**
+   - The install prompt will appear automatically
+   - Or use browser's install option in the menu
 
 ### Building for Production
 
@@ -109,9 +128,25 @@ npm run build
 npm run preview
 ```
 
-The build output will be in the `dist/` folder, ready to deploy to any static hosting service.
+The build output will be in the `dist/` folder, ready to:
+- Deploy to any static hosting service
+- Open locally as a PWA
+- Install as desktop application
 
 ## 📖 Usage Guide
+
+### First-Time Setup
+
+1. **Grant folder access:**
+   - Click "Select Workspace Folder"
+   - Choose a folder where your data will be stored
+   - The app will create a `workspace/` subfolder inside
+   - Permission is remembered across sessions
+
+2. **Start creating:**
+   - Click "New Page" in the sidebar
+   - Choose page type (Document or Kanban)
+   - Start organizing your work!
 
 ### Creating Pages
 
@@ -256,11 +291,24 @@ MIT License - feel free to use this for your own projects.
 ## 💡 Why This App?
 
 **No costs, full control:**
-- 100% free - no subscriptions, no hidden fees
-- Your data lives on your file system
-- Git-friendly - track changes with version control
-- Markdown-based - portable and future-proof
-- Works offline - PWA with full offline support
-- No vendor lock-in - your notes are yours forever
+- 🆓 **100% free** - no subscriptions, no hidden fees
+- 💾 **Your data, your disk** - everything lives on your file system
+- 🔒 **Complete privacy** - no servers, no tracking, no uploads
+- 📱 **Desktop app** - install and use like a native application
+- 🌐 **Works offline** - PWA with full offline support
+- 📝 **Markdown-based** - portable and future-proof format
+- 🔄 **Git-friendly** - track changes with version control
+- 🚫 **No vendor lock-in** - your notes are yours forever
+- 🖥️ **Cross-platform** - works on Windows, Mac, Linux
 
-Built as a **Notion alternative** for developers who want to own their data.
+Built as a **Notion alternative** for developers and privacy-conscious users who want to own their data.
+
+## 🖥️ Desktop Features
+
+When installed as a desktop app, you get:
+- Standalone window (no browser UI clutter)
+- Quick launch from dock/taskbar
+- System integration (file associations, notifications ready)
+- Offline-first design
+- Automatic background updates
+- Native-like performance
