@@ -133,6 +133,12 @@
   margin-bottom: 0.5rem;
 }
 
+.markdown-content li > ul,
+.markdown-content li > ol {
+  margin-top: 0.75rem;
+  margin-bottom: 0.5rem;
+}
+
 .markdown-content blockquote {
   border-left: 4px solid var(--accent-primary);
   padding-left: 1rem;

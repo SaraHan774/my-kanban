@@ -20,7 +20,14 @@ export function PageView() {
       loadPage(pageId);
       setEditing(false);
     }
-  }, [pageId]); // Removed 'pages' to prevent reload on save
+  }, [pageId]);
+
+  // Retry when pages become available (e.g., after refresh restores file system access)
+  useEffect(() => {
+    if (pageId && !page && !loading && pages.length > 0) {
+      loadPage(pageId);
+    }
+  }, [pages.length]);
 
   const loadPage = async (id: string) => {
     setLoading(true);

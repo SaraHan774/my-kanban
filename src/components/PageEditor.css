@@ -285,8 +285,9 @@
   border-radius: 12px !important;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15), 0 0 0 1px rgba(255, 255, 255, 0.1) !important;
   z-index: 999999 !important;
-  font-family: 'Lobster', cursive !important;
+  font-family: 'Asta Sans', sans-serif !important;
   font-size: 18px !important;
+  font-weight: 600 !important;
   min-width: 280px !important;
   pointer-events: auto !important;
   opacity: 1 !important;

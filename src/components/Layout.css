@@ -27,7 +27,7 @@
   gap: 0.375rem;
   padding: 0.375rem 0.75rem;
   border-radius: 6px;
-  font-family: 'Lobster', cursive;
+  font-family: 'Asta Sans', sans-serif;
   font-size: 0.85rem;
   font-weight: 600;
   color: var(--text-primary);
@@ -112,7 +112,7 @@
 }
 
 .theme-label {
-  font-family: 'Lobster', cursive;
+  font-family: 'Asta Sans', sans-serif;
   font-size: 0.85rem;
-  font-weight: 500;
+  font-weight: 600;
 }
