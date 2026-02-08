@@ -2,3 +2,4 @@
 export * from './fileSystem';
 export * from './markdown';
 export * from './pageService';
+export * from './configService';

@@ -3,8 +3,13 @@ import { useStore } from '@/store/useStore';
 import { AppSlashCommand } from '@/data/defaultSlashCommands';
 import './Settings.css';
 
+const DEFAULT_PALETTE = ['#3b82f6', '#f59e0b', '#22c55e', '#ef4444', '#8b5cf6', '#ec4899', '#14b8a6', '#f97316'];
+
 export function Settings() {
-  const { slashCommands, addSlashCommand, updateSlashCommand, removeSlashCommand, resetSlashCommands } = useStore();
+  const {
+    slashCommands, addSlashCommand, updateSlashCommand, removeSlashCommand, resetSlashCommands,
+    pages, columnColors, setColumnColor, removeColumnColor,
+  } = useStore();
   const [editingId, setEditingId] = useState<string | null>(null);
   const [isAdding, setIsAdding] = useState(false);
 
@@ -178,9 +183,62 @@ export function Settings() {
     </div>
   );
 
+  // Derive existing columns from all pages
+  const existingColumns = Array.from(
+    pages.map(p => p.kanbanColumn).filter(Boolean).reduce((map, col) => {
+      const key = (col as string).toLowerCase();
+      if (!map.has(key)) map.set(key, col as string);
+      return map;
+    }, new Map<string, string>()).values()
+  );
+
+  const getColumnColor = (col: string, idx: number) => {
+    return columnColors[col.toLowerCase()] || DEFAULT_PALETTE[idx % DEFAULT_PALETTE.length];
+  };
+
   return (
     <div className="settings-page">
       <h1>Settings</h1>
+
+      <section className="settings-section">
+        <div className="settings-section-header">
+          <h2>Column Colors</h2>
+        </div>
+
+        {existingColumns.length === 0 ? (
+          <p className="settings-empty-hint">No columns yet. Assign a column to a page to see it here.</p>
+        ) : (
+          <div className="settings-color-list">
+            {existingColumns.map((col, idx) => {
+              const color = getColumnColor(col, idx);
+              const isCustom = !!columnColors[col.toLowerCase()];
+              return (
+                <div key={col} className="settings-color-row">
+                  <span className="settings-color-chip" style={{ backgroundColor: color }}>
+                    {col}
+                  </span>
+                  <input
+                    type="color"
+                    value={color}
+                    onChange={(e) => setColumnColor(col, e.target.value)}
+                    className="settings-color-input"
+                    title={`Change color for "${col}"`}
+                  />
+                  {isCustom && (
+                    <button
+                      className="settings-cmd-btn"
+                      onClick={() => removeColumnColor(col)}
+                      title="Reset to default"
+                    >
+                      Reset
+                    </button>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </section>
 
       <section className="settings-section">
         <div className="settings-section-header">

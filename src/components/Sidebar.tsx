@@ -6,7 +6,7 @@ import { CreatePageModal } from './CreatePageModal';
 import './Sidebar.css';
 
 export function Sidebar() {
-  const { pages, setPages, hasFileSystemAccess, setSidebarOpen, activeFilters, setActiveFilters, sortOptions, setSortOptions } = useStore();
+  const { pages, setPages, hasFileSystemAccess, setSidebarOpen, activeFilters, setActiveFilters, sortOptions, setSortOptions, loadSettingsFromFile } = useStore();
   const [loading, setLoading] = useState(false);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [createParentPath, setCreateParentPath] = useState<string | undefined>();
@@ -15,6 +15,7 @@ export function Sidebar() {
 
   useEffect(() => {
     if (hasFileSystemAccess) {
+      loadSettingsFromFile();
       loadPages();
     }
   }, [hasFileSystemAccess]);

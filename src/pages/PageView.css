@@ -169,6 +169,22 @@
   font-weight: 600;
 }
 
+/* Interactive checkboxes (GitHub-style) */
+.markdown-content input[type="checkbox"] {
+  width: 1rem;
+  height: 1rem;
+  margin-right: 0.375rem;
+  cursor: pointer;
+  accent-color: var(--accent-primary);
+  vertical-align: middle;
+}
+
+.markdown-content li:has(> input[type="checkbox"]:checked) {
+  text-decoration: line-through;
+  color: var(--text-secondary);
+  opacity: 0.6;
+}
+
 /* Sub-pages */
 .sub-pages {
   margin-top: 3rem;

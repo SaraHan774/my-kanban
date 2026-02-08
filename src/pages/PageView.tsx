@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef, useCallback } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { useStore } from '@/store/useStore';
 import { pageService, markdownService } from '@/services';
@@ -9,11 +9,12 @@ import './PageView.css';
 export function PageView() {
   const { pageId } = useParams<{ pageId: string }>();
   const navigate = useNavigate();
-  const { pages, removePage, sidebarOpen, setSidebarOpen } = useStore();
+  const { pages, removePage, updatePageInStore, sidebarOpen, setSidebarOpen, columnColors } = useStore();
   const [page, setPage] = useState<Page | null>(null);
   const [htmlContent, setHtmlContent] = useState<string>('');
   const [loading, setLoading] = useState(true);
   const [editing, setEditing] = useState(false);
+  const contentRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (pageId) {
@@ -46,6 +47,55 @@ export function PageView() {
     }
   };
 
+  // Toggle the N-th checkbox in markdown content and auto-save
+  const handleCheckboxToggle = useCallback(async (checkboxIndex: number) => {
+    if (!page) return;
+
+    let idx = 0;
+    const newContent = page.content.replace(/- \[([ x])\]/g, (match, state) => {
+      if (idx++ === checkboxIndex) {
+        return state === 'x' ? '- [ ]' : '- [x]';
+      }
+      return match;
+    });
+
+    const updatedPage = { ...page, content: newContent, updatedAt: new Date().toISOString() };
+    setPage(updatedPage);
+    updatePageInStore(updatedPage);
+
+    const html = await markdownService.toHtml(newContent);
+    setHtmlContent(html);
+
+    try {
+      await pageService.updatePage(updatedPage);
+    } catch (err) {
+      console.error('Failed to save checkbox state:', err);
+    }
+  }, [page, updatePageInStore]);
+
+  // Attach click handlers to rendered checkboxes
+  useEffect(() => {
+    const container = contentRef.current;
+    if (!container) return;
+
+    const checkboxes = container.querySelectorAll<HTMLInputElement>('input[type="checkbox"]');
+    const handlers: Array<() => void> = [];
+
+    checkboxes.forEach((cb, index) => {
+      cb.disabled = false;
+      cb.style.cursor = 'pointer';
+      const handler = () => handleCheckboxToggle(index);
+      cb.addEventListener('click', handler);
+      handlers.push(handler);
+    });
+
+    return () => {
+      checkboxes.forEach((cb, index) => {
+        cb.removeEventListener('click', handlers[index]);
+      });
+    };
+  }, [htmlContent, handleCheckboxToggle]);
+
   const handleDelete = async () => {
     if (!page) return;
     if (!window.confirm(`Delete "${page.title}"? This will also delete all sub-pages.`)) return;
@@ -60,8 +110,8 @@ export function PageView() {
 
   const handleEditorSave = (updatedPage: Page) => {
     setPage(updatedPage);
-    // Keep editing mode active after save
     markdownService.toHtml(updatedPage.content).then(setHtmlContent);
+    setEditing(false);
   };
 
   if (loading) {
@@ -113,15 +163,13 @@ export function PageView() {
         </div>
         <div className="page-meta">
           {page.kanbanColumn && (
-            <div className="page-column-badge">
+            <div
+              className="page-column-badge"
+              style={columnColors[page.kanbanColumn.toLowerCase()]
+                ? { backgroundColor: columnColors[page.kanbanColumn.toLowerCase()] }
+                : undefined}
+            >
               {page.kanbanColumn}
-            </div>
-          )}
-          {page.tags.length > 0 && (
-            <div className="tags">
-              {page.tags.map(tag => (
-                <span key={tag} className="tag">{tag}</span>
-              ))}
             </div>
           )}
           {page.dueDate && (
@@ -138,6 +186,7 @@ export function PageView() {
 
       <div className="document-view">
         <div
+          ref={contentRef}
           className="markdown-content"
           dangerouslySetInnerHTML={{ __html: htmlContent }}
         />

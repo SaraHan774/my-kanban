@@ -5,19 +5,22 @@
 import { create } from 'zustand';
 import { Page, AppConfig, DEFAULT_CONFIG, SortOptions } from '@/types';
 import { AppSlashCommand, DEFAULT_SLASH_COMMANDS } from '@/data/defaultSlashCommands';
+import { configService } from '@/services/configService';
 
-const SLASH_COMMANDS_KEY = 'kanban-slash-commands';
+// Load initial settings from localStorage (synchronous, fast first render)
+const initialSettings = configService.loadFromLocalStorage();
 
-const loadSlashCommands = (): AppSlashCommand[] => {
-  try {
-    const stored = localStorage.getItem(SLASH_COMMANDS_KEY);
-    if (stored) return JSON.parse(stored);
-  } catch { /* ignore */ }
-  return DEFAULT_SLASH_COMMANDS;
-};
-
-const saveSlashCommands = (commands: AppSlashCommand[]) => {
-  localStorage.setItem(SLASH_COMMANDS_KEY, JSON.stringify(commands));
+/** Collect current settings from state and persist to both localStorage + file */
+const persistSettings = (state: {
+  columnColors: Record<string, string>;
+  slashCommands: AppSlashCommand[];
+  theme: 'light' | 'dark' | 'auto';
+}) => {
+  configService.save({
+    columnColors: state.columnColors,
+    slashCommands: state.slashCommands,
+    theme: state.theme,
+  });
 };
 
 interface AppState {
@@ -55,15 +58,27 @@ interface AppState {
   sortOptions: SortOptions | null;
   setSortOptions: (sort: SortOptions | null) => void;
 
+  // Theme (persisted)
+  theme: 'light' | 'dark' | 'auto';
+  setTheme: (theme: 'light' | 'dark' | 'auto') => void;
+
+  // Column colors
+  columnColors: Record<string, string>;
+  setColumnColor: (column: string, color: string) => void;
+  removeColumnColor: (column: string) => void;
+
   // Slash commands
   slashCommands: AppSlashCommand[];
   addSlashCommand: (cmd: AppSlashCommand) => void;
   updateSlashCommand: (cmd: AppSlashCommand) => void;
   removeSlashCommand: (id: string) => void;
   resetSlashCommands: () => void;
+
+  // Settings persistence
+  loadSettingsFromFile: () => Promise<void>;
 }
 
-export const useStore = create<AppState>((set) => ({
+export const useStore = create<AppState>((set, get) => ({
   // File system access
   hasFileSystemAccess: false,
   setHasFileSystemAccess: (hasAccess) => set({ hasFileSystemAccess: hasAccess }),
@@ -106,29 +121,76 @@ export const useStore = create<AppState>((set) => ({
   sortOptions: null,
   setSortOptions: (sort) => set({ sortOptions: sort }),
 
+  // Theme
+  theme: initialSettings.theme,
+  setTheme: (theme) => {
+    set({ theme });
+    const state = get();
+    persistSettings({ ...state, theme });
+  },
+
+  // Column colors
+  columnColors: initialSettings.columnColors,
+  setColumnColor: (column, color) =>
+    set((state) => {
+      const updated = { ...state.columnColors, [column.toLowerCase()]: color };
+      persistSettings({ ...state, columnColors: updated });
+      return { columnColors: updated };
+    }),
+  removeColumnColor: (column) =>
+    set((state) => {
+      const updated = { ...state.columnColors };
+      delete updated[column.toLowerCase()];
+      persistSettings({ ...state, columnColors: updated });
+      return { columnColors: updated };
+    }),
+
   // Slash commands
-  slashCommands: loadSlashCommands(),
+  slashCommands: initialSettings.slashCommands,
   addSlashCommand: (cmd) =>
     set((state) => {
       const updated = [...state.slashCommands, cmd];
-      saveSlashCommands(updated);
+      persistSettings({ ...state, slashCommands: updated });
       return { slashCommands: updated };
     }),
   updateSlashCommand: (cmd) =>
     set((state) => {
       const updated = state.slashCommands.map((c) => (c.id === cmd.id ? cmd : c));
-      saveSlashCommands(updated);
+      persistSettings({ ...state, slashCommands: updated });
       return { slashCommands: updated };
     }),
   removeSlashCommand: (id) =>
     set((state) => {
       const updated = state.slashCommands.filter((c) => c.id !== id);
-      saveSlashCommands(updated);
+      persistSettings({ ...state, slashCommands: updated });
       return { slashCommands: updated };
     }),
   resetSlashCommands: () =>
-    set(() => {
-      saveSlashCommands(DEFAULT_SLASH_COMMANDS);
+    set((state) => {
+      persistSettings({ ...state, slashCommands: DEFAULT_SLASH_COMMANDS });
       return { slashCommands: DEFAULT_SLASH_COMMANDS };
     }),
+
+  // Load settings from .kanban-config.json (called when FS access is granted)
+  loadSettingsFromFile: async () => {
+    const fileSettings = await configService.loadFromFile();
+    if (fileSettings) {
+      // File exists → use file as source of truth
+      set({
+        columnColors: fileSettings.columnColors,
+        slashCommands: fileSettings.slashCommands,
+        theme: fileSettings.theme,
+      });
+      // Sync localStorage cache
+      configService.saveToLocalStorage(fileSettings);
+    } else {
+      // File doesn't exist → migrate current state (from localStorage) to file
+      const state = get();
+      await configService.saveToFile({
+        columnColors: state.columnColors,
+        slashCommands: state.slashCommands,
+        theme: state.theme,
+      });
+    }
+  },
 }));

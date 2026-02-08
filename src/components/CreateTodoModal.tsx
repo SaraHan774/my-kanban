@@ -1,0 +1,184 @@
+import { useState, useRef, useEffect } from 'react';
+import { useStore } from '@/store/useStore';
+import { pageService } from '@/services';
+import './CreateTodoModal.css';
+
+interface CreateTodoModalProps {
+  onClose: () => void;
+}
+
+export function CreateTodoModal({ onClose }: CreateTodoModalProps) {
+  const { addPage, pages, config } = useStore();
+  const [title, setTitle] = useState('');
+  const [dueDate, setDueDate] = useState('');
+  const [checkItems, setCheckItems] = useState<string[]>([]);
+  const [currentItem, setCurrentItem] = useState('');
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState('');
+  const itemInputRef = useRef<HTMLInputElement>(null);
+
+  // Detect existing "todo" column casing, default to "Todo"
+  const todoColumn = pages.find(p => p.kanbanColumn?.toLowerCase() === 'todo')?.kanbanColumn || 'Todo';
+
+  // Escape to close
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose();
+    };
+    document.addEventListener('keydown', handleKeyDown);
+    return () => document.removeEventListener('keydown', handleKeyDown);
+  }, [onClose]);
+
+  const handleAddItem = () => {
+    const trimmed = currentItem.trim();
+    if (!trimmed) return;
+    setCheckItems(prev => [...prev, trimmed]);
+    setCurrentItem('');
+    itemInputRef.current?.focus();
+  };
+
+  const handleItemKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      handleAddItem();
+    }
+  };
+
+  const handleRemoveItem = (index: number) => {
+    setCheckItems(prev => prev.filter((_, i) => i !== index));
+  };
+
+  const handleCreate = async () => {
+    if (!title.trim()) {
+      setError('Title is required');
+      return;
+    }
+
+    setSaving(true);
+    setError('');
+
+    try {
+      // Build markdown checklist content
+      const content = checkItems.map(item => `- [ ] ${item}`).join('\n');
+
+      const page = await pageService.createPage(config.workspacePath, title.trim(), {
+        viewType: 'document',
+        kanbanColumn: todoColumn,
+        tags: [todoColumn],
+        dueDate: dueDate ? new Date(dueDate).toISOString() : undefined,
+      });
+
+      // Update with checklist content
+      if (content) {
+        page.content = content;
+        await pageService.updatePage(page);
+      }
+
+      addPage(page);
+      onClose();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to create todo');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="modal-overlay" onClick={onClose}>
+      <div className="modal" onClick={e => e.stopPropagation()}>
+        <div className="modal-header">
+          <h2>Todo</h2>
+          <button className="btn-icon" onClick={onClose}>✕</button>
+        </div>
+
+        <div className="todo-body">
+          <div className="form-group">
+            <label htmlFor="todo-title">Title</label>
+            <input
+              id="todo-title"
+              type="text"
+              value={title}
+              onChange={e => setTitle(e.target.value)}
+              placeholder="Todo title..."
+              disabled={saving}
+              autoFocus
+            />
+          </div>
+
+          <div className="form-group">
+            <label htmlFor="todo-due">Due Date</label>
+            <input
+              id="todo-due"
+              type="date"
+              value={dueDate}
+              onChange={e => setDueDate(e.target.value)}
+              disabled={saving}
+            />
+          </div>
+
+          <div className="form-group">
+            <label>Checklist</label>
+            <div className="todo-input-row">
+              <input
+                ref={itemInputRef}
+                type="text"
+                value={currentItem}
+                onChange={e => setCurrentItem(e.target.value)}
+                onKeyDown={handleItemKeyDown}
+                placeholder="Add item and press Enter..."
+                disabled={saving}
+              />
+              <button
+                type="button"
+                className="btn-icon todo-add-btn"
+                onClick={handleAddItem}
+                disabled={saving || !currentItem.trim()}
+                title="Add item"
+              >
+                <span className="material-symbols-outlined">add_circle</span>
+              </button>
+            </div>
+
+            <div className="todo-list">
+              {checkItems.length === 0 ? (
+                <div className="todo-empty-hint">
+                  Press Enter to add checklist items
+                </div>
+              ) : (
+                checkItems.map((item, index) => (
+                  <div key={index} className="todo-item">
+                    <span className="material-symbols-outlined todo-item-check">check_box_outline_blank</span>
+                    <span className="todo-item-title">{item}</span>
+                    <button
+                      className="btn-icon todo-item-delete"
+                      onClick={() => handleRemoveItem(index)}
+                      title="Remove"
+                    >
+                      ✕
+                    </button>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+
+          {error && <div className="form-error">{error}</div>}
+
+          <div className="modal-actions">
+            <button type="button" className="btn btn-secondary" onClick={onClose}>
+              Cancel
+            </button>
+            <button
+              type="button"
+              className="btn btn-primary"
+              onClick={handleCreate}
+              disabled={saving}
+            >
+              {saving ? 'Creating...' : 'Create'}
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}

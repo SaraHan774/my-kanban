@@ -3,14 +3,15 @@ import { Link } from 'react-router-dom';
 import { useStore } from '@/store/useStore';
 import { fileSystemService, pageService, markdownService } from '@/services';
 import { CreatePageModal } from '@/components/CreatePageModal';
+import { CreateTodoModal } from '@/components/CreateTodoModal';
 import './Home.css';
 
-const COLUMN_COLORS = ['#3b82f6', '#f59e0b', '#22c55e', '#ef4444', '#8b5cf6', '#ec4899', '#14b8a6', '#f97316'];
+const DEFAULT_PALETTE = ['#3b82f6', '#f59e0b', '#22c55e', '#ef4444', '#8b5cf6', '#ec4899', '#14b8a6', '#f97316'];
 
 export function Home() {
   const {
     hasFileSystemAccess, setHasFileSystemAccess, setSidebarOpen,
-    pages, updatePageInStore,
+    pages, updatePageInStore, columnColors,
   } = useStore();
 
   const [boardView, setBoardView] = useState<'kanban' | 'list'>('kanban');
@@ -18,6 +19,7 @@ export function Home() {
   const [listSortDir, setListSortDir] = useState<'asc' | 'desc'>('asc');
   const [draggedCardId, setDraggedCardId] = useState<string | null>(null);
   const [showCreateModal, setShowCreateModal] = useState(false);
+  const [showTodoModal, setShowTodoModal] = useState(false);
 
   // 'idle' = checking, 'prompt' = needs user click, 'none' = no saved handle
   const [restoreState, setRestoreState] = useState<'idle' | 'prompt' | 'none'>('idle');
@@ -211,12 +213,21 @@ export function Home() {
         <div className="home-empty">
           <h2>No pages yet</h2>
           <p>Create your first page to get started.</p>
-          <button className="btn btn-primary new-page-btn" onClick={() => setShowCreateModal(true)}>
-            <span className="material-symbols-outlined">add_circle</span>
-            New Page
-          </button>
+          <div style={{ display: 'flex', gap: '0.5rem' }}>
+            <button className="btn btn-primary new-page-btn" onClick={() => setShowTodoModal(true)}>
+              <span className="material-symbols-outlined">check_circle</span>
+              Todo
+            </button>
+            <button className="btn btn-primary new-page-btn" onClick={() => setShowCreateModal(true)}>
+              <span className="material-symbols-outlined">add_circle</span>
+              New Page
+            </button>
+          </div>
           {showCreateModal && (
             <CreatePageModal onClose={() => setShowCreateModal(false)} />
+          )}
+          {showTodoModal && (
+            <CreateTodoModal onClose={() => setShowTodoModal(false)} />
           )}
         </div>
       </div>
@@ -244,6 +255,10 @@ export function Home() {
               List
             </button>
           </div>
+          <button className="btn btn-primary new-page-btn" onClick={() => setShowTodoModal(true)}>
+            <span className="material-symbols-outlined">check_circle</span>
+            Todo
+          </button>
           <button className="btn btn-primary new-page-btn" onClick={() => setShowCreateModal(true)}>
             <span className="material-symbols-outlined">add_circle</span>
             New Page
@@ -255,7 +270,7 @@ export function Home() {
         <div className="kanban-board">
           {columns.map((col, idx) => {
             const columnCards = pages.filter(p => p.kanbanColumn?.toLowerCase() === col.toLowerCase());
-            const color = COLUMN_COLORS[idx % COLUMN_COLORS.length];
+            const color = columnColors[col.toLowerCase()] || DEFAULT_PALETTE[idx % DEFAULT_PALETTE.length];
             return (
               <div
                 key={col}
@@ -376,9 +391,16 @@ export function Home() {
               <Link key={page.id} to={`/page/${page.id}`} className="list-row">
                 <span className="list-cell list-cell-title">{page.title}</span>
                 <span className="list-cell">
-                  {page.kanbanColumn && (
-                    <span className="tag-small">{page.kanbanColumn}</span>
-                  )}
+                  {page.kanbanColumn && (() => {
+                    const colIdx = columns.indexOf(page.kanbanColumn!);
+                    const colColor = columnColors[page.kanbanColumn!.toLowerCase()]
+                      || DEFAULT_PALETTE[(colIdx >= 0 ? colIdx : 0) % DEFAULT_PALETTE.length];
+                    return (
+                      <span className="tag-small" style={{ backgroundColor: colColor, color: 'white' }}>
+                        {page.kanbanColumn}
+                      </span>
+                    );
+                  })()}
                 </span>
                 <span className="list-cell list-cell-date">
                   {page.dueDate ? new Date(page.dueDate).toLocaleDateString() : '—'}
@@ -396,6 +418,9 @@ export function Home() {
 
       {showCreateModal && (
         <CreatePageModal onClose={() => setShowCreateModal(false)} />
+      )}
+      {showTodoModal && (
+        <CreateTodoModal onClose={() => setShowTodoModal(false)} />
       )}
     </div>
   );

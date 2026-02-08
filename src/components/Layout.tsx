@@ -1,17 +1,12 @@
-import { useEffect, useState } from 'react';
+import { useEffect } from 'react';
 import { Outlet, Link } from 'react-router-dom';
 import { Sidebar } from './Sidebar';
 import { useStore } from '@/store/useStore';
 import { fileSystemService } from '@/services';
 import './Layout.css';
 
-type Theme = 'light' | 'dark' | 'auto';
-
 export function Layout() {
-  const { sidebarOpen, setSidebarOpen, hasFileSystemAccess, setHasFileSystemAccess } = useStore();
-  const [theme, setTheme] = useState<Theme>(() => {
-    return (localStorage.getItem('kanban-theme') as Theme) || 'auto';
-  });
+  const { sidebarOpen, setSidebarOpen, hasFileSystemAccess, setHasFileSystemAccess, theme, setTheme } = useStore();
 
   // On mount, attempt to restore file system access from IndexedDB
   useEffect(() => {
@@ -35,15 +30,11 @@ export function Layout() {
     } else {
       root.setAttribute('data-theme', theme);
     }
-    localStorage.setItem('kanban-theme', theme);
   }, [theme]);
 
   const cycleTheme = () => {
-    setTheme(prev => {
-      if (prev === 'auto') return 'light';
-      if (prev === 'light') return 'dark';
-      return 'auto';
-    });
+    const next = theme === 'auto' ? 'light' : theme === 'light' ? 'dark' : 'auto';
+    setTheme(next);
   };
 
   const themeLabel = theme === 'auto' ? 'Auto' : theme === 'light' ? 'Light' : 'Dark';

@@ -11,7 +11,7 @@ interface CreatePageModalProps {
 
 export function CreatePageModal({ onClose, parentPath }: CreatePageModalProps) {
   const navigate = useNavigate();
-  const { addPage, pages, config } = useStore();
+  const { addPage, pages, config, columnColors } = useStore();
   const [title, setTitle] = useState(() => {
     const now = new Date();
     const y = now.getFullYear();
@@ -38,6 +38,8 @@ export function CreatePageModal({ onClose, parentPath }: CreatePageModalProps) {
       return map;
     }, new Map<string, string>()).values()
   );
+
+  const getColColor = (col: string) => columnColors[col.toLowerCase()];
 
   // Close dropdown on outside click
   useEffect(() => {
@@ -121,7 +123,10 @@ export function CreatePageModal({ onClose, parentPath }: CreatePageModalProps) {
                 onClick={() => setShowDropdown(!showDropdown)}
               >
                 {selectedColumn ? (
-                  <span className="selected-column-chip">
+                  <span
+                    className="selected-column-chip"
+                    style={getColColor(selectedColumn) ? { backgroundColor: getColColor(selectedColumn) } : undefined}
+                  >
                     {selectedColumn}
                     <button
                       type="button"
@@ -148,6 +153,11 @@ export function CreatePageModal({ onClose, parentPath }: CreatePageModalProps) {
                           key={col}
                           type="button"
                           className={`column-chip ${selectedColumn === col ? 'active' : ''}`}
+                          style={getColColor(col)
+                            ? selectedColumn === col
+                              ? { backgroundColor: getColColor(col), color: 'white', borderColor: 'transparent' }
+                              : { borderColor: getColColor(col), color: getColColor(col) }
+                            : undefined}
                           onClick={() => {
                             setSelectedColumn(col);
                             setShowDropdown(false);
