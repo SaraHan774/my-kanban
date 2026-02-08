@@ -87,9 +87,9 @@ code {
 }
 
 pre {
-  background-color: var(--bg-tertiary);
-  padding: 1em;
-  border-radius: 6px;
+  background-color: transparent;
+  padding: 0;
+  border-radius: 0;
   overflow-x: auto;
   margin: 1em 0;
 }
