@@ -148,7 +148,9 @@ export function Sidebar() {
   return (
     <aside className="sidebar">
       <div className="sidebar-header">
-        <h2>My Kanban</h2>
+        <Link to="/" className="sidebar-title">
+          <h2>My Kanban</h2>
+        </Link>
         <div className="sidebar-header-actions">
           <button
             className="btn-icon"
@@ -158,7 +160,7 @@ export function Sidebar() {
             }}
             title="New page"
           >
-            +
+            <span className="material-symbols-outlined">add</span>
           </button>
           <button
             onClick={() => setSidebarOpen(false)}

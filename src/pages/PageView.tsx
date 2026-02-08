@@ -13,12 +13,12 @@ export function PageView() {
   const [page, setPage] = useState<Page | null>(null);
   const [htmlContent, setHtmlContent] = useState<string>('');
   const [loading, setLoading] = useState(true);
-  const [editing, setEditing] = useState(false);
+  const [editing, setEditing] = useState(true);
 
   useEffect(() => {
     if (pageId) {
       loadPage(pageId);
-      setEditing(false);
+      setEditing(true);
     }
   }, [pageId, pages]);
 

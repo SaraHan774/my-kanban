@@ -132,81 +132,81 @@ export function PageEditor({ page, onSave, onCancel }: PageEditorProps) {
 
       <div className="editor-meta">
         <div className="editor-field">
-          <label>Title</label>
           <input
             type="text"
             value={title}
             onChange={e => setTitle(e.target.value)}
             className="editor-title-input"
+            placeholder="Untitled"
           />
         </div>
-        <div className="editor-field">
-          <label>Column</label>
-          <div className="column-selector" ref={dropdownRef}>
-            <div
-              className="column-selector-display"
-              onClick={() => setShowDropdown(!showDropdown)}
-            >
-              {selectedColumn ? (
-                <span className="selected-column-chip">
-                  {selectedColumn}
-                  <button
-                    type="button"
-                    className="chip-remove"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setSelectedColumn('');
-                    }}
-                  >
-                    ✕
-                  </button>
-                </span>
-              ) : (
-                <span className="column-placeholder">Select or create a column...</span>
+        <div className="editor-field-row">
+          <div className="editor-field">
+            <label>Column</label>
+            <div className="column-selector" ref={dropdownRef}>
+              <div
+                className="column-selector-display"
+                onClick={() => setShowDropdown(!showDropdown)}
+              >
+                {selectedColumn ? (
+                  <span className="selected-column-chip">
+                    {selectedColumn}
+                    <button
+                      type="button"
+                      className="chip-remove"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setSelectedColumn('');
+                      }}
+                    >
+                      ✕
+                    </button>
+                  </span>
+                ) : (
+                  <span className="column-placeholder">Column...</span>
+                )}
+              </div>
+
+              {showDropdown && (
+                <div className="column-dropdown">
+                  {existingColumns.length > 0 && (
+                    <div className="column-chips">
+                      {existingColumns.map(col => (
+                        <button
+                          key={col}
+                          type="button"
+                          className={`column-chip ${selectedColumn === col ? 'active' : ''}`}
+                          onClick={() => {
+                            setSelectedColumn(col);
+                            setShowDropdown(false);
+                          }}
+                        >
+                          {col}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                  <div className="column-new-input">
+                    <input
+                      type="text"
+                      value={newColumnInput}
+                      onChange={e => setNewColumnInput(e.target.value)}
+                      onKeyDown={handleNewColumnKeyDown}
+                      placeholder="New column..."
+                    />
+                    <button
+                      type="button"
+                      className="btn btn-sm"
+                      onClick={handleAddNewColumn}
+                      disabled={!newColumnInput.trim()}
+                    >
+                      Add
+                    </button>
+                  </div>
+                </div>
               )}
             </div>
-
-            {showDropdown && (
-              <div className="column-dropdown">
-                {existingColumns.length > 0 && (
-                  <div className="column-chips">
-                    {existingColumns.map(col => (
-                      <button
-                        key={col}
-                        type="button"
-                        className={`column-chip ${selectedColumn === col ? 'active' : ''}`}
-                        onClick={() => {
-                          setSelectedColumn(col);
-                          setShowDropdown(false);
-                        }}
-                      >
-                        {col}
-                      </button>
-                    ))}
-                  </div>
-                )}
-                <div className="column-new-input">
-                  <input
-                    type="text"
-                    value={newColumnInput}
-                    onChange={e => setNewColumnInput(e.target.value)}
-                    onKeyDown={handleNewColumnKeyDown}
-                    placeholder="New column name..."
-                  />
-                  <button
-                    type="button"
-                    className="btn btn-sm"
-                    onClick={handleAddNewColumn}
-                    disabled={!newColumnInput.trim()}
-                  >
-                    Add
-                  </button>
-                </div>
-              </div>
-            )}
           </div>
-        </div>
-        <div className="editor-field-row">
           <div className="editor-field">
             <label>Tags</label>
             <input

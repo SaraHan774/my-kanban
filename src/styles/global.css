@@ -130,6 +130,7 @@ button {
 .btn {
   padding: 0.5rem 1rem;
   border-radius: 6px;
+  font-family: 'Lobster', cursive;
   font-weight: 500;
   transition: all 0.2s;
 }

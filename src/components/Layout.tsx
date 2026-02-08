@@ -59,11 +59,15 @@ export function Layout() {
             </button>
           )}
           <Link to="/" className="home-button">
-            🏠 HOME
+            <span className="material-symbols-outlined">home</span>
+            HOME
           </Link>
           <div className="top-bar-spacer" />
           <button className="theme-toggle" onClick={cycleTheme} title={`Theme: ${themeLabel}`}>
-            {theme === 'dark' ? '🌙' : theme === 'light' ? '☀️' : '🌓'} {themeLabel}
+            <span className="material-symbols-outlined">
+              {theme === 'dark' ? 'dark_mode' : theme === 'light' ? 'light_mode' : 'brightness_auto'}
+            </span>
+            <span className="theme-label">{themeLabel}</span>
           </button>
         </div>
         <Outlet />

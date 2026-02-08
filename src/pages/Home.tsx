@@ -211,8 +211,9 @@ export function Home() {
         <div className="home-empty">
           <h2>No pages yet</h2>
           <p>Create your first page to get started.</p>
-          <button className="btn btn-primary" onClick={() => setShowCreateModal(true)}>
-            + New Page
+          <button className="btn btn-primary new-page-btn" onClick={() => setShowCreateModal(true)}>
+            <span className="material-symbols-outlined">add_circle</span>
+            New Page
           </button>
           {showCreateModal && (
             <CreatePageModal onClose={() => setShowCreateModal(false)} />
@@ -227,21 +228,25 @@ export function Home() {
       <div className="board-header">
         <div className="board-actions">
           <div className="board-view-toggle">
+            <div className={`toggle-slider ${boardView === 'list' ? 'slider-right' : ''}`}></div>
             <button
               className={`toggle-btn ${boardView === 'kanban' ? 'active' : ''}`}
               onClick={() => setBoardView('kanban')}
             >
+              <span className="material-symbols-outlined">view_kanban</span>
               Board
             </button>
             <button
               className={`toggle-btn ${boardView === 'list' ? 'active' : ''}`}
               onClick={() => setBoardView('list')}
             >
+              <span className="material-symbols-outlined">list</span>
               List
             </button>
           </div>
-          <button className="btn btn-primary" onClick={() => setShowCreateModal(true)}>
-            + New Page
+          <button className="btn btn-primary new-page-btn" onClick={() => setShowCreateModal(true)}>
+            <span className="material-symbols-outlined">add_circle</span>
+            New Page
           </button>
         </div>
       </div>
