@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { useStore } from '@/store/useStore';
 import { pageService } from '@/services';
+import { openExternalUrl } from '@/lib/openExternal';
 import './CreateTodoModal.css';
 
 interface CreateTodoModalProps {
@@ -116,16 +117,15 @@ export function CreateTodoModal({ onClose }: CreateTodoModalProps) {
               <p>Todo created!</p>
             </div>
             <div className="modal-actions">
-              <a
-                href={createdCalendarUrl}
-                target="_blank"
-                rel="noopener noreferrer"
+              <button
+                type="button"
                 className="btn btn-primary"
-                style={{ display: 'inline-flex', alignItems: 'center', gap: '0.375rem', textDecoration: 'none' }}
+                style={{ display: 'inline-flex', alignItems: 'center', gap: '0.375rem' }}
+                onClick={() => openExternalUrl(createdCalendarUrl)}
               >
                 <span className="material-symbols-outlined" style={{ fontSize: '1.125rem' }}>calendar_month</span>
                 Google Calendar
-              </a>
+              </button>
               <button type="button" className="btn btn-secondary" onClick={onClose}>
                 Close
               </button>
