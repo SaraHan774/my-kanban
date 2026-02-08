@@ -117,6 +117,21 @@
   border-top-color: var(--accent-primary);
 }
 
+/* Slash command palette wrapper */
+.editor-textarea-wrapper {
+  position: relative;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  --slash-bg: var(--bg-primary);
+  --slash-border: var(--border-color);
+  --slash-shadow: var(--shadow-lg);
+  --slash-text: var(--text-primary);
+  --slash-hover: var(--bg-tertiary);
+  --slash-icon-bg: var(--bg-tertiary);
+  --slash-muted: var(--text-secondary);
+}
+
 .editor-preview {
   flex: 1;
   padding: 1rem 2rem;

@@ -2,6 +2,7 @@ import { useState, useCallback, useEffect, useRef } from 'react';
 import { Page } from '@/types';
 import { pageService, markdownService } from '@/services';
 import { useStore } from '@/store/useStore';
+import { useSlashCommands, SlashCommandPalette } from '@/lib/slash-commands';
 import './PageEditor.css';
 
 interface PageEditorProps {
@@ -11,9 +12,10 @@ interface PageEditorProps {
 }
 
 export function PageEditor({ page, onSave, onCancel }: PageEditorProps) {
-  const { updatePageInStore, pages } = useStore();
+  const { updatePageInStore, pages, slashCommands } = useStore();
   const [title, setTitle] = useState(page.title);
   const [content, setContent] = useState(page.content);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
   const [tags, setTags] = useState(page.tags.join(', '));
   const [dueDate, setDueDate] = useState(page.dueDate ? page.dueDate.slice(0, 10) : '');
   const [selectedColumn, setSelectedColumn] = useState(page.kanbanColumn || '');
@@ -24,6 +26,13 @@ export function PageEditor({ page, onSave, onCancel }: PageEditorProps) {
   const [previewHtml, setPreviewHtml] = useState('');
   const [showToast, setShowToast] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
+
+  const slash = useSlashCommands({
+    textareaRef,
+    content,
+    setContent,
+    commands: slashCommands,
+  });
 
   // Derive existing columns from all pages' kanbanColumn values (case-insensitive dedup)
   const existingColumns = Array.from(
@@ -249,13 +258,28 @@ export function PageEditor({ page, onSave, onCancel }: PageEditorProps) {
           dangerouslySetInnerHTML={{ __html: previewHtml }}
         />
       ) : (
-        <textarea
-          className="editor-textarea"
-          value={content}
-          onChange={e => setContent(e.target.value)}
-          placeholder="Write your content in markdown..."
-          spellCheck
-        />
+        <div className="editor-textarea-wrapper">
+          {slash.isOpen && (
+            <SlashCommandPalette
+              commands={slash.filteredCommands}
+              selectedIndex={slash.selectedIndex}
+              onSelect={slash.executeCommand}
+              onClose={slash.closePalette}
+            />
+          )}
+          <textarea
+            ref={textareaRef}
+            className="editor-textarea"
+            value={content}
+            onChange={slash.handleChange}
+            onKeyDown={slash.handleKeyDown}
+            onCompositionStart={slash.handleCompositionStart}
+            onCompositionEnd={slash.handleCompositionEnd}
+            onBlur={slash.handleBlur}
+            placeholder="Type / for commands, or start writing..."
+            spellCheck
+          />
+        </div>
       )}
       </div>
     </>

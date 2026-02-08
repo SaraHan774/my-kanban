@@ -11,9 +11,9 @@ A local, file-based Kanban board app with Notion-like pages. All data is stored 
 - 📋 **Kanban Boards** - Any page can become a Kanban board with custom columns
 - 🔍 **Filter & Search** - Filter by tags, dates, and full-text search
 - 💻 **Code Formatting** - Full support for code blocks with syntax highlighting
+- ⚡ **Slash Commands** - Type `/` in the editor to quickly insert markdown snippets (headings, code blocks, tables, links, etc.). Fully customizable — edit built-in commands or add your own via Settings.
 
 ### Additional Features (Coming Soon)
-- ⏱️ **Pomodoro Timer** - Track time spent on each page
 - 📅 **Due Dates** - Set task due dates
 - 🔄 **Google Calendar Sync** - Sync due dates with Google Calendar
 
@@ -196,10 +196,20 @@ my-kanban/
 ├── src/
 │   ├── components/         # React components
 │   │   ├── Layout.tsx
+│   │   ├── PageEditor.tsx
 │   │   └── Sidebar.tsx
+│   ├── data/              # App-level default data
+│   │   └── defaultSlashCommands.ts
+│   ├── lib/               # Reusable libraries (app-independent)
+│   │   └── slash-commands/ # Portable slash command system
+│   │       ├── types.ts
+│   │       ├── useSlashCommands.ts
+│   │       ├── SlashCommandPalette.tsx
+│   │       └── SlashCommandPalette.css
 │   ├── pages/             # Page components
 │   │   ├── Home.tsx
-│   │   └── PageView.tsx
+│   │   ├── PageView.tsx
+│   │   └── Settings.tsx
 │   ├── services/          # Business logic
 │   │   ├── fileSystem.ts
 │   │   ├── markdown.ts
@@ -270,13 +280,14 @@ interface PageFrontmatter {
 - [x] Kanban board view
 - [x] Tag system
 - [x] File system integration
-- [ ] Pomodoro timer
+- [x] Dark/light theme toggle
+- [x] Slash commands with full customization
+- [x] Settings page for command management
 - [ ] Due date tracking
 - [ ] Google Calendar sync
 - [ ] Advanced filtering UI
 - [ ] Drag-and-drop for kanban cards
 - [ ] Rich text editor mode
-- [ ] Dark/light theme toggle
 - [ ] Export to PDF
 - [ ] Mobile responsive design
 

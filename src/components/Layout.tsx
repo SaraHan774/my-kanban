@@ -63,6 +63,9 @@ export function Layout() {
             HOME
           </Link>
           <div className="top-bar-spacer" />
+          <Link to="/settings" className="settings-button" title="Settings">
+            <span className="material-symbols-outlined">settings</span>
+          </Link>
           <button className="theme-toggle" onClick={cycleTheme} title={`Theme: ${themeLabel}`}>
             <span className="material-symbols-outlined">
               {theme === 'dark' ? 'dark_mode' : theme === 'light' ? 'light_mode' : 'brightness_auto'}

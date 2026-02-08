@@ -1,0 +1,58 @@
+.slash-palette {
+  position: absolute;
+  top: 0;
+  left: 1rem;
+  right: 1rem;
+  z-index: 20;
+  background-color: var(--slash-bg, #ffffff);
+  border: 1px solid var(--slash-border, #e0e0e0);
+  border-radius: 8px;
+  box-shadow: var(--slash-shadow, 0 4px 12px rgba(0, 0, 0, 0.1));
+  overflow: hidden;
+  max-height: 220px;
+}
+
+.slash-palette-list {
+  overflow-y: auto;
+  max-height: 220px;
+}
+
+.slash-palette-item {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.5rem 0.75rem;
+  cursor: pointer;
+  transition: background-color 0.1s;
+  color: var(--slash-text, #1a1a1a);
+}
+
+.slash-palette-item:hover,
+.slash-palette-item.selected {
+  background-color: var(--slash-hover, #f0f0f0);
+}
+
+.slash-palette-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.75rem;
+  height: 1.75rem;
+  font-size: 0.875rem;
+  font-weight: 600;
+  background-color: var(--slash-icon-bg, #e8e8e8);
+  border-radius: 4px;
+  flex-shrink: 0;
+}
+
+.slash-palette-label {
+  flex: 1;
+  font-size: 0.875rem;
+  font-weight: 500;
+}
+
+.slash-palette-key {
+  font-size: 0.75rem;
+  color: var(--slash-muted, #999999);
+  font-family: monospace;
+}

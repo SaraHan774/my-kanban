@@ -4,6 +4,21 @@
 
 import { create } from 'zustand';
 import { Page, AppConfig, DEFAULT_CONFIG, SortOptions } from '@/types';
+import { AppSlashCommand, DEFAULT_SLASH_COMMANDS } from '@/data/defaultSlashCommands';
+
+const SLASH_COMMANDS_KEY = 'kanban-slash-commands';
+
+const loadSlashCommands = (): AppSlashCommand[] => {
+  try {
+    const stored = localStorage.getItem(SLASH_COMMANDS_KEY);
+    if (stored) return JSON.parse(stored);
+  } catch { /* ignore */ }
+  return DEFAULT_SLASH_COMMANDS;
+};
+
+const saveSlashCommands = (commands: AppSlashCommand[]) => {
+  localStorage.setItem(SLASH_COMMANDS_KEY, JSON.stringify(commands));
+};
 
 interface AppState {
   // File system access
@@ -39,6 +54,13 @@ interface AppState {
   // Sort state
   sortOptions: SortOptions | null;
   setSortOptions: (sort: SortOptions | null) => void;
+
+  // Slash commands
+  slashCommands: AppSlashCommand[];
+  addSlashCommand: (cmd: AppSlashCommand) => void;
+  updateSlashCommand: (cmd: AppSlashCommand) => void;
+  removeSlashCommand: (id: string) => void;
+  resetSlashCommands: () => void;
 }
 
 export const useStore = create<AppState>((set) => ({
@@ -82,5 +104,31 @@ export const useStore = create<AppState>((set) => ({
 
   // Sort state
   sortOptions: null,
-  setSortOptions: (sort) => set({ sortOptions: sort })
+  setSortOptions: (sort) => set({ sortOptions: sort }),
+
+  // Slash commands
+  slashCommands: loadSlashCommands(),
+  addSlashCommand: (cmd) =>
+    set((state) => {
+      const updated = [...state.slashCommands, cmd];
+      saveSlashCommands(updated);
+      return { slashCommands: updated };
+    }),
+  updateSlashCommand: (cmd) =>
+    set((state) => {
+      const updated = state.slashCommands.map((c) => (c.id === cmd.id ? cmd : c));
+      saveSlashCommands(updated);
+      return { slashCommands: updated };
+    }),
+  removeSlashCommand: (id) =>
+    set((state) => {
+      const updated = state.slashCommands.filter((c) => c.id !== id);
+      saveSlashCommands(updated);
+      return { slashCommands: updated };
+    }),
+  resetSlashCommands: () =>
+    set(() => {
+      saveSlashCommands(DEFAULT_SLASH_COMMANDS);
+      return { slashCommands: DEFAULT_SLASH_COMMANDS };
+    }),
 }));
