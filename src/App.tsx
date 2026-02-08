@@ -4,6 +4,7 @@ import { PageView } from './pages/PageView';
 import { Layout } from './components/Layout';
 import { InstallPrompt } from './components/InstallPrompt';
 import './styles/global.css';
+import 'highlight.js/styles/github-dark.css';
 
 function App() {
   return (

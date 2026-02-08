@@ -5,9 +5,22 @@
 
 import yaml from 'js-yaml';
 import { marked } from 'marked';
+import { markedHighlight } from 'marked-highlight';
+import hljs from 'highlight.js';
 import { PageFrontmatter, RawPageData } from '@/types';
 
 const FRONTMATTER_RE = /^---\r?\n([\s\S]*?)\r?\n---\r?\n?([\s\S]*)$/;
+
+// Configure marked with syntax highlighting
+marked.use(
+  markedHighlight({
+    langPrefix: 'hljs language-',
+    highlight(code: string, lang: string) {
+      const language = hljs.getLanguage(lang) ? lang : 'plaintext';
+      return hljs.highlight(code, { language }).value;
+    }
+  })
+);
 
 export class MarkdownService {
   /**

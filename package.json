@@ -16,8 +16,10 @@
   "dependencies": {
     "date-fns": "^3.3.1",
     "gray-matter": "^4.0.3",
+    "highlight.js": "^11.9.0",
     "js-yaml": "^4.1.1",
     "marked": "^12.0.0",
+    "marked-highlight": "^2.1.0",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
     "react-router-dom": "^6.22.0",
