@@ -10,7 +10,6 @@
     "frontendDist": "../dist"
   },
   "app": {
-    "title": "My Kanban",
     "windows": [
       {
         "title": "My Kanban",
