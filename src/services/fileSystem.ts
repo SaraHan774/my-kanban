@@ -6,7 +6,9 @@
  * markdown files with YAML frontmatter to the local file system.
  */
 
-export class FileSystemService {
+import { IFileSystemService } from '@/types';
+
+export class FileSystemService implements IFileSystemService {
   private rootHandle: FileSystemDirectoryHandle | null = null;
   private static readonly DB_NAME = 'my-kanban-fs';
   private static readonly STORE_NAME = 'handles';

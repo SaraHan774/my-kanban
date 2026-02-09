@@ -13,10 +13,11 @@ import {
   remove,
   exists as fsExists,
 } from '@tauri-apps/plugin-fs';
+import { IFileSystemService } from '@/types';
 
 const LS_WORKSPACE_PATH = 'tauri-workspace-path';
 
-export class TauriFileSystemService {
+export class TauriFileSystemService implements IFileSystemService {
   private rootPath: string | null = null;
 
   /**

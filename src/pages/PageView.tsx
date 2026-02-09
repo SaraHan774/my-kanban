@@ -146,6 +146,9 @@ export function PageView() {
     <div className="page-view">
       <div className="page-header">
         <div className="page-header-top">
+          <button className="btn-icon" onClick={() => navigate(-1)} title="Go back">
+            <span className="material-symbols-outlined">arrow_back</span>
+          </button>
           {!sidebarOpen && (
             <button className="btn-icon" onClick={() => setSidebarOpen(true)} title="Open sidebar">
               ☰

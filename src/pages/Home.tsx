@@ -174,6 +174,7 @@ export function Home() {
 
   const handleDragOver = (e: React.DragEvent) => {
     e.preventDefault();
+    e.stopPropagation();
     e.dataTransfer.dropEffect = 'move';
   };
 
@@ -188,11 +189,14 @@ export function Home() {
     // Only accept column drags, not card drags
     if (draggedColumn) {
       e.preventDefault();
+      e.stopPropagation();
       e.dataTransfer.dropEffect = 'move';
     }
   };
 
-  const handleColumnDrop = (targetCol: string) => {
+  const handleColumnDrop = (targetCol: string, e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
     if (!draggedColumn || draggedColumn === targetCol) {
       setDraggedColumn(null);
       return;
@@ -214,7 +218,9 @@ export function Home() {
     setDraggedColumn(null);
   };
 
-  const handleDrop = async (columnTag: string) => {
+  const handleDrop = async (columnTag: string, e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
     if (!draggedCardId) return;
 
     const card = pages.find(c => c.id === draggedCardId);
@@ -235,7 +241,9 @@ export function Home() {
     setDraggedCardId(null);
   };
 
-  const handleDropUncategorized = async () => {
+  const handleDropUncategorized = async (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
     if (!draggedCardId) return;
 
     const card = pages.find(c => c.id === draggedCardId);
@@ -326,7 +334,7 @@ export function Home() {
                 key={col}
                 className={`kanban-column ${draggedCardId ? 'droppable' : ''} ${draggedColumn === col ? 'column-dragging' : ''} ${draggedColumn && draggedColumn !== col ? 'column-drop-target' : ''}`}
                 onDragOver={(e) => { handleDragOver(e); handleColumnDragOver(e); }}
-                onDrop={() => { if (draggedColumn) handleColumnDrop(col); else handleDrop(col); }}
+                onDrop={(e) => { if (draggedColumn) handleColumnDrop(col, e); else handleDrop(col, e); }}
               >
                 <div
                   className="column-header"
@@ -368,7 +376,7 @@ export function Home() {
             <div
               className={`kanban-column ${draggedCardId ? 'droppable' : ''}`}
               onDragOver={handleDragOver}
-              onDrop={handleDropUncategorized}
+              onDrop={(e) => handleDropUncategorized(e)}
             >
               <div className="column-header" style={{ borderTopColor: '#6b7280' }}>
                 <h3>Uncategorized</h3>
