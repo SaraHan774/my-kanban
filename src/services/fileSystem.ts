@@ -8,6 +8,32 @@
 
 import { IFileSystemService } from '@/types';
 
+// Augment DOM types with File System Access API members not yet in TypeScript's lib
+interface FileSystemHandlePermissionDescriptor {
+  mode?: 'read' | 'readwrite';
+}
+
+declare global {
+  interface FileSystemHandle {
+    queryPermission(descriptor?: FileSystemHandlePermissionDescriptor): Promise<PermissionState>;
+    requestPermission(descriptor?: FileSystemHandlePermissionDescriptor): Promise<PermissionState>;
+  }
+
+  interface FileSystemDirectoryHandle {
+    values(): AsyncIterableIterator<FileSystemDirectoryHandle | FileSystemFileHandle>;
+    keys(): AsyncIterableIterator<string>;
+    entries(): AsyncIterableIterator<[string, FileSystemDirectoryHandle | FileSystemFileHandle]>;
+  }
+
+  interface ShowDirectoryPickerOptions {
+    id?: string;
+    mode?: 'read' | 'readwrite';
+    startIn?: 'desktop' | 'documents' | 'downloads' | 'music' | 'pictures' | 'videos' | FileSystemHandle;
+  }
+
+  function showDirectoryPicker(options?: ShowDirectoryPickerOptions): Promise<FileSystemDirectoryHandle>;
+}
+
 export class FileSystemService implements IFileSystemService {
   private rootHandle: FileSystemDirectoryHandle | null = null;
   private static readonly DB_NAME = 'my-kanban-fs';
