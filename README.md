@@ -2,32 +2,37 @@
 
 A local, file-based Kanban board app with Notion-like pages. All data is stored as markdown files on your local file system, making it easy to track with git and own your data completely.
 
-## ✨ Features
+Available as both a **Progressive Web App (PWA)** and a **native desktop app** powered by [Tauri](https://tauri.app).
+
+## Features
 
 ### Core Functionality
-- 📝 **Markdown Notes** - Full markdown syntax support with YAML frontmatter
-- 📄 **Notion-style Pages** - Everything is a page; create nested page structures infinitely
-- 🏷️ **Tag System** - Categorize pages with tags and filter by them
-- 📋 **Kanban Boards** - Any page can become a Kanban board with custom columns
-- 🔍 **Filter & Search** - Filter by tags, dates, and full-text search
-- 💻 **Code Formatting** - Full support for code blocks with syntax highlighting
-- ⚡ **Slash Commands** - Type `/` in the editor to quickly insert markdown snippets (headings, code blocks, tables, links, etc.). Fully customizable — edit built-in commands or add your own via Settings.
+- **Markdown Notes** - Full markdown syntax support with YAML frontmatter
+- **Notion-style Pages** - Everything is a page; create nested page structures infinitely
+- **Tag System** - Categorize pages with tags and filter by them
+- **Kanban Boards** - Any page can become a Kanban board with custom columns
+- **Todo Checklists** - GitHub-style checklists with interactive checkboxes
+- **Filter & Search** - Filter by tags, dates, and full-text search
+- **Code Formatting** - Code blocks with syntax highlighting via highlight.js
+- **Slash Commands** - Type `/` in the editor to quickly insert markdown snippets (headings, code blocks, tables, links, etc.). Fully customizable via Settings
+- **Dark/Light Theme** - Toggle between dark and light modes
+- **Native Desktop App** - Tauri-powered app for macOS, Windows, and Linux
+- **PWA Support** - Install from the browser and use offline
 
-### Additional Features (Coming Soon)
-- 📅 **Due Dates** - Set task due dates
-- 🔄 **Google Calendar Sync** - Sync due dates with Google Calendar
+## Technology Stack
 
-## 🏗️ Architecture
+| Layer | Technology |
+|---|---|
+| Frontend | React 18 + TypeScript |
+| Build | Vite |
+| Desktop | Tauri v2 |
+| State | Zustand |
+| Storage | File System Access API (browser) / Tauri FS plugin (desktop) |
+| Markdown | gray-matter + marked + marked-highlight |
+| Syntax Highlighting | highlight.js |
+| Testing | Vitest + Testing Library |
 
-### Technology Stack
-- **Frontend**: React + TypeScript
-- **Build Tool**: Vite
-- **PWA**: Progressive Web App (works in browser, can be installed)
-- **State Management**: Zustand
-- **Storage**: Local file system via File System Access API
-- **Markdown**: gray-matter (frontmatter) + marked (rendering)
-
-### Data Structure
+## Data Structure
 
 Every entity in the app is a **Page** (Notion-style unified model):
 
@@ -76,64 +81,44 @@ kanbanColumns:
 This is the content of the page.
 ```
 
-## 🚀 Getting Started
+## Getting Started
 
 ### Prerequisites
-- Node.js 18+ (for development)
-- Modern browser with File System Access API support (Chrome, Edge, Opera)
+- Node.js 18+
+- Modern browser with File System Access API support (Chrome, Edge, Opera) — for PWA mode
+- [Rust toolchain](https://www.rust-lang.org/tools/install) — for Tauri desktop builds
 
-### Option 1: Install as Desktop App (Recommended)
+### Option 1: Download Desktop App (Recommended)
 
-The easiest way to use My Kanban is to install it as a desktop application:
-
-1. **Visit the hosted app** (or run it locally - see Option 2)
-2. **Look for the install prompt** at the bottom of the screen
-3. **Click "Install"** to add it to your desktop
-4. **Launch from your applications** folder or start menu
-
-Once installed:
-- ✅ Works like a native desktop app
-- ✅ Accessible from your app launcher/dock
-- ✅ Runs in standalone window (no browser UI)
-- ✅ Works offline after first load
-- ✅ Automatic updates when online
-
-**Manual Installation (if prompt doesn't appear):**
-- **Chrome/Edge**: Click the ⊕ icon in the address bar → "Install"
-- **Desktop**: Look for "Install My Kanban" in browser menu
+Download the latest release for your platform from the [Releases](https://github.com/SaraHan774/my-kanban/releases) page.
 
 ### Option 2: Run Locally for Development
 
-1. **Install dependencies:**
-   ```bash
-   npm install
-   ```
+```bash
+# Install dependencies
+npm install
 
-2. **Run development server:**
-   ```bash
-   npm run dev
-   ```
+# Run as web app (PWA)
+npm run dev
 
-3. **Open in browser:**
-   Navigate to `http://localhost:5173`
+# Run as Tauri desktop app
+npm run tauri:dev
+```
 
-4. **Install as desktop app:**
-   - The install prompt will appear automatically
-   - Or use browser's install option in the menu
+Open `http://localhost:5173` in your browser for the web version.
 
 ### Building for Production
 
 ```bash
+# Web (PWA) build
 npm run build
 npm run preview
+
+# Tauri desktop build
+npm run tauri:build
 ```
 
-The build output will be in the `dist/` folder, ready to:
-- Deploy to any static hosting service
-- Open locally as a PWA
-- Install as desktop application
-
-## 📖 Usage Guide
+## Usage
 
 ### First-Time Setup
 
@@ -141,29 +126,18 @@ The build output will be in the `dist/` folder, ready to:
    - Click "Select Workspace Folder"
    - Choose a folder where your data will be stored
    - The app will create a `workspace/` subfolder inside
-   - Permission is remembered across sessions
 
 2. **Start creating:**
    - Click "New Page" in the sidebar
    - Choose page type (Document or Kanban)
    - Start organizing your work!
 
-### Creating Pages
-
-1. Pages are organized in a tree structure (like Notion)
-2. Each page can have unlimited sub-pages
-3. Pages can be viewed as:
-   - **Document** - Regular markdown notes
-   - **Kanban** - Task board with customizable columns
-   - **List** - Simple list view (coming soon)
-
 ### Kanban Boards
 
-1. Create a page or edit an existing one
-2. Set `viewType: "kanban"` in frontmatter
-3. Define custom columns in `kanbanColumns`
-4. Sub-pages automatically become cards
-5. Cards show title, tags, due date, and excerpt
+1. Create a page and set its view type to Kanban
+2. Define custom columns
+3. Sub-pages automatically become cards
+4. Cards show title, tags, due date, and excerpt
 
 ### Tags & Filtering
 
@@ -176,20 +150,13 @@ The build output will be in the `dist/` folder, ready to:
 Since everything is stored as markdown files:
 
 ```bash
-# Initialize git in your workspace folder
 cd path/to/your/workspace
 git init
 git add .
 git commit -m "Initial commit"
-
-# Track changes
-git status
-git diff
 ```
 
-## 🔧 Development
-
-### Project Structure
+## Project Structure
 
 ```
 my-kanban/
@@ -197,83 +164,74 @@ my-kanban/
 │   ├── components/         # React components
 │   │   ├── Layout.tsx
 │   │   ├── PageEditor.tsx
-│   │   └── Sidebar.tsx
+│   │   ├── Sidebar.tsx
+│   │   ├── CreatePageModal.tsx
+│   │   ├── CreateTodoModal.tsx
+│   │   └── InstallPrompt.tsx
 │   ├── data/              # App-level default data
 │   │   └── defaultSlashCommands.ts
-│   ├── lib/               # Reusable libraries (app-independent)
-│   │   └── slash-commands/ # Portable slash command system
+│   ├── lib/               # Reusable libraries
+│   │   ├── openExternal.ts
+│   │   └── slash-commands/
 │   │       ├── types.ts
 │   │       ├── useSlashCommands.ts
-│   │       ├── SlashCommandPalette.tsx
-│   │       └── SlashCommandPalette.css
+│   │       └── SlashCommandPalette.tsx
 │   ├── pages/             # Page components
 │   │   ├── Home.tsx
 │   │   ├── PageView.tsx
 │   │   └── Settings.tsx
 │   ├── services/          # Business logic
-│   │   ├── fileSystem.ts
+│   │   ├── fileSystem.ts           # Browser File System Access API
+│   │   ├── tauriFileSystem.ts      # Tauri FS plugin adapter
+│   │   ├── fileSystemFactory.ts    # Runtime adapter selection
 │   │   ├── markdown.ts
-│   │   └── pageService.ts
+│   │   ├── pageService.ts
+│   │   └── configService.ts
 │   ├── store/             # Zustand state management
 │   │   └── useStore.ts
 │   ├── types/             # TypeScript interfaces
 │   │   ├── page.ts
 │   │   ├── filter.ts
-│   │   └── config.ts
-│   └── styles/            # Global styles
+│   │   ├── config.ts
+│   │   └── filesystem.d.ts
+│   ├── test/              # Test utilities & mocks
+│   └── styles/
 │       └── global.css
+├── src-tauri/             # Tauri desktop app (Rust)
+│   ├── tauri.conf.json
+│   ├── Cargo.toml
+│   └── src/
+├── docs/                  # Landing page (GitHub Pages)
+│   └── index.html
 ├── package.json
 ├── tsconfig.json
-├── vite.config.ts
-└── README.md
+└── vite.config.ts
 ```
 
-### Key Services
+## Scripts
 
-- **FileSystemService** - Handles all file I/O using File System Access API
-- **MarkdownService** - Parses/serializes markdown with frontmatter
-- **PageService** - High-level CRUD operations for pages
+| Command | Description |
+|---|---|
+| `npm run dev` | Start Vite dev server |
+| `npm run build` | Type-check and build for production |
+| `npm run preview` | Preview production build |
+| `npm run lint` | Run ESLint |
+| `npm run test` | Run tests with Vitest |
+| `npm run test:watch` | Run tests in watch mode |
+| `npm run test:coverage` | Run tests with coverage |
+| `npm run tauri:dev` | Start Tauri desktop dev mode |
+| `npm run tauri:build` | Build Tauri desktop app |
 
-### Adding New Features
+## Browser Support
 
-1. Define types in `src/types/`
-2. Implement logic in `src/services/`
-3. Create UI components in `src/components/`
-4. Add state management in `src/store/useStore.ts`
+**PWA mode** requires the File System Access API:
+- Chrome / Edge 86+
+- Opera 72+
+- Firefox and Safari are not yet supported
 
-## 🌐 Browser Support
+**Tauri desktop app** works on macOS 10.15+, Windows 10+, and Linux.
 
-The app requires the **File System Access API**, which is supported in:
-- ✅ Chrome/Edge 86+
-- ✅ Opera 72+
-- ❌ Firefox (not yet supported)
-- ❌ Safari (not yet supported)
-
-For unsupported browsers, consider using:
-- Chrome or Edge
-- Or implement alternative storage (IndexedDB fallback)
-
-## 📝 Data Format
-
-### Page Frontmatter Schema
-
-```typescript
-interface PageFrontmatter {
-  id: string;                    // UUID
-  title: string;
-  tags: string[];
-  createdAt: string;             // ISO 8601
-  updatedAt: string;
-  dueDate?: string;              // Optional
-  viewType: 'document' | 'kanban' | 'list';
-  kanbanColumn?: string;         // If this page is a card in a kanban
-  kanbanColumns?: KanbanColumn[]; // If this page is a kanban board
-  pomodoroSessions?: PomodoroSession[];
-  googleCalendarEventId?: string;
-}
-```
-
-## 🎯 Roadmap
+## Roadmap
 
 - [x] Core page CRUD operations
 - [x] Markdown parsing with frontmatter
@@ -283,43 +241,20 @@ interface PageFrontmatter {
 - [x] Dark/light theme toggle
 - [x] Slash commands with full customization
 - [x] Settings page for command management
+- [x] Tauri native desktop app
+- [x] Todo checklists with interactive checkboxes
+- [ ] Drag-and-drop for kanban cards
 - [ ] Due date tracking
 - [ ] Google Calendar sync
 - [ ] Advanced filtering UI
-- [ ] Drag-and-drop for kanban cards
 - [ ] Rich text editor mode
 - [ ] Export to PDF
 - [ ] Mobile responsive design
 
-## 🤝 Contributing
+## Contributing
 
 This is a personal project, but suggestions and improvements are welcome!
 
-## 📄 License
+## License
 
 MIT License - feel free to use this for your own projects.
-
-## 💡 Why This App?
-
-**No costs, full control:**
-- 🆓 **100% free** - no subscriptions, no hidden fees
-- 💾 **Your data, your disk** - everything lives on your file system
-- 🔒 **Complete privacy** - no servers, no tracking, no uploads
-- 📱 **Desktop app** - install and use like a native application
-- 🌐 **Works offline** - PWA with full offline support
-- 📝 **Markdown-based** - portable and future-proof format
-- 🔄 **Git-friendly** - track changes with version control
-- 🚫 **No vendor lock-in** - your notes are yours forever
-- 🖥️ **Cross-platform** - works on Windows, Mac, Linux
-
-Built as a **Notion alternative** for developers and privacy-conscious users who want to own their data.
-
-## 🖥️ Desktop Features
-
-When installed as a desktop app, you get:
-- Standalone window (no browser UI clutter)
-- Quick launch from dock/taskbar
-- System integration (file associations, notifications ready)
-- Offline-first design
-- Automatic background updates
-- Native-like performance
