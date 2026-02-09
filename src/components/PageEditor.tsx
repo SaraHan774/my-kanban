@@ -3,6 +3,7 @@ import { Page } from '@/types';
 import { pageService, markdownService } from '@/services';
 import { useStore } from '@/store/useStore';
 import { useSlashCommands, SlashCommandPalette } from '@/lib/slash-commands';
+import { useMarkdownShortcuts } from '@/hooks/useMarkdownShortcuts';
 import './PageEditor.css';
 
 interface PageEditorProps {
@@ -33,6 +34,8 @@ export function PageEditor({ page, onSave, onCancel }: PageEditorProps) {
     setContent,
     commands: slashCommands,
   });
+
+  const markdown = useMarkdownShortcuts(textareaRef, content, setContent);
 
   // Derive existing columns from all pages' kanbanColumn values (case-insensitive dedup)
   const existingColumns = Array.from(
@@ -77,6 +80,116 @@ export function PageEditor({ page, onSave, onCancel }: PageEditorProps) {
       e.preventDefault();
       handleAddNewColumn();
     }
+  };
+
+  // Handle Tab indent, markdown shortcuts, and other keyboard shortcuts
+  const handleEditorKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    // Handle markdown shortcuts (Cmd+B, Cmd+I, Cmd+E) first
+    if (markdown.handleMarkdownShortcut(e)) return;
+
+    // Handle Escape key (only when slash palette is not open)
+    if (e.key === 'Escape' && !slash.isOpen) {
+      e.preventDefault();
+      onCancel();
+      return;
+    }
+
+    // Handle Tab indent when slash palette is NOT open
+    if (e.key === 'Tab' && !slash.isOpen) {
+      e.preventDefault();
+      const textarea = textareaRef.current;
+      if (!textarea) return;
+
+      const start = textarea.selectionStart;
+      const end = textarea.selectionEnd;
+      const hasSelection = start !== end;
+
+      if (hasSelection) {
+        // Multi-line indent/dedent
+        const beforeSelection = content.substring(0, start);
+        const selectedText = content.substring(start, end);
+        const afterSelection = content.substring(end);
+
+        // Find start of first selected line
+        const lineStart = beforeSelection.lastIndexOf('\n') + 1;
+        const lineEnd = end;
+
+        // Get all lines in selection
+        const textToProcess = content.substring(lineStart, lineEnd);
+        const lines = textToProcess.split('\n');
+
+        if (e.shiftKey) {
+          // Shift+Tab: dedent (remove up to 2 leading spaces from each line)
+          const dedentedLines = lines.map(line => {
+            if (line.startsWith('  ')) return line.substring(2);
+            if (line.startsWith(' ')) return line.substring(1);
+            return line;
+          });
+          const newText = dedentedLines.join('\n');
+          const newContent = content.substring(0, lineStart) + newText + afterSelection;
+          setContent(newContent);
+
+          // Restore selection
+          setTimeout(() => {
+            textarea.focus();
+            const newStart = start - (lineStart === start ? Math.min(2, lines[0].length - dedentedLines[0].length) : 0);
+            const lengthDiff = textToProcess.length - newText.length;
+            textarea.setSelectionRange(newStart, end - lengthDiff);
+          }, 0);
+        } else {
+          // Tab: indent (add 2 spaces to each line)
+          const indentedLines = lines.map(line => '  ' + line);
+          const newText = indentedLines.join('\n');
+          const newContent = content.substring(0, lineStart) + newText + afterSelection;
+          setContent(newContent);
+
+          // Restore selection
+          setTimeout(() => {
+            textarea.focus();
+            const spacesAdded = lines.length * 2;
+            const newStart = start + (lineStart === start ? 2 : 0);
+            textarea.setSelectionRange(newStart, end + spacesAdded);
+          }, 0);
+        }
+      } else if (e.shiftKey) {
+        // Shift+Tab: dedent current line (remove up to 2 leading spaces)
+        const beforeCursor = content.substring(0, start);
+        const afterCursor = content.substring(start);
+        const lineStart = beforeCursor.lastIndexOf('\n') + 1;
+        const lineEnd = content.indexOf('\n', start);
+        const currentLine = content.substring(lineStart, lineEnd === -1 ? content.length : lineEnd);
+
+        if (currentLine.startsWith('  ')) {
+          const newLine = currentLine.substring(2);
+          const newContent = content.substring(0, lineStart) + newLine + (lineEnd === -1 ? '' : content.substring(lineEnd));
+          setContent(newContent);
+          setTimeout(() => {
+            textarea.focus();
+            textarea.setSelectionRange(Math.max(lineStart, start - 2), Math.max(lineStart, start - 2));
+          }, 0);
+        } else if (currentLine.startsWith(' ')) {
+          const newLine = currentLine.substring(1);
+          const newContent = content.substring(0, lineStart) + newLine + (lineEnd === -1 ? '' : content.substring(lineEnd));
+          setContent(newContent);
+          setTimeout(() => {
+            textarea.focus();
+            textarea.setSelectionRange(Math.max(lineStart, start - 1), Math.max(lineStart, start - 1));
+          }, 0);
+        }
+      } else {
+        // Tab: insert 2 spaces at cursor
+        const newContent = content.substring(0, start) + '  ' + content.substring(end);
+        setContent(newContent);
+        setTimeout(() => {
+          textarea.focus();
+          textarea.setSelectionRange(start + 2, start + 2);
+        }, 0);
+      }
+      return;
+    }
+
+    // Delegate to slash commands handler
+    slash.handleKeyDown(e);
   };
 
   // Keyboard shortcut: Ctrl+S to save
@@ -283,7 +396,7 @@ export function PageEditor({ page, onSave, onCancel }: PageEditorProps) {
             className="editor-textarea"
             value={content}
             onChange={slash.handleChange}
-            onKeyDown={slash.handleKeyDown}
+            onKeyDown={handleEditorKeyDown}
             onCompositionStart={slash.handleCompositionStart}
             onCompositionEnd={slash.handleCompositionEnd}
             onBlur={slash.handleBlur}

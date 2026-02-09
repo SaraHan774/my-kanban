@@ -114,6 +114,34 @@ export function PageView() {
     setEditing(false);
   };
 
+  // Keyboard shortcuts for edit mode
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Prevent Cmd+S when not editing
+      if ((e.metaKey || e.ctrlKey) && e.key === 's' && !editing) {
+        e.preventDefault();
+        return;
+      }
+
+      // Cmd+E or just E key to enter edit mode (when not in an input)
+      const target = e.target as HTMLElement;
+      const isInputField = target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable;
+
+      if (!editing && !isInputField) {
+        if ((e.metaKey || e.ctrlKey) && e.key === 'e') {
+          e.preventDefault();
+          setEditing(true);
+        } else if (e.key === 'e' || e.key === 'E') {
+          e.preventDefault();
+          setEditing(true);
+        }
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [editing]);
+
   if (loading) {
     return (
       <div className="page-view">
