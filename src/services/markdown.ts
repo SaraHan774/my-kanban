@@ -84,9 +84,11 @@ export class MarkdownService {
    * @param markdown - Markdown content
    * @param maxLength - Maximum length of excerpt
    */
-  getExcerpt(markdown: string, maxLength: number = 150): string {
+  getExcerpt(markdown: string, maxLength: number = 80): string {
     // Remove markdown syntax for plain text
     let text = markdown
+      .replace(/- \[[ x]\]\s*/g, '') // Checkboxes
+      .replace(/!\[.*?\]\(.*?\)/g, '') // Images
       .replace(/#{1,6}\s+/g, '') // Headers
       .replace(/\*\*(.+?)\*\*/g, '$1') // Bold
       .replace(/\*(.+?)\*/g, '$1') // Italic

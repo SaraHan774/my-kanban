@@ -28,7 +28,8 @@
 }
 
 .sidebar-header h2 {
-  font-family: 'Lobster', cursive;
+  font-family: var(--font-sans);
+  font-weight: 700;
   font-size: 1.25rem;
   margin: 0;
 }

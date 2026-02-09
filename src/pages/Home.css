@@ -12,7 +12,8 @@
 }
 
 .welcome-card h1 {
-  font-family: 'Lobster', cursive;
+  font-family: var(--font-sans);
+  font-weight: 700;
   font-size: 3rem;
   margin-bottom: 1rem;
 }
@@ -318,7 +319,7 @@
   line-height: 1.4;
   margin: 0;
   display: -webkit-box;
-  -webkit-line-clamp: 2;
+  -webkit-line-clamp: 1;
   -webkit-box-orient: vertical;
   overflow: hidden;
 }
