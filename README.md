@@ -19,6 +19,12 @@ Available as both a **Progressive Web App (PWA)** and a **native desktop app** p
 - **Native Desktop App** - Tauri-powered app for macOS, Windows, and Linux
 - **PWA Support** - Install from the browser and use offline
 
+### Editor
+- **Image Insertion** - Paste from clipboard, drag-and-drop, or use the toolbar file picker
+- **Keyboard Shortcuts** - Cmd/Ctrl+B (bold), Cmd/Ctrl+I (italic), Cmd/Ctrl+E (inline code), Cmd/Ctrl+S (save)
+- **Tab Indentation** - Tab/Shift+Tab to indent/dedent lines (works with multi-line selections)
+- **Quick Edit** - Press `E` on any page to enter edit mode, `Escape` to cancel
+
 ## Technology Stack
 
 | Layer | Technology |
@@ -27,8 +33,9 @@ Available as both a **Progressive Web App (PWA)** and a **native desktop app** p
 | Build | Vite |
 | Desktop | Tauri v2 |
 | State | Zustand |
+| Fonts | Pretendard (UI), Fira Code (code) |
 | Storage | File System Access API (browser) / Tauri FS plugin (desktop) |
-| Markdown | gray-matter + marked + marked-highlight |
+| Markdown | js-yaml + marked + marked-highlight |
 | Syntax Highlighting | highlight.js |
 | Testing | Vitest + Testing Library |
 
@@ -145,6 +152,20 @@ npm run tauri:build
 - Filter pages by tags in the sidebar
 - Search by title or content
 
+### Keyboard Shortcuts
+
+| Shortcut | Context | Action |
+|---|---|---|
+| `E` | Page view | Enter edit mode |
+| `Escape` | Editor | Cancel editing |
+| `Cmd/Ctrl + S` | Editor | Save |
+| `Cmd/Ctrl + B` | Editor | Toggle bold |
+| `Cmd/Ctrl + I` | Editor | Toggle italic |
+| `Cmd/Ctrl + E` | Editor | Toggle inline code |
+| `Tab` | Editor | Indent line(s) |
+| `Shift + Tab` | Editor | Dedent line(s) |
+| `/` | Editor | Open slash command palette |
+
 ### Git Integration
 
 Since everything is stored as markdown files:
@@ -170,6 +191,8 @@ my-kanban/
 │   │   └── InstallPrompt.tsx
 │   ├── data/              # App-level default data
 │   │   └── defaultSlashCommands.ts
+│   ├── hooks/             # Custom React hooks
+│   │   └── useMarkdownShortcuts.ts
 │   ├── lib/               # Reusable libraries
 │   │   ├── openExternal.ts
 │   │   └── slash-commands/
@@ -243,6 +266,8 @@ my-kanban/
 - [x] Settings page for command management
 - [x] Tauri native desktop app
 - [x] Todo checklists with interactive checkboxes
+- [x] Editor keyboard shortcuts (bold, italic, code, tab indent)
+- [x] Image insertion (paste, drag-and-drop, file picker)
 - [ ] Drag-and-drop for kanban cards
 - [ ] Due date tracking
 - [ ] Google Calendar sync
