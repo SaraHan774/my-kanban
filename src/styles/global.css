@@ -162,6 +162,7 @@ input, textarea {
   border-radius: 6px;
   background-color: var(--bg-primary);
   color: var(--text-primary);
+  font-synthesis: none;
 }
 
 input:focus, textarea:focus {

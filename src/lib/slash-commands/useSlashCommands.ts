@@ -62,7 +62,11 @@ function getCaretCoordinates(
     lineHeight,
   };
 
-  document.body.removeChild(div);
+  try {
+    document.body.removeChild(div);
+  } catch {
+    div.remove();
+  }
 
   return result;
 }
