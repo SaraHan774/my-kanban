@@ -107,9 +107,11 @@
   color: var(--text-primary);
   font-family: var(--font-mono);
   font-size: 0.9rem;
-  line-height: 1.7;
+  line-height: 1.7em;
   resize: vertical;
   tab-size: 2;
+  caret-color: var(--text-primary);
+  font-variant-ligatures: none;
 }
 
 .editor-textarea:focus {
