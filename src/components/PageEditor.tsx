@@ -176,7 +176,6 @@ export function PageEditor({ page, onSave, onCancel }: PageEditorProps) {
       if (hasSelection) {
         // Multi-line indent/dedent
         const beforeSelection = content.substring(0, start);
-        const selectedText = content.substring(start, end);
         const afterSelection = content.substring(end);
 
         // Find start of first selected line
@@ -223,7 +222,6 @@ export function PageEditor({ page, onSave, onCancel }: PageEditorProps) {
       } else if (e.shiftKey) {
         // Shift+Tab: dedent current line (remove up to 2 leading spaces)
         const beforeCursor = content.substring(0, start);
-        const afterCursor = content.substring(start);
         const lineStart = beforeCursor.lastIndexOf('\n') + 1;
         const lineEnd = content.indexOf('\n', start);
         const currentLine = content.substring(lineStart, lineEnd === -1 ? content.length : lineEnd);
