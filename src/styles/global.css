@@ -1,3 +1,5 @@
+@import url('https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.min.css');
+
 * {
   box-sizing: border-box;
   margin: 0;
@@ -17,8 +19,9 @@
   --shadow-md: 0 4px 6px rgba(0, 0, 0, 0.1);
   --shadow-lg: 0 10px 15px rgba(0, 0, 0, 0.1);
 
-  --font-sans: 'Asta Sans', sans-serif;
+  --font-sans: 'Pretendard', -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
   --font-mono: 'Fira Code', 'SF Mono', Monaco, 'Cascadia Code', 'Roboto Mono', Consolas, 'Courier New', monospace;
+  --line-height-content: 1.6;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -50,6 +53,7 @@ body {
   background-color: var(--bg-primary);
   color: var(--text-primary);
   line-height: 1.6;
+  letter-spacing: -0.01em;
 }
 
 #root {
@@ -130,7 +134,7 @@ button {
 .btn {
   padding: 0.5rem 1rem;
   border-radius: 6px;
-  font-family: 'Asta Sans', sans-serif;
+  font-family: var(--font-sans);
   font-weight: 600;
   transition: all 0.2s;
 }

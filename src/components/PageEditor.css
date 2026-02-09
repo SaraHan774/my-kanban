@@ -141,7 +141,7 @@
   border-top: 1px solid var(--border-color);
   border-radius: 0;
   min-height: 400px;
-  line-height: 1.8;
+  line-height: var(--line-height-content);
 }
 
 /* Column/tag chip selector */
@@ -287,7 +287,7 @@
   border-radius: 12px !important;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15), 0 0 0 1px rgba(255, 255, 255, 0.1) !important;
   z-index: 999999 !important;
-  font-family: 'Asta Sans', sans-serif !important;
+  font-family: var(--font-sans) !important;
   font-size: 18px !important;
   font-weight: 600 !important;
   min-width: 280px !important;
