@@ -6,6 +6,33 @@ import { useSlashCommands, SlashCommandPalette } from '@/lib/slash-commands';
 import { useMarkdownShortcuts } from '@/hooks/useMarkdownShortcuts';
 import './PageEditor.css';
 
+function insertImageMarkdown(
+  textarea: HTMLTextAreaElement,
+  content: string,
+  setContent: (s: string) => void,
+  dataUrl: string,
+  fileName: string
+) {
+  const cursorPos = textarea.selectionStart;
+  const imageMarkdown = `![${fileName}](${dataUrl})\n`;
+  const newContent = content.slice(0, cursorPos) + imageMarkdown + content.slice(cursorPos);
+  setContent(newContent);
+  const newCursor = cursorPos + imageMarkdown.length;
+  requestAnimationFrame(() => {
+    textarea.setSelectionRange(newCursor, newCursor);
+    textarea.focus();
+  });
+}
+
+function readFileAsDataUrl(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result as string);
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
+}
+
 interface PageEditorProps {
   page: Page;
   onSave: (updatedPage: Page) => void;
@@ -17,6 +44,7 @@ export function PageEditor({ page, onSave, onCancel }: PageEditorProps) {
   const [title, setTitle] = useState(page.title);
   const [content, setContent] = useState(page.content);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const [tags, setTags] = useState(page.tags.join(', '));
   const [dueDate, setDueDate] = useState(page.dueDate ? page.dueDate.slice(0, 10) : '');
   const [selectedColumn, setSelectedColumn] = useState(page.kanbanColumn || '');
@@ -47,6 +75,47 @@ export function PageEditor({ page, onSave, onCancel }: PageEditorProps) {
   );
 
   const getColColor = (col: string) => columnColors[col.toLowerCase()];
+
+  const handlePaste = useCallback(async (e: React.ClipboardEvent) => {
+    const items = e.clipboardData?.items;
+    if (!items) return;
+    for (const item of Array.from(items)) {
+      if (item.type.startsWith('image/')) {
+        e.preventDefault();
+        const file = item.getAsFile();
+        if (!file || !textareaRef.current) return;
+        const dataUrl = await readFileAsDataUrl(file);
+        insertImageMarkdown(textareaRef.current, content, setContent, dataUrl, file.name || 'pasted-image');
+        return;
+      }
+    }
+  }, [content, setContent]);
+
+  const handleDragOver = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'copy';
+  }, []);
+
+  const handleDrop = useCallback(async (e: React.DragEvent) => {
+    const files = e.dataTransfer.files;
+    for (const file of Array.from(files)) {
+      if (file.type.startsWith('image/')) {
+        e.preventDefault();
+        if (!textareaRef.current) return;
+        const dataUrl = await readFileAsDataUrl(file);
+        insertImageMarkdown(textareaRef.current, content, setContent, dataUrl, file.name);
+        return;
+      }
+    }
+  }, [content, setContent]);
+
+  const handleImageFileSelect = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !textareaRef.current) return;
+    const dataUrl = await readFileAsDataUrl(file);
+    insertImageMarkdown(textareaRef.current, content, setContent, dataUrl, file.name);
+    e.target.value = '';
+  }, [content, setContent]);
 
   // Close dropdown on outside click
   useEffect(() => {
@@ -259,6 +328,16 @@ export function PageEditor({ page, onSave, onCancel }: PageEditorProps) {
           >
             Preview
           </button>
+          <button className="toolbar-btn" onClick={() => fileInputRef.current?.click()} title="Insert image">
+            <span className="material-symbols-outlined" style={{fontSize: '1.1rem'}}>image</span>
+          </button>
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="image/*"
+            style={{ display: 'none' }}
+            onChange={handleImageFileSelect}
+          />
         </div>
         <div className="editor-toolbar-right">
           <button className="btn btn-secondary" onClick={onCancel}>
@@ -381,7 +460,11 @@ export function PageEditor({ page, onSave, onCancel }: PageEditorProps) {
           dangerouslySetInnerHTML={{ __html: previewHtml }}
         />
       ) : (
-        <div className="editor-textarea-wrapper">
+        <div
+          className="editor-textarea-wrapper"
+          onDragOver={handleDragOver}
+          onDrop={handleDrop}
+        >
           {slash.isOpen && slash.palettePosition && (
             <SlashCommandPalette
               commands={slash.filteredCommands}
@@ -400,6 +483,7 @@ export function PageEditor({ page, onSave, onCancel }: PageEditorProps) {
             onCompositionStart={slash.handleCompositionStart}
             onCompositionEnd={slash.handleCompositionEnd}
             onBlur={slash.handleBlur}
+            onPaste={handlePaste}
             placeholder="Type / for commands, or start writing..."
             spellCheck
           />
