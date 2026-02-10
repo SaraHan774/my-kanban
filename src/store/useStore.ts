@@ -16,12 +16,14 @@ const persistSettings = (state: {
   slashCommands: AppSlashCommand[];
   theme: 'light' | 'dark' | 'auto';
   columnOrder: string[];
+  zoomLevel: number;
 }) => {
   configService.save({
     columnColors: state.columnColors,
     slashCommands: state.slashCommands,
     theme: state.theme,
     columnOrder: state.columnOrder,
+    zoomLevel: state.zoomLevel,
   });
 };
 
@@ -79,6 +81,10 @@ interface AppState {
   // Column order (persisted)
   columnOrder: string[];
   setColumnOrder: (order: string[]) => void;
+
+  // Zoom level (persisted)
+  zoomLevel: number;
+  setZoomLevel: (level: number) => void;
 
   // Settings persistence
   loadSettingsFromFile: () => Promise<void>;
@@ -186,6 +192,14 @@ export const useStore = create<AppState>((set, get) => ({
     });
   },
 
+  // Zoom level
+  zoomLevel: initialSettings.zoomLevel,
+  setZoomLevel: (level) => {
+    set({ zoomLevel: level });
+    const state = get();
+    persistSettings({ ...state, zoomLevel: level });
+  },
+
   // Load settings from .kanban-config.json (called when FS access is granted)
   loadSettingsFromFile: async () => {
     const fileSettings = await configService.loadFromFile();
@@ -196,6 +210,7 @@ export const useStore = create<AppState>((set, get) => ({
         slashCommands: fileSettings.slashCommands,
         theme: fileSettings.theme,
         columnOrder: fileSettings.columnOrder,
+        zoomLevel: fileSettings.zoomLevel,
       });
       // Sync localStorage cache
       configService.saveToLocalStorage(fileSettings);
@@ -207,6 +222,7 @@ export const useStore = create<AppState>((set, get) => ({
         slashCommands: state.slashCommands,
         theme: state.theme,
         columnOrder: state.columnOrder,
+        zoomLevel: state.zoomLevel,
       });
     }
   },
