@@ -1,9 +1,11 @@
 import { useEffect, useState, useRef, useCallback } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { useStore } from '@/store/useStore';
-import { pageService, markdownService } from '@/services';
+import { pageService, markdownService, resolveImagesInHtml, clearImageCache } from '@/services';
 import { Page } from '@/types';
 import { PageEditor } from '@/components/PageEditor';
+import { FindBar } from '@/components/FindBar';
+import { useMermaid } from '@/hooks/useMermaid';
 import './PageView.css';
 
 export function PageView() {
@@ -15,6 +17,16 @@ export function PageView() {
   const [loading, setLoading] = useState(true);
   const [editing, setEditing] = useState(false);
   const contentRef = useRef<HTMLDivElement>(null);
+  const [showFindBar, setShowFindBar] = useState(false);
+  const [zoomedDiagram, setZoomedDiagram] = useState<string | null>(null);
+
+  // Render mermaid diagrams after HTML content updates
+  useMermaid(contentRef, htmlContent);
+
+  // Clean up blob URLs on unmount or page change
+  useEffect(() => {
+    return () => { clearImageCache(); };
+  }, [pageId]);
 
   useEffect(() => {
     if (pageId) {
@@ -37,7 +49,8 @@ export function PageView() {
       if (foundPage) {
         const fullPage = await pageService.loadPageWithChildren(foundPage.path);
         setPage(fullPage);
-        const html = await markdownService.toHtml(fullPage.content);
+        let html = await markdownService.toHtml(fullPage.content);
+        html = await resolveImagesInHtml(html, fullPage.path);
         setHtmlContent(html);
       }
     } catch (error) {
@@ -63,7 +76,8 @@ export function PageView() {
     setPage(updatedPage);
     updatePageInStore(updatedPage);
 
-    const html = await markdownService.toHtml(newContent);
+    let html = await markdownService.toHtml(newContent);
+    html = await resolveImagesInHtml(html, page.path);
     setHtmlContent(html);
 
     try {
@@ -96,6 +110,33 @@ export function PageView() {
     };
   }, [htmlContent, handleCheckboxToggle]);
 
+  // Attach click handlers to mermaid diagrams for zoom functionality
+  useEffect(() => {
+    const container = contentRef.current;
+    if (!container) return;
+
+    const diagrams = container.querySelectorAll<HTMLElement>('.mermaid-block');
+    const handlers: Array<() => void> = [];
+
+    diagrams.forEach((diagram) => {
+      const handler = () => {
+        // Get the SVG content from the diagram
+        const svg = diagram.querySelector('svg');
+        if (svg) {
+          setZoomedDiagram(svg.outerHTML);
+        }
+      };
+      diagram.addEventListener('click', handler);
+      handlers.push(handler);
+    });
+
+    return () => {
+      diagrams.forEach((diagram, index) => {
+        diagram.removeEventListener('click', handlers[index]);
+      });
+    };
+  }, [htmlContent]);
+
   const handleDelete = async () => {
     if (!page) return;
     if (!window.confirm(`Delete "${page.title}"? This will also delete all sub-pages.`)) return;
@@ -108,15 +149,23 @@ export function PageView() {
     }
   };
 
-  const handleEditorSave = (updatedPage: Page) => {
+  const handleEditorSave = async (updatedPage: Page) => {
     setPage(updatedPage);
-    markdownService.toHtml(updatedPage.content).then(setHtmlContent);
     setEditing(false);
+    // Reload the page to ensure mermaid diagrams render correctly
+    await loadPage(updatedPage.id);
   };
 
-  // Keyboard shortcuts for edit mode
+  // Keyboard shortcuts for edit mode and find
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
+      // Cmd+F for find
+      if ((e.metaKey || e.ctrlKey) && e.key === 'f' && !editing) {
+        e.preventDefault();
+        setShowFindBar(prev => !prev);
+        return;
+      }
+
       // Prevent Cmd+S when not editing
       if ((e.metaKey || e.ctrlKey) && e.key === 's' && !editing) {
         e.preventDefault();
@@ -171,8 +220,9 @@ export function PageView() {
   }
 
   return (
-    <div className="page-view">
-      <div className="page-header">
+    <>
+      <div className="page-view">
+        <div className="page-header">
         <div className="page-header-top">
           <button className="btn-icon" onClick={() => navigate(-1)} title="Go back">
             <span className="material-symbols-outlined">arrow_back</span>
@@ -216,6 +266,13 @@ export function PageView() {
       </div>
 
       <div className="document-view">
+        {showFindBar && (
+          <FindBar
+            content={page.content}
+            contentRef={contentRef}
+            onClose={() => setShowFindBar(false)}
+          />
+        )}
         <div
           ref={contentRef}
           className="markdown-content"
@@ -223,25 +280,39 @@ export function PageView() {
         />
       </div>
 
-      {page.children && page.children.length > 0 && (
-        <div className="sub-pages">
-          <h2>Sub-pages</h2>
-          <div className="sub-pages-list">
-            {page.children.map(child => (
-              <Link key={child.id} to={`/page/${child.id}`} className="sub-page-card">
-                <h3>{child.title}</h3>
-                {child.tags.length > 0 && (
-                  <div className="tags">
-                    {child.tags.map(tag => (
-                      <span key={tag} className="tag-small">{tag}</span>
-                    ))}
-                  </div>
-                )}
-              </Link>
-            ))}
+        {page.children && page.children.length > 0 && (
+          <div className="sub-pages">
+            <h2>Sub-pages</h2>
+            <div className="sub-pages-list">
+              {page.children.map(child => (
+                <Link key={child.id} to={`/page/${child.id}`} className="sub-page-card">
+                  <h3>{child.title}</h3>
+                  {child.tags.length > 0 && (
+                    <div className="tags">
+                      {child.tags.map(tag => (
+                        <span key={tag} className="tag-small">{tag}</span>
+                      ))}
+                    </div>
+                  )}
+                </Link>
+              ))}
+            </div>
           </div>
+        )}
+      </div>
+
+      {/* Mermaid diagram zoom modal */}
+      {zoomedDiagram && (
+        <div
+          className="diagram-zoom-modal"
+          onClick={() => setZoomedDiagram(null)}
+        >
+          <div
+            className="diagram-zoom-content"
+            dangerouslySetInnerHTML={{ __html: zoomedDiagram }}
+          />
         </div>
       )}
-    </div>
+    </>
   );
 }

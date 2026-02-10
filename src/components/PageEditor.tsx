@@ -1,35 +1,28 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
 import { Page } from '@/types';
-import { pageService, markdownService } from '@/services';
+import { pageService, markdownService, saveImage, resolveImagesInHtml, clearImageCache } from '@/services';
 import { useStore } from '@/store/useStore';
 import { useSlashCommands, SlashCommandPalette } from '@/lib/slash-commands';
 import { useMarkdownShortcuts } from '@/hooks/useMarkdownShortcuts';
+import { useMermaid } from '@/hooks/useMermaid';
+import { FindBar } from '@/components/FindBar';
 import './PageEditor.css';
 
 function insertImageMarkdown(
   textarea: HTMLTextAreaElement,
   content: string,
   setContent: (s: string) => void,
-  dataUrl: string,
+  relativePath: string,
   fileName: string
 ) {
   const cursorPos = textarea.selectionStart;
-  const imageMarkdown = `![${fileName}](${dataUrl})\n`;
+  const imageMarkdown = `![${fileName}](${relativePath})\n`;
   const newContent = content.slice(0, cursorPos) + imageMarkdown + content.slice(cursorPos);
   setContent(newContent);
   const newCursor = cursorPos + imageMarkdown.length;
   requestAnimationFrame(() => {
     textarea.setSelectionRange(newCursor, newCursor);
     textarea.focus();
-  });
-}
-
-function readFileAsDataUrl(file: File): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => resolve(reader.result as string);
-    reader.onerror = reject;
-    reader.readAsDataURL(file);
   });
 }
 
@@ -55,6 +48,11 @@ export function PageEditor({ page, onSave, onCancel }: PageEditorProps) {
   const [previewHtml, setPreviewHtml] = useState('');
   const [showToast, setShowToast] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
+  const previewRef = useRef<HTMLDivElement>(null);
+  const editorPreviewRef = useRef<HTMLDivElement>(null);
+  const highlightOverlayRef = useRef<HTMLDivElement>(null);
+  const [showFindBar, setShowFindBar] = useState(false);
+  const [zoomedDiagram, setZoomedDiagram] = useState<string | null>(null);
 
   const slash = useSlashCommands({
     textareaRef,
@@ -64,6 +62,36 @@ export function PageEditor({ page, onSave, onCancel }: PageEditorProps) {
   });
 
   const markdown = useMarkdownShortcuts(textareaRef, content, setContent);
+
+  // Render mermaid diagrams in editor preview
+  useMermaid(previewRef, previewHtml);
+
+  // Attach click handlers to mermaid diagrams in preview mode for zoom functionality
+  useEffect(() => {
+    if (!preview) return;
+    const container = previewRef.current;
+    if (!container) return;
+
+    const diagrams = container.querySelectorAll<HTMLElement>('.mermaid-block');
+    const handlers: Array<() => void> = [];
+
+    diagrams.forEach((diagram) => {
+      const handler = () => {
+        const svg = diagram.querySelector('svg');
+        if (svg) {
+          setZoomedDiagram(svg.outerHTML);
+        }
+      };
+      diagram.addEventListener('click', handler);
+      handlers.push(handler);
+    });
+
+    return () => {
+      diagrams.forEach((diagram, index) => {
+        diagram.removeEventListener('click', handlers[index]);
+      });
+    };
+  }, [preview, previewHtml]);
 
   // Derive existing columns from all pages' kanbanColumn values (case-insensitive dedup)
   const existingColumns = Array.from(
@@ -77,19 +105,47 @@ export function PageEditor({ page, onSave, onCancel }: PageEditorProps) {
   const getColColor = (col: string) => columnColors[col.toLowerCase()];
 
   const handlePaste = useCallback(async (e: React.ClipboardEvent) => {
+    if (!textareaRef.current) return;
+    const textarea = textareaRef.current;
+
+    // Try clipboardData.items first (Chrome/Blink)
     const items = e.clipboardData?.items;
-    if (!items) return;
-    for (const item of Array.from(items)) {
-      if (item.type.startsWith('image/')) {
-        e.preventDefault();
-        const file = item.getAsFile();
-        if (!file || !textareaRef.current) return;
-        const dataUrl = await readFileAsDataUrl(file);
-        insertImageMarkdown(textareaRef.current, content, setContent, dataUrl, file.name || 'pasted-image');
-        return;
+    if (items) {
+      for (const item of Array.from(items)) {
+        if (item.type.startsWith('image/')) {
+          e.preventDefault();
+          const file = item.getAsFile();
+          if (!file) return;
+          try {
+            const relativePath = await saveImage(page.path, file);
+            insertImageMarkdown(textarea, content, setContent, relativePath, file.name || 'pasted-image');
+          } catch (err) {
+            console.error('Failed to save pasted image:', err);
+            alert(`Failed to save image: ${err instanceof Error ? err.message : String(err)}`);
+          }
+          return;
+        }
       }
     }
-  }, [content, setContent]);
+
+    // Fallback: clipboardData.files (WebKit/WKWebView)
+    const files = e.clipboardData?.files;
+    if (files && files.length > 0) {
+      for (const file of Array.from(files)) {
+        if (file.type.startsWith('image/')) {
+          e.preventDefault();
+          try {
+            const relativePath = await saveImage(page.path, file);
+            insertImageMarkdown(textarea, content, setContent, relativePath, file.name || 'pasted-image');
+          } catch (err) {
+            console.error('Failed to save pasted image:', err);
+            alert(`Failed to save image: ${err instanceof Error ? err.message : String(err)}`);
+          }
+          return;
+        }
+      }
+    }
+  }, [content, setContent, page.path]);
 
   const handleDragOver = useCallback((e: React.DragEvent) => {
     e.preventDefault();
@@ -102,20 +158,30 @@ export function PageEditor({ page, onSave, onCancel }: PageEditorProps) {
       if (file.type.startsWith('image/')) {
         e.preventDefault();
         if (!textareaRef.current) return;
-        const dataUrl = await readFileAsDataUrl(file);
-        insertImageMarkdown(textareaRef.current, content, setContent, dataUrl, file.name);
+        try {
+          const relativePath = await saveImage(page.path, file);
+          insertImageMarkdown(textareaRef.current, content, setContent, relativePath, file.name);
+        } catch (err) {
+          console.error('Failed to save dropped image:', err);
+          alert(`Failed to save image: ${err instanceof Error ? err.message : String(err)}`);
+        }
         return;
       }
     }
-  }, [content, setContent]);
+  }, [content, setContent, page.path]);
 
   const handleImageFileSelect = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file || !textareaRef.current) return;
-    const dataUrl = await readFileAsDataUrl(file);
-    insertImageMarkdown(textareaRef.current, content, setContent, dataUrl, file.name);
+    try {
+      const relativePath = await saveImage(page.path, file);
+      insertImageMarkdown(textareaRef.current, content, setContent, relativePath, file.name);
+    } catch (err) {
+      console.error('Failed to save selected image:', err);
+      alert(`Failed to save image: ${err instanceof Error ? err.message : String(err)}`);
+    }
     e.target.value = '';
-  }, [content, setContent]);
+  }, [content, setContent, page.path]);
 
   // Close dropdown on outside click
   useEffect(() => {
@@ -130,11 +196,17 @@ export function PageEditor({ page, onSave, onCancel }: PageEditorProps) {
 
   const handlePreview = useCallback(async () => {
     if (!preview) {
-      const html = await markdownService.toHtml(content);
+      let html = await markdownService.toHtml(content);
+      html = await resolveImagesInHtml(html, page.path);
       setPreviewHtml(html);
     }
     setPreview(!preview);
-  }, [preview, content]);
+  }, [preview, content, page.path]);
+
+  // Clean up blob URLs on unmount
+  useEffect(() => {
+    return () => { clearImageCache(); };
+  }, []);
 
   const handleAddNewColumn = () => {
     const trimmed = newColumnInput.trim();
@@ -259,12 +331,16 @@ export function PageEditor({ page, onSave, onCancel }: PageEditorProps) {
     slash.handleKeyDown(e);
   };
 
-  // Keyboard shortcut: Ctrl+S to save
+  // Keyboard shortcut: Ctrl+S to save, Cmd+F for find
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && e.key === 's') {
         e.preventDefault();
         handleSave();
+      }
+      if ((e.metaKey || e.ctrlKey) && e.key === 'f') {
+        e.preventDefault();
+        setShowFindBar(prev => !prev);
       }
     };
     window.addEventListener('keydown', handleKeyDown);
@@ -453,16 +529,35 @@ export function PageEditor({ page, onSave, onCancel }: PageEditorProps) {
       </div>
 
       {preview ? (
-        <div
-          className="editor-preview markdown-content"
-          dangerouslySetInnerHTML={{ __html: previewHtml }}
-        />
+        <div ref={editorPreviewRef}>
+          {showFindBar && (
+            <FindBar
+              content={content}
+              contentRef={previewRef}
+              onClose={() => setShowFindBar(false)}
+            />
+          )}
+          <div
+            ref={previewRef}
+            className="editor-preview markdown-content"
+            dangerouslySetInnerHTML={{ __html: previewHtml }}
+          />
+        </div>
       ) : (
         <div
           className="editor-textarea-wrapper"
           onDragOver={handleDragOver}
           onDrop={handleDrop}
         >
+          {showFindBar && (
+            <FindBar
+              content={content}
+              textareaRef={textareaRef}
+              contentRef={previewRef}
+              highlightOverlayRef={highlightOverlayRef}
+              onClose={() => setShowFindBar(false)}
+            />
+          )}
           {slash.isOpen && slash.palettePosition && (
             <SlashCommandPalette
               commands={slash.filteredCommands}
@@ -472,22 +567,49 @@ export function PageEditor({ page, onSave, onCancel }: PageEditorProps) {
               onClose={slash.closePalette}
             />
           )}
-          <textarea
-            ref={textareaRef}
-            className="editor-textarea"
-            value={content}
-            onChange={slash.handleChange}
-            onKeyDown={handleEditorKeyDown}
-            onCompositionStart={slash.handleCompositionStart}
-            onCompositionEnd={slash.handleCompositionEnd}
-            onBlur={slash.handleBlur}
-            onPaste={handlePaste}
-            placeholder="Type / for commands, or start writing..."
-            spellCheck
-          />
+          <div className="textarea-highlight-container">
+            <div
+              ref={highlightOverlayRef}
+              className="textarea-highlight-overlay"
+              aria-hidden="true"
+            />
+            <textarea
+              ref={textareaRef}
+              className="editor-textarea"
+              value={content}
+              onChange={slash.handleChange}
+              onKeyDown={handleEditorKeyDown}
+              onCompositionStart={slash.handleCompositionStart}
+              onCompositionEnd={slash.handleCompositionEnd}
+              onBlur={slash.handleBlur}
+              onPaste={handlePaste}
+              onScroll={(e) => {
+                // Sync scroll with highlight overlay
+                if (highlightOverlayRef.current) {
+                  highlightOverlayRef.current.scrollTop = e.currentTarget.scrollTop;
+                  highlightOverlayRef.current.scrollLeft = e.currentTarget.scrollLeft;
+                }
+              }}
+              placeholder="Type / for commands, or start writing..."
+              spellCheck
+            />
+          </div>
         </div>
       )}
       </div>
+
+      {/* Mermaid diagram zoom modal */}
+      {zoomedDiagram && (
+        <div
+          className="diagram-zoom-modal"
+          onClick={() => setZoomedDiagram(null)}
+        >
+          <div
+            className="diagram-zoom-content"
+            dangerouslySetInnerHTML={{ __html: zoomedDiagram }}
+          />
+        </div>
+      )}
     </>
   );
 }

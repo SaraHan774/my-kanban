@@ -14,12 +14,30 @@ const LS_COLUMN_COLORS = 'kanban-column-colors';
 const LS_SLASH_COMMANDS = 'kanban-slash-commands';
 const LS_THEME = 'kanban-theme';
 const LS_COLUMN_ORDER = 'kanban-column-order';
+const LS_ZOOM_LEVEL = 'kanban-zoom-level';
+const LS_FONT_SETTINGS = 'kanban-font-settings';
+
+export interface FontSettings {
+  fontFamily: string;
+  monoFontFamily: string;
+  fontSize: number;
+  lineHeight: number;
+}
+
+export const DEFAULT_FONT_SETTINGS: FontSettings = {
+  fontFamily: 'Pretendard',
+  monoFontFamily: 'Fira Code',
+  fontSize: 16,
+  lineHeight: 1.6,
+};
 
 export interface KanbanSettings {
   columnColors: Record<string, string>;
   slashCommands: AppSlashCommand[];
   theme: 'light' | 'dark' | 'auto';
   columnOrder: string[];
+  zoomLevel: number;
+  fontSettings: FontSettings;
 }
 
 const DEFAULT_SETTINGS: KanbanSettings = {
@@ -27,6 +45,8 @@ const DEFAULT_SETTINGS: KanbanSettings = {
   slashCommands: DEFAULT_SLASH_COMMANDS,
   theme: 'auto',
   columnOrder: [],
+  zoomLevel: 100,
+  fontSettings: DEFAULT_FONT_SETTINGS,
 };
 
 class ConfigService {
@@ -44,6 +64,10 @@ class ConfigService {
         slashCommands: parsed.slashCommands ?? DEFAULT_SETTINGS.slashCommands,
         theme: parsed.theme ?? DEFAULT_SETTINGS.theme,
         columnOrder: parsed.columnOrder ?? DEFAULT_SETTINGS.columnOrder,
+        zoomLevel: parsed.zoomLevel ?? DEFAULT_SETTINGS.zoomLevel,
+        fontSettings: parsed.fontSettings
+          ? { ...DEFAULT_FONT_SETTINGS, ...parsed.fontSettings }
+          : DEFAULT_SETTINGS.fontSettings,
       };
     } catch {
       return null;
@@ -88,6 +112,16 @@ class ConfigService {
       if (order) settings.columnOrder = JSON.parse(order);
     } catch { /* ignore */ }
 
+    try {
+      const zoom = localStorage.getItem(LS_ZOOM_LEVEL);
+      if (zoom) settings.zoomLevel = JSON.parse(zoom);
+    } catch { /* ignore */ }
+
+    try {
+      const fonts = localStorage.getItem(LS_FONT_SETTINGS);
+      if (fonts) settings.fontSettings = { ...DEFAULT_FONT_SETTINGS, ...JSON.parse(fonts) };
+    } catch { /* ignore */ }
+
     return settings;
   }
 
@@ -99,6 +133,8 @@ class ConfigService {
     localStorage.setItem(LS_SLASH_COMMANDS, JSON.stringify(settings.slashCommands));
     localStorage.setItem(LS_THEME, settings.theme);
     localStorage.setItem(LS_COLUMN_ORDER, JSON.stringify(settings.columnOrder));
+    localStorage.setItem(LS_ZOOM_LEVEL, JSON.stringify(settings.zoomLevel));
+    localStorage.setItem(LS_FONT_SETTINGS, JSON.stringify(settings.fontSettings));
   }
 
   /**

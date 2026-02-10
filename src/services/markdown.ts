@@ -11,15 +11,29 @@ import { PageFrontmatter, RawPageData } from '@/types';
 
 const FRONTMATTER_RE = /^---\r?\n([\s\S]*?)\r?\n---\r?\n?([\s\S]*)$/;
 
-// Configure marked with syntax highlighting
+// Configure marked with syntax highlighting + mermaid code block support
 marked.use(
   markedHighlight({
     langPrefix: 'hljs language-',
     highlight(code: string, lang: string) {
+      if (lang === 'mermaid') return code; // Don't syntax-highlight mermaid
       const language = hljs.getLanguage(lang) ? lang : 'plaintext';
       return hljs.highlight(code, { language }).value;
     }
-  })
+  }),
+  {
+    renderer: {
+      code(code: string, infostring: string | undefined): string | false {
+        // Handle mermaid blocks (case-insensitive, trim whitespace)
+        const lang = (infostring || '').trim().toLowerCase();
+        if (lang === 'mermaid') {
+          console.log('[Markdown] Rendering mermaid block:', code.substring(0, 50) + '...');
+          return `<div class="mermaid-block"><pre class="mermaid">${code}</pre></div>`;
+        }
+        return false; // fall through to default renderer
+      }
+    }
+  }
 );
 
 export class MarkdownService {

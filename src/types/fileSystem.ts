@@ -15,4 +15,6 @@ export interface IFileSystemService {
   delete(path: string): Promise<void>;
   exists(path: string): Promise<boolean>;
   scanPages(path?: string): Promise<string[]>;
+  writeBinaryFile(path: string, data: Uint8Array): Promise<void>;
+  readBinaryFile(path: string): Promise<Uint8Array>;
 }

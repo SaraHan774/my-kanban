@@ -1,6 +1,25 @@
 .layout {
   display: flex;
   min-height: 100vh;
+  overflow-x: hidden;
+}
+
+/* Sidebar container with slide animation */
+.sidebar-container {
+  position: relative;
+  transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1), width 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  width: 280px;
+  flex-shrink: 0;
+  overflow: hidden;
+}
+
+.sidebar-container.closed {
+  transform: translateX(-100%);
+  width: 0;
+}
+
+.sidebar-container.open {
+  transform: translateX(0);
 }
 
 .main-content {
@@ -115,4 +134,34 @@
   font-family: 'Asta Sans', sans-serif;
   font-size: 0.85rem;
   font-weight: 600;
+}
+
+/* Zoom toast notification */
+.zoom-toast {
+  position: fixed;
+  bottom: 2rem;
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 0.5rem 1.25rem;
+  border-radius: 8px;
+  background-color: rgba(0, 0, 0, 0.75);
+  color: #ffffff;
+  font-family: var(--font-sans);
+  font-size: 0.9rem;
+  font-weight: 600;
+  letter-spacing: 0.025em;
+  pointer-events: none;
+  z-index: 9999;
+  animation: zoom-toast-fade-in 0.15s ease-out;
+}
+
+@keyframes zoom-toast-fade-in {
+  from {
+    opacity: 0;
+    transform: translateX(-50%) translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+  }
 }

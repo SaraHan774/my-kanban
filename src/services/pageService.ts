@@ -6,6 +6,7 @@
 import { Page, PageFrontmatter, FilterCriteria, SortOptions } from '@/types';
 import { fileSystemService } from './fileSystemFactory';
 import { markdownService } from './markdown';
+import { copyImagesDir } from './imageService';
 
 export class PageService {
   /**
@@ -46,6 +47,7 @@ export class PageService {
 
     for (const entry of entries) {
       if (entry.kind === 'directory') {
+        if (entry.name === '.images') continue;
         const childPath = `${parentPath}/${entry.name}`;
         const indexPath = `${childPath}/index.md`;
 
@@ -263,6 +265,9 @@ export class PageService {
 
     const markdown = markdownService.serialize(frontmatter, page.content);
     await fileSystemService.writeFile(`${newPath}/index.md`, markdown);
+
+    // Copy .images directory if it exists
+    await copyImagesDir(page.path, newPath);
 
     // Recursively recreate children
     if (page.children) {

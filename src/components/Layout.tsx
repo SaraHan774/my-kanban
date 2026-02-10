@@ -1,12 +1,25 @@
-import { useEffect } from 'react';
+import { useEffect, useState, useCallback, useRef } from 'react';
 import { Outlet, Link } from 'react-router-dom';
 import { Sidebar } from './Sidebar';
 import { useStore } from '@/store/useStore';
 import { fileSystemService } from '@/services';
 import './Layout.css';
 
+// Augment CSSStyleDeclaration with the non-standard `zoom` property
+declare global {
+  interface CSSStyleDeclaration {
+    zoom: string;
+  }
+}
+
+const ZOOM_MIN = 50;
+const ZOOM_MAX = 200;
+const ZOOM_STEP = 10;
+
 export function Layout() {
-  const { sidebarOpen, setSidebarOpen, hasFileSystemAccess, setHasFileSystemAccess, theme, setTheme } = useStore();
+  const { sidebarOpen, setSidebarOpen, hasFileSystemAccess, setHasFileSystemAccess, theme, setTheme, zoomLevel, setZoomLevel, fontSettings } = useStore();
+  const [zoomToast, setZoomToast] = useState<string | null>(null);
+  const toastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // On mount, attempt to restore file system access from IndexedDB
   useEffect(() => {
@@ -32,6 +45,82 @@ export function Layout() {
     }
   }, [theme]);
 
+  // Apply font settings as CSS custom properties on :root
+  useEffect(() => {
+    const root = document.documentElement;
+    const sansFallbacks = "-apple-system, BlinkMacSystemFont, system-ui, sans-serif";
+    const monoFallbacks = "'SF Mono', Monaco, 'Cascadia Code', 'Roboto Mono', Consolas, 'Courier New', monospace";
+
+    if (fontSettings.fontFamily === 'System Default') {
+      root.style.setProperty('--font-sans', sansFallbacks);
+    } else {
+      root.style.setProperty('--font-sans', `'${fontSettings.fontFamily}', ${sansFallbacks}`);
+    }
+
+    root.style.setProperty('--font-mono', `'${fontSettings.monoFontFamily}', ${monoFallbacks}`);
+    root.style.setProperty('--font-size-base', `${fontSettings.fontSize}px`);
+    root.style.setProperty('--line-height-content', `${fontSettings.lineHeight}`);
+  }, [fontSettings]);
+
+  // Apply zoom CSS on the root element
+  useEffect(() => {
+    document.documentElement.style.zoom = `${zoomLevel}%`;
+  }, [zoomLevel]);
+
+  // Show toast with current zoom level, auto-hide after 1.5s
+  const showZoomToast = useCallback((level: number) => {
+    setZoomToast(`${level}%`);
+    if (toastTimerRef.current) {
+      clearTimeout(toastTimerRef.current);
+    }
+    toastTimerRef.current = setTimeout(() => {
+      setZoomToast(null);
+      toastTimerRef.current = null;
+    }, 1500);
+  }, []);
+
+  // Keyboard shortcut listener for zoom: Cmd+Plus, Cmd+Minus, Cmd+0
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (!(e.metaKey || e.ctrlKey)) return;
+
+      // Cmd+= or Cmd+Shift+= (zoom in)
+      if (e.key === '=' || e.key === '+') {
+        e.preventDefault();
+        const next = Math.min(zoomLevel + ZOOM_STEP, ZOOM_MAX);
+        if (next !== zoomLevel) {
+          setZoomLevel(next);
+          showZoomToast(next);
+        }
+        return;
+      }
+
+      // Cmd+- (zoom out)
+      if (e.key === '-') {
+        e.preventDefault();
+        const next = Math.max(zoomLevel - ZOOM_STEP, ZOOM_MIN);
+        if (next !== zoomLevel) {
+          setZoomLevel(next);
+          showZoomToast(next);
+        }
+        return;
+      }
+
+      // Cmd+0 (reset to 100%)
+      if (e.key === '0') {
+        e.preventDefault();
+        if (zoomLevel !== 100) {
+          setZoomLevel(100);
+        }
+        showZoomToast(100);
+        return;
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [zoomLevel, setZoomLevel, showZoomToast]);
+
   const cycleTheme = () => {
     const next = theme === 'auto' ? 'light' : theme === 'light' ? 'dark' : 'auto';
     setTheme(next);
@@ -41,7 +130,9 @@ export function Layout() {
 
   return (
     <div className="layout">
-      {sidebarOpen && <Sidebar />}
+      <div className={`sidebar-container ${sidebarOpen ? 'open' : 'closed'}`}>
+        <Sidebar />
+      </div>
       <main className="main-content">
         <div className="top-bar">
           {!sidebarOpen && (
@@ -66,6 +157,9 @@ export function Layout() {
         </div>
         <Outlet />
       </main>
+      {zoomToast && (
+        <div className="zoom-toast">{zoomToast}</div>
+      )}
     </div>
   );
 }
