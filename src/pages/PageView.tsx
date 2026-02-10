@@ -4,6 +4,7 @@ import { useStore } from '@/store/useStore';
 import { pageService, markdownService } from '@/services';
 import { Page } from '@/types';
 import { PageEditor } from '@/components/PageEditor';
+import { useMermaid } from '@/hooks/useMermaid';
 import './PageView.css';
 
 export function PageView() {
@@ -15,6 +16,9 @@ export function PageView() {
   const [loading, setLoading] = useState(true);
   const [editing, setEditing] = useState(false);
   const contentRef = useRef<HTMLDivElement>(null);
+
+  // Render mermaid diagrams after HTML content updates
+  useMermaid(contentRef, htmlContent);
 
   useEffect(() => {
     if (pageId) {

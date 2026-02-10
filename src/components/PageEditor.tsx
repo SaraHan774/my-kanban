@@ -4,6 +4,7 @@ import { pageService, markdownService } from '@/services';
 import { useStore } from '@/store/useStore';
 import { useSlashCommands, SlashCommandPalette } from '@/lib/slash-commands';
 import { useMarkdownShortcuts } from '@/hooks/useMarkdownShortcuts';
+import { useMermaid } from '@/hooks/useMermaid';
 import './PageEditor.css';
 
 function insertImageMarkdown(
@@ -55,6 +56,7 @@ export function PageEditor({ page, onSave, onCancel }: PageEditorProps) {
   const [previewHtml, setPreviewHtml] = useState('');
   const [showToast, setShowToast] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
+  const previewRef = useRef<HTMLDivElement>(null);
 
   const slash = useSlashCommands({
     textareaRef,
@@ -64,6 +66,9 @@ export function PageEditor({ page, onSave, onCancel }: PageEditorProps) {
   });
 
   const markdown = useMarkdownShortcuts(textareaRef, content, setContent);
+
+  // Render mermaid diagrams in editor preview
+  useMermaid(previewRef, previewHtml);
 
   // Derive existing columns from all pages' kanbanColumn values (case-insensitive dedup)
   const existingColumns = Array.from(
@@ -454,6 +459,7 @@ export function PageEditor({ page, onSave, onCancel }: PageEditorProps) {
 
       {preview ? (
         <div
+          ref={previewRef}
           className="editor-preview markdown-content"
           dangerouslySetInnerHTML={{ __html: previewHtml }}
         />

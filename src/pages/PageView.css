@@ -221,3 +221,21 @@
   font-size: 1rem;
   color: var(--text-primary);
 }
+
+/* Mermaid diagram blocks */
+.mermaid-block {
+  margin: 1em 0;
+  display: flex;
+  justify-content: center;
+}
+
+.mermaid-block pre.mermaid {
+  background: transparent;
+  padding: 0;
+  text-align: center;
+}
+
+.mermaid-block svg {
+  max-width: 100%;
+  height: auto;
+}
