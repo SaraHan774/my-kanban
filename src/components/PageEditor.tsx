@@ -4,6 +4,7 @@ import { pageService, markdownService } from '@/services';
 import { useStore } from '@/store/useStore';
 import { useSlashCommands, SlashCommandPalette } from '@/lib/slash-commands';
 import { useMarkdownShortcuts } from '@/hooks/useMarkdownShortcuts';
+import { FindBar } from '@/components/FindBar';
 import './PageEditor.css';
 
 function insertImageMarkdown(
@@ -54,7 +55,9 @@ export function PageEditor({ page, onSave, onCancel }: PageEditorProps) {
   const [preview, setPreview] = useState(false);
   const [previewHtml, setPreviewHtml] = useState('');
   const [showToast, setShowToast] = useState(false);
+  const [showFindBar, setShowFindBar] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
+  const editorPreviewRef = useRef<HTMLDivElement>(null);
 
   const slash = useSlashCommands({
     textareaRef,
@@ -156,9 +159,13 @@ export function PageEditor({ page, onSave, onCancel }: PageEditorProps) {
     // Handle markdown shortcuts (Cmd+B, Cmd+I, Cmd+E) first
     if (markdown.handleMarkdownShortcut(e)) return;
 
-    // Handle Escape key (only when slash palette is not open)
+    // Handle Escape key: close find bar first, then cancel editor
     if (e.key === 'Escape' && !slash.isOpen) {
       e.preventDefault();
+      if (showFindBar) {
+        setShowFindBar(false);
+        return;
+      }
       onCancel();
       return;
     }
@@ -259,12 +266,18 @@ export function PageEditor({ page, onSave, onCancel }: PageEditorProps) {
     slash.handleKeyDown(e);
   };
 
-  // Keyboard shortcut: Ctrl+S to save
+  // Keyboard shortcut: Ctrl+S to save, Cmd+F to find
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && e.key === 's') {
         e.preventDefault();
         handleSave();
+        return;
+      }
+      if ((e.metaKey || e.ctrlKey) && e.key === 'f') {
+        e.preventDefault();
+        setShowFindBar(true);
+        return;
       }
     };
     window.addEventListener('keydown', handleKeyDown);
@@ -452,8 +465,18 @@ export function PageEditor({ page, onSave, onCancel }: PageEditorProps) {
         </div>
       </div>
 
+      {showFindBar && (
+        <FindBar
+          onClose={() => setShowFindBar(false)}
+          contentRef={editorPreviewRef}
+          textareaRef={preview ? undefined : textareaRef}
+          content={preview ? undefined : content}
+        />
+      )}
+
       {preview ? (
         <div
+          ref={editorPreviewRef}
           className="editor-preview markdown-content"
           dangerouslySetInnerHTML={{ __html: previewHtml }}
         />
