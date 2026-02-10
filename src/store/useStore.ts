@@ -5,7 +5,7 @@
 import { create } from 'zustand';
 import { Page, AppConfig, DEFAULT_CONFIG, SortOptions } from '@/types';
 import { AppSlashCommand, DEFAULT_SLASH_COMMANDS } from '@/data/defaultSlashCommands';
-import { configService } from '@/services/configService';
+import { configService, FontSettings, DEFAULT_FONT_SETTINGS } from '@/services/configService';
 
 // Load initial settings from localStorage (synchronous, fast first render)
 const initialSettings = configService.loadFromLocalStorage();
@@ -17,6 +17,7 @@ const persistSettings = (state: {
   theme: 'light' | 'dark' | 'auto';
   columnOrder: string[];
   zoomLevel: number;
+  fontSettings: FontSettings;
 }) => {
   configService.save({
     columnColors: state.columnColors,
@@ -24,6 +25,7 @@ const persistSettings = (state: {
     theme: state.theme,
     columnOrder: state.columnOrder,
     zoomLevel: state.zoomLevel,
+    fontSettings: state.fontSettings,
   });
 };
 
@@ -85,6 +87,10 @@ interface AppState {
   // Zoom level (persisted)
   zoomLevel: number;
   setZoomLevel: (level: number) => void;
+
+  // Font settings (persisted)
+  fontSettings: FontSettings;
+  setFontSettings: (fontSettings: FontSettings) => void;
 
   // Settings persistence
   loadSettingsFromFile: () => Promise<void>;
@@ -200,6 +206,14 @@ export const useStore = create<AppState>((set, get) => ({
     persistSettings({ ...state, zoomLevel: level });
   },
 
+  // Font settings
+  fontSettings: initialSettings.fontSettings,
+  setFontSettings: (fontSettings) => {
+    set({ fontSettings });
+    const state = get();
+    persistSettings({ ...state, fontSettings });
+  },
+
   // Load settings from .kanban-config.json (called when FS access is granted)
   loadSettingsFromFile: async () => {
     const fileSettings = await configService.loadFromFile();
@@ -211,6 +225,7 @@ export const useStore = create<AppState>((set, get) => ({
         theme: fileSettings.theme,
         columnOrder: fileSettings.columnOrder,
         zoomLevel: fileSettings.zoomLevel,
+        fontSettings: fileSettings.fontSettings,
       });
       // Sync localStorage cache
       configService.saveToLocalStorage(fileSettings);
@@ -223,6 +238,7 @@ export const useStore = create<AppState>((set, get) => ({
         theme: state.theme,
         columnOrder: state.columnOrder,
         zoomLevel: state.zoomLevel,
+        fontSettings: state.fontSettings,
       });
     }
   },

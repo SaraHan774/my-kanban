@@ -17,7 +17,7 @@ const ZOOM_MAX = 200;
 const ZOOM_STEP = 10;
 
 export function Layout() {
-  const { sidebarOpen, setSidebarOpen, hasFileSystemAccess, setHasFileSystemAccess, theme, setTheme, zoomLevel, setZoomLevel } = useStore();
+  const { sidebarOpen, setSidebarOpen, hasFileSystemAccess, setHasFileSystemAccess, theme, setTheme, zoomLevel, setZoomLevel, fontSettings } = useStore();
   const [zoomToast, setZoomToast] = useState<string | null>(null);
   const toastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -44,6 +44,23 @@ export function Layout() {
       root.setAttribute('data-theme', theme);
     }
   }, [theme]);
+
+  // Apply font settings as CSS custom properties on :root
+  useEffect(() => {
+    const root = document.documentElement;
+    const sansFallbacks = "-apple-system, BlinkMacSystemFont, system-ui, sans-serif";
+    const monoFallbacks = "'SF Mono', Monaco, 'Cascadia Code', 'Roboto Mono', Consolas, 'Courier New', monospace";
+
+    if (fontSettings.fontFamily === 'System Default') {
+      root.style.setProperty('--font-sans', sansFallbacks);
+    } else {
+      root.style.setProperty('--font-sans', `'${fontSettings.fontFamily}', ${sansFallbacks}`);
+    }
+
+    root.style.setProperty('--font-mono', `'${fontSettings.monoFontFamily}', ${monoFallbacks}`);
+    root.style.setProperty('--font-size-base', `${fontSettings.fontSize}px`);
+    root.style.setProperty('--line-height-content', `${fontSettings.lineHeight}`);
+  }, [fontSettings]);
 
   // Apply zoom CSS on the root element
   useEffect(() => {
