@@ -5,6 +5,7 @@ interface FindBarProps {
   onClose: () => void;
   contentRef: React.RefObject<HTMLDivElement | null>;  // for preview mode highlighting
   textareaRef?: React.RefObject<HTMLTextAreaElement | null>;  // for edit mode
+  highlightOverlayRef?: React.RefObject<HTMLDivElement | null>;  // for edit mode overlay highlighting
   content?: string;  // raw markdown content for edit mode search
 }
 
@@ -128,7 +129,7 @@ function setCurrentHighlight(container: HTMLElement, index: number): void {
   });
 }
 
-export function FindBar({ onClose, contentRef, textareaRef, content }: FindBarProps) {
+export function FindBar({ onClose, contentRef, textareaRef, highlightOverlayRef, content }: FindBarProps) {
   const [query, setQuery] = useState('');
   const [matchInfo, setMatchInfo] = useState<MatchInfo>({ total: 0, current: 0 });
   const inputRef = useRef<HTMLInputElement>(null);
@@ -171,10 +172,57 @@ export function FindBar({ onClose, contentRef, textareaRef, content }: FindBarPr
   // ---- Edit mode: find indices in raw content, use setSelectionRange ----
   const editMatchIndices = useRef<Array<{ start: number; end: number }>>([]);
 
+  // Render highlights in the overlay for edit mode
+  const renderEditOverlayHighlights = useCallback((searchQuery: string, currentIndex: number) => {
+    const overlay = highlightOverlayRef?.current;
+    if (!overlay || !content) return;
+
+    if (!searchQuery) {
+      overlay.innerHTML = '';
+      return;
+    }
+
+    const lowerContent = content.toLowerCase();
+    const lowerQuery = searchQuery.toLowerCase();
+    let html = '';
+    let lastIndex = 0;
+    let matchIndex = 0;
+
+    let searchFrom = 0;
+    while (searchFrom < lowerContent.length) {
+      const idx = lowerContent.indexOf(lowerQuery, searchFrom);
+      if (idx === -1) break;
+
+      // Text before match
+      html += escapeHtml(content.substring(lastIndex, idx));
+
+      // The match
+      const matchText = content.substring(idx, idx + searchQuery.length);
+      const isCurrentMatch = matchIndex === currentIndex;
+      html += `<mark class="find-highlight${isCurrentMatch ? ' current-match' : ''}">${escapeHtml(matchText)}</mark>`;
+
+      lastIndex = idx + searchQuery.length;
+      searchFrom = idx + 1;
+      matchIndex++;
+    }
+
+    // Remaining text
+    html += escapeHtml(content.substring(lastIndex));
+    overlay.innerHTML = html;
+  }, [content, highlightOverlayRef]);
+
+  // Helper function to escape HTML
+  const escapeHtml = (text: string): string => {
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+  };
+
   const performEditSearch = useCallback((searchQuery: string) => {
     if (!content || !searchQuery) {
       editMatchIndices.current = [];
       setMatchInfo({ total: 0, current: 0 });
+      renderEditOverlayHighlights('', 0);
       return;
     }
 
@@ -195,10 +243,12 @@ export function FindBar({ onClose, contentRef, textareaRef, content }: FindBarPr
     if (indices.length > 0) {
       setMatchInfo({ total: indices.length, current: 1 });
       selectEditMatch(0);
+      renderEditOverlayHighlights(searchQuery, 0);
     } else {
       setMatchInfo({ total: 0, current: 0 });
+      renderEditOverlayHighlights(searchQuery, -1);
     }
-  }, [content]);
+  }, [content, renderEditOverlayHighlights]);
 
   const selectEditMatch = useCallback((index: number) => {
     const textarea = textareaRef?.current;
@@ -207,7 +257,7 @@ export function FindBar({ onClose, contentRef, textareaRef, content }: FindBarPr
     const match = editMatchIndices.current[index];
     if (!match) return;
 
-    textarea.focus();
+    // Set selection without focusing textarea, so user can continue typing in FindBar
     textarea.setSelectionRange(match.start, match.end);
 
     // Scroll the textarea to show the selection.
@@ -228,15 +278,19 @@ export function FindBar({ onClose, contentRef, textareaRef, content }: FindBarPr
     }
   }, [query, isEditMode, performEditSearch, performPreviewSearch]);
 
-  // Clean up highlights on unmount (for preview mode)
+  // Clean up highlights on unmount (for preview mode and edit overlay)
   useEffect(() => {
     return () => {
       const container = contentRef.current;
       if (container) {
         clearHighlights(container);
       }
+      const overlay = highlightOverlayRef?.current;
+      if (overlay) {
+        overlay.innerHTML = '';
+      }
     };
-  }, [contentRef]);
+  }, [contentRef, highlightOverlayRef]);
 
   // Navigation: go to next match
   const goToNext = useCallback(() => {
@@ -247,13 +301,14 @@ export function FindBar({ onClose, contentRef, textareaRef, content }: FindBarPr
 
     if (isEditMode) {
       selectEditMatch(nextIndex - 1);
+      renderEditOverlayHighlights(query, nextIndex - 1);
     } else {
       const container = contentRef.current;
       if (container) {
         setCurrentHighlight(container, nextIndex - 1);
       }
     }
-  }, [matchInfo, isEditMode, selectEditMatch, contentRef]);
+  }, [matchInfo, isEditMode, selectEditMatch, contentRef, renderEditOverlayHighlights, query]);
 
   // Navigation: go to previous match
   const goToPrev = useCallback(() => {
@@ -264,13 +319,14 @@ export function FindBar({ onClose, contentRef, textareaRef, content }: FindBarPr
 
     if (isEditMode) {
       selectEditMatch(prevIndex - 1);
+      renderEditOverlayHighlights(query, prevIndex - 1);
     } else {
       const container = contentRef.current;
       if (container) {
         setCurrentHighlight(container, prevIndex - 1);
       }
     }
-  }, [matchInfo, isEditMode, selectEditMatch, contentRef]);
+  }, [matchInfo, isEditMode, selectEditMatch, contentRef, renderEditOverlayHighlights, query]);
 
   // Handle keyboard events on the input
   const handleKeyDown = useCallback((e: React.KeyboardEvent<HTMLInputElement>) => {

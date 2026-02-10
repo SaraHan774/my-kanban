@@ -24,7 +24,10 @@ marked.use(
   {
     renderer: {
       code(code: string, infostring: string | undefined): string | false {
-        if (infostring === 'mermaid') {
+        // Handle mermaid blocks (case-insensitive, trim whitespace)
+        const lang = (infostring || '').trim().toLowerCase();
+        if (lang === 'mermaid') {
+          console.log('[Markdown] Rendering mermaid block:', code.substring(0, 50) + '...');
           return `<div class="mermaid-block"><pre class="mermaid">${code}</pre></div>`;
         }
         return false; // fall through to default renderer

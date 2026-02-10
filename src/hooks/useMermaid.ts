@@ -23,6 +23,7 @@ export function useMermaid(containerRef: React.RefObject<HTMLElement | null>, ht
     if (!container) return;
 
     const mermaidElements = container.querySelectorAll<HTMLElement>('.mermaid');
+    console.log('[useMermaid] Found', mermaidElements.length, 'mermaid elements');
     if (mermaidElements.length === 0) return;
 
     initMermaid();
@@ -44,8 +45,12 @@ export function useMermaid(containerRef: React.RefObject<HTMLElement | null>, ht
       el.removeAttribute('data-processed');
     });
 
-    mermaid.run({ nodes: Array.from(mermaidElements) }).catch((err) => {
-      console.warn('Mermaid rendering failed:', err);
-    });
+    mermaid.run({ nodes: Array.from(mermaidElements) })
+      .then(() => {
+        console.log('[useMermaid] Successfully rendered', mermaidElements.length, 'diagrams');
+      })
+      .catch((err) => {
+        console.error('[useMermaid] Mermaid rendering failed:', err);
+      });
   }, [htmlContent, containerRef]);
 }
