@@ -130,7 +130,9 @@ export function Layout() {
 
   return (
     <div className="layout">
-      {sidebarOpen && <Sidebar />}
+      <div className={`sidebar-container ${sidebarOpen ? 'open' : 'closed'}`}>
+        <Sidebar />
+      </div>
       <main className="main-content">
         <div className="top-bar">
           {!sidebarOpen && (

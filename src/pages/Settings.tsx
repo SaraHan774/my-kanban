@@ -5,17 +5,30 @@ import { AppSlashCommand } from '@/data/defaultSlashCommands';
 import './Settings.css';
 
 const SANS_FONT_OPTIONS = [
+  { value: 'System Default', label: 'System Default' },
   { value: 'Inter', label: 'Inter' },
   { value: 'Pretendard', label: 'Pretendard' },
   { value: 'Noto Sans', label: 'Noto Sans' },
+  { value: 'Noto Sans KR', label: 'Noto Sans KR' },
   { value: 'Source Sans Pro', label: 'Source Sans Pro' },
-  { value: 'System Default', label: 'System Default' },
+  { value: 'Roboto', label: 'Roboto' },
+  { value: 'Open Sans', label: 'Open Sans' },
+  { value: 'Lato', label: 'Lato' },
+  { value: 'Nunito', label: 'Nunito' },
+  { value: 'IBM Plex Sans', label: 'IBM Plex Sans' },
+  { value: 'IBM Plex Sans KR', label: 'IBM Plex Sans KR' },
 ];
 
 const MONO_FONT_OPTIONS = [
   { value: 'Fira Code', label: 'Fira Code' },
   { value: 'JetBrains Mono', label: 'JetBrains Mono' },
   { value: 'Source Code Pro', label: 'Source Code Pro' },
+  { value: 'Cascadia Code', label: 'Cascadia Code' },
+  { value: 'IBM Plex Mono', label: 'IBM Plex Mono' },
+  { value: 'Inconsolata', label: 'Inconsolata' },
+  { value: 'D2Coding', label: 'D2Coding' },
+  { value: 'Menlo', label: 'Menlo' },
+  { value: 'Monaco', label: 'Monaco' },
 ];
 
 const DEFAULT_PALETTE = ['#3b82f6', '#f59e0b', '#22c55e', '#ef4444', '#8b5cf6', '#ec4899', '#14b8a6', '#f97316'];

@@ -4,9 +4,9 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>My Kanban — Local File-Based Kanban Board</title>
-  <meta name="description" content="A privacy-first, file-based Kanban board with Notion-like pages. Organize tasks with Markdown, drag-and-drop, and native desktop support.">
+  <meta name="description" content="A privacy-first, file-based Kanban board with Notion-like pages. Organize tasks with Markdown, Mermaid diagrams, slash commands, and native desktop support.">
   <meta property="og:title" content="My Kanban — Local File-Based Kanban Board">
-  <meta property="og:description" content="A privacy-first, file-based Kanban board with Notion-like pages. Organize tasks with Markdown, drag-and-drop, and native desktop support.">
+  <meta property="og:description" content="A privacy-first, file-based Kanban board with Notion-like pages. Organize tasks with Markdown, Mermaid diagrams, slash commands, and native desktop support.">
   <meta property="og:type" content="website">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -722,7 +722,7 @@
   <section class="hero">
     <div class="container">
       <h1 class="hero-title">Your Local Kanban Board</h1>
-      <p class="hero-subtitle">A file-based productivity tool with Notion-like pages. All your data stays on your machine &mdash; private, portable, and git-friendly.</p>
+      <p class="hero-subtitle">A file-based productivity tool with Notion-like pages, Mermaid diagrams, and slash commands. All your data stays on your machine &mdash; private, portable, and git-friendly.</p>
 
       <div class="hero-ctas">
         <a href="https://github.com/SaraHan774/my-kanban" class="btn-outline" target="_blank" rel="noopener noreferrer">
@@ -814,7 +814,7 @@
             <span class="material-symbols-outlined">view_kanban</span>
           </div>
           <h3 class="feature-title">Kanban Board</h3>
-          <p class="feature-desc">Organize your work into customizable columns with drag-and-drop cards and column reordering.</p>
+          <p class="feature-desc">Organize your work into customizable columns. Any page can become a Kanban board with nested sub-pages as cards.</p>
         </div>
 
         <div class="feature-card">
@@ -822,7 +822,7 @@
             <span class="material-symbols-outlined">edit_note</span>
           </div>
           <h3 class="feature-title">Markdown Notes</h3>
-          <p class="feature-desc">Write rich notes with full Markdown support, syntax highlighting, and live preview.</p>
+          <p class="feature-desc">Write rich notes with full Markdown support, YAML frontmatter, syntax highlighting via highlight.js, and live preview.</p>
         </div>
 
         <div class="feature-card">
@@ -830,15 +830,47 @@
             <span class="material-symbols-outlined">check_circle</span>
           </div>
           <h3 class="feature-title">Todo Checklists</h3>
-          <p class="feature-desc">Create GitHub-style checklists. Toggle checkboxes right from the view mode.</p>
+          <p class="feature-desc">Create GitHub-style checklists. Toggle checkboxes interactively right from the view mode.</p>
         </div>
 
         <div class="feature-card">
           <div class="feature-icon">
-            <span class="material-symbols-outlined">calendar_month</span>
+            <span class="material-symbols-outlined">account_tree</span>
           </div>
-          <h3 class="feature-title">Google Calendar</h3>
-          <p class="feature-desc">Link todos to Google Calendar with one click. Never miss a deadline.</p>
+          <h3 class="feature-title">Mermaid Diagrams</h3>
+          <p class="feature-desc">Render flowcharts, sequence diagrams, and more with Mermaid syntax. Click any diagram to zoom in.</p>
+        </div>
+
+        <div class="feature-card">
+          <div class="feature-icon">
+            <span class="material-symbols-outlined">search</span>
+          </div>
+          <h3 class="feature-title">Find in Page</h3>
+          <p class="feature-desc">Press Cmd/Ctrl+F to search within the current page with overlay highlighting and navigation.</p>
+        </div>
+
+        <div class="feature-card">
+          <div class="feature-icon">
+            <span class="material-symbols-outlined">flash_on</span>
+          </div>
+          <h3 class="feature-title">Slash Commands</h3>
+          <p class="feature-desc">Type / in the editor to quickly insert markdown snippets. Fully customizable via Settings.</p>
+        </div>
+
+        <div class="feature-card">
+          <div class="feature-icon">
+            <span class="material-symbols-outlined">image</span>
+          </div>
+          <h3 class="feature-title">Image Storage</h3>
+          <p class="feature-desc">Paste, drag-and-drop, or upload images. Stored as files in .images/ directory with content hashing.</p>
+        </div>
+
+        <div class="feature-card">
+          <div class="feature-icon">
+            <span class="material-symbols-outlined">text_fields</span>
+          </div>
+          <h3 class="feature-title">Font Customization</h3>
+          <p class="feature-desc">Customize font family and size for the editor, preview, and UI independently via Settings.</p>
         </div>
 
         <div class="feature-card">
@@ -854,7 +886,23 @@
             <span class="material-symbols-outlined">desktop_windows</span>
           </div>
           <h3 class="feature-title">Desktop App</h3>
-          <p class="feature-desc">Available as a native desktop app via Tauri. Works on macOS, Windows, and Linux.</p>
+          <p class="feature-desc">Available as a native desktop app via Tauri v2. Works on macOS, Windows, and Linux.</p>
+        </div>
+
+        <div class="feature-card">
+          <div class="feature-icon">
+            <span class="material-symbols-outlined">label</span>
+          </div>
+          <h3 class="feature-title">Tag System</h3>
+          <p class="feature-desc">Categorize pages with tags and filter by them. Full-text search across all pages.</p>
+        </div>
+
+        <div class="feature-card">
+          <div class="feature-icon">
+            <span class="material-symbols-outlined">pwa</span>
+          </div>
+          <h3 class="feature-title">PWA Support</h3>
+          <p class="feature-desc">Install from your browser and use offline. Works with File System Access API.</p>
         </div>
 
       </div>
@@ -872,19 +920,19 @@
         <div class="step">
           <div class="step-number">1</div>
           <h3 class="step-title">Select a Folder</h3>
-          <p class="step-desc">Choose any directory on your machine as your workspace.</p>
+          <p class="step-desc">Choose any directory on your machine as your workspace. The app creates a workspace/ subfolder inside.</p>
         </div>
 
         <div class="step">
           <div class="step-number">2</div>
           <h3 class="step-title">Create Pages</h3>
-          <p class="step-desc">Add notes, kanban cards, and todo lists with Markdown.</p>
+          <p class="step-desc">Add notes, kanban boards, and todo lists with Markdown. Use slash commands for quick formatting.</p>
         </div>
 
         <div class="step">
           <div class="step-number">3</div>
           <h3 class="step-title">Stay Organized</h3>
-          <p class="step-desc">Drag and drop cards across columns. Filter, sort, and search.</p>
+          <p class="step-desc">Filter by tags, search content, and customize fonts. Everything is stored as plain markdown files.</p>
         </div>
 
       </div>
@@ -898,13 +946,16 @@
     <div class="container">
       <h2 class="section-heading">Built with modern tools</h2>
       <div class="tech-badges">
-        <span class="tech-badge">React</span>
+        <span class="tech-badge">React 18</span>
         <span class="tech-badge">TypeScript</span>
         <span class="tech-badge">Zustand</span>
         <span class="tech-badge">Vite</span>
-        <span class="tech-badge">Tauri</span>
+        <span class="tech-badge">Tauri v2</span>
         <span class="tech-badge">PWA</span>
         <span class="tech-badge">Markdown</span>
+        <span class="tech-badge">Mermaid</span>
+        <span class="tech-badge">highlight.js</span>
+        <span class="tech-badge">Pretendard</span>
         <span class="tech-badge">Fira Code</span>
       </div>
     </div>

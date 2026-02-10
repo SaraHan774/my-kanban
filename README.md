@@ -14,13 +14,17 @@ Available as both a **Progressive Web App (PWA)** and a **native desktop app** p
 - **Todo Checklists** - GitHub-style checklists with interactive checkboxes
 - **Filter & Search** - Filter by tags, dates, and full-text search
 - **Code Formatting** - Code blocks with syntax highlighting via highlight.js
+- **Mermaid Diagrams** - Render flowcharts, sequence diagrams, and more with [Mermaid](https://mermaid.js.org/) syntax. Click any diagram to zoom in
+- **Find in Page** - Press `Cmd/Ctrl+F` to search within the current page with overlay highlighting
 - **Slash Commands** - Type `/` in the editor to quickly insert markdown snippets (headings, code blocks, tables, links, etc.). Fully customizable via Settings
+- **Font Customization** - Customize font family and size for the editor, preview, and UI independently via Settings
 - **Dark/Light Theme** - Toggle between dark and light modes
+- **Desktop Zoom** - `Cmd/Ctrl + =` to zoom in, `Cmd/Ctrl + -` to zoom out, `Cmd/Ctrl + 0` to reset
 - **Native Desktop App** - Tauri-powered app for macOS, Windows, and Linux
 - **PWA Support** - Install from the browser and use offline
 
 ### Editor
-- **Image Insertion** - Paste from clipboard, drag-and-drop, or use the toolbar file picker
+- **Image Insertion** - Paste from clipboard, drag-and-drop, or use the toolbar file picker. Images are stored as files in a `.images/` directory (not inline base64), keeping your markdown clean
 - **Keyboard Shortcuts** - Cmd/Ctrl+B (bold), Cmd/Ctrl+I (italic), Cmd/Ctrl+E (inline code), Cmd/Ctrl+S (save)
 - **Tab Indentation** - Tab/Shift+Tab to indent/dedent lines (works with multi-line selections)
 - **Quick Edit** - Press `E` on any page to enter edit mode, `Escape` to cancel
@@ -36,6 +40,7 @@ Available as both a **Progressive Web App (PWA)** and a **native desktop app** p
 | Fonts | Pretendard (UI), Fira Code (code) |
 | Storage | File System Access API (browser) / Tauri FS plugin (desktop) |
 | Markdown | js-yaml + marked + marked-highlight |
+| Diagrams | Mermaid |
 | Syntax Highlighting | highlight.js |
 | Testing | Vitest + Testing Library |
 
@@ -47,6 +52,8 @@ Every entity in the app is a **Page** (Notion-style unified model):
 workspace/
 ├── Project A/
 │   ├── index.md           # Project A page (viewType: kanban)
+│   ├── .images/           # Images referenced by index.md
+│   │   └── a1b2c3d4e5f6.png
 │   ├── Task 1/
 │   │   ├── index.md       # Task 1 card
 │   │   └── Subtask 1-1/
@@ -56,6 +63,8 @@ workspace/
 └── Project B/
     └── index.md
 ```
+
+Images pasted or dropped into a page are saved as files under each page's `.images/` directory with content-hashed filenames (SHA-256). The markdown references them with short relative paths like `![screenshot](.images/a1b2c3d4e5f6.png)` instead of embedding large base64 data URLs.
 
 Each `index.md` contains:
 - **YAML frontmatter** - metadata (title, tags, dates, view type, etc.)
@@ -162,9 +171,13 @@ npm run tauri:build
 | `Cmd/Ctrl + B` | Editor | Toggle bold |
 | `Cmd/Ctrl + I` | Editor | Toggle italic |
 | `Cmd/Ctrl + E` | Editor | Toggle inline code |
+| `Cmd/Ctrl + F` | Page view / Editor | Find in page |
 | `Tab` | Editor | Indent line(s) |
 | `Shift + Tab` | Editor | Dedent line(s) |
 | `/` | Editor | Open slash command palette |
+| `Cmd/Ctrl + =` | Desktop app | Zoom in |
+| `Cmd/Ctrl + -` | Desktop app | Zoom out |
+| `Cmd/Ctrl + 0` | Desktop app | Reset zoom |
 
 ### Git Integration
 
@@ -207,6 +220,7 @@ my-kanban/
 │   │   ├── fileSystem.ts           # Browser File System Access API
 │   │   ├── tauriFileSystem.ts      # Tauri FS plugin adapter
 │   │   ├── fileSystemFactory.ts    # Runtime adapter selection
+│   │   ├── imageService.ts         # Image storage & blob URL caching
 │   │   ├── markdown.ts
 │   │   ├── pageService.ts
 │   │   └── configService.ts
@@ -268,6 +282,11 @@ my-kanban/
 - [x] Todo checklists with interactive checkboxes
 - [x] Editor keyboard shortcuts (bold, italic, code, tab indent)
 - [x] Image insertion (paste, drag-and-drop, file picker)
+- [x] File-based image storage (`.images/` directory with content hashing)
+- [x] Mermaid diagram rendering with click-to-zoom
+- [x] Find in page (`Cmd/Ctrl+F`) with overlay highlighting
+- [x] Font customization (editor, preview, UI fonts and sizes)
+- [x] Desktop zoom controls (`Cmd+=/Cmd+-/Cmd+0`)
 - [ ] Drag-and-drop for kanban cards
 - [ ] Due date tracking
 - [ ] Google Calendar sync

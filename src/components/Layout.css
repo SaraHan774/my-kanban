@@ -1,6 +1,25 @@
 .layout {
   display: flex;
   min-height: 100vh;
+  overflow-x: hidden;
+}
+
+/* Sidebar container with slide animation */
+.sidebar-container {
+  position: relative;
+  transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1), width 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  width: 280px;
+  flex-shrink: 0;
+  overflow: hidden;
+}
+
+.sidebar-container.closed {
+  transform: translateX(-100%);
+  width: 0;
+}
+
+.sidebar-container.open {
+  transform: translateX(0);
 }
 
 .main-content {
