@@ -1,7 +1,22 @@
 import { useState } from 'react';
 import { useStore } from '@/store/useStore';
+import { DEFAULT_FONT_SETTINGS, FontSettings } from '@/services/configService';
 import { AppSlashCommand } from '@/data/defaultSlashCommands';
 import './Settings.css';
+
+const SANS_FONT_OPTIONS = [
+  { value: 'Inter', label: 'Inter' },
+  { value: 'Pretendard', label: 'Pretendard' },
+  { value: 'Noto Sans', label: 'Noto Sans' },
+  { value: 'Source Sans Pro', label: 'Source Sans Pro' },
+  { value: 'System Default', label: 'System Default' },
+];
+
+const MONO_FONT_OPTIONS = [
+  { value: 'Fira Code', label: 'Fira Code' },
+  { value: 'JetBrains Mono', label: 'JetBrains Mono' },
+  { value: 'Source Code Pro', label: 'Source Code Pro' },
+];
 
 const DEFAULT_PALETTE = ['#3b82f6', '#f59e0b', '#22c55e', '#ef4444', '#8b5cf6', '#ec4899', '#14b8a6', '#f97316'];
 
@@ -9,6 +24,7 @@ export function Settings() {
   const {
     slashCommands, addSlashCommand, updateSlashCommand, removeSlashCommand, resetSlashCommands,
     pages, columnColors, setColumnColor, removeColumnColor,
+    fontSettings, setFontSettings,
   } = useStore();
   const [editingId, setEditingId] = useState<string | null>(null);
   const [isAdding, setIsAdding] = useState(false);
@@ -196,9 +212,120 @@ export function Settings() {
     return columnColors[col.toLowerCase()] || DEFAULT_PALETTE[idx % DEFAULT_PALETTE.length];
   };
 
+  const updateFont = (patch: Partial<FontSettings>) => {
+    setFontSettings({ ...fontSettings, ...patch });
+  };
+
+  const resetFontSettings = () => {
+    setFontSettings(DEFAULT_FONT_SETTINGS);
+  };
+
   return (
     <div className="settings-page">
       <h1>Settings</h1>
+
+      <section className="settings-section">
+        <div className="settings-section-header">
+          <h2>Typography</h2>
+          <div className="settings-section-actions">
+            <button className="btn btn-secondary" onClick={resetFontSettings}>
+              Reset to Defaults
+            </button>
+          </div>
+        </div>
+
+        <div className="settings-typography-grid">
+          <div className="settings-typography-row">
+            <div className="settings-typography-field">
+              <label>Font Family</label>
+              <select
+                value={fontSettings.fontFamily}
+                onChange={(e) => updateFont({ fontFamily: e.target.value })}
+                className="settings-select"
+              >
+                {SANS_FONT_OPTIONS.map((opt) => (
+                  <option key={opt.value} value={opt.value}>{opt.label}</option>
+                ))}
+              </select>
+            </div>
+
+            <div className="settings-typography-field">
+              <label>Monospace Font</label>
+              <select
+                value={fontSettings.monoFontFamily}
+                onChange={(e) => updateFont({ monoFontFamily: e.target.value })}
+                className="settings-select"
+              >
+                {MONO_FONT_OPTIONS.map((opt) => (
+                  <option key={opt.value} value={opt.value}>{opt.label}</option>
+                ))}
+              </select>
+            </div>
+          </div>
+
+          <div className="settings-typography-row">
+            <div className="settings-typography-field">
+              <label>Font Size: {fontSettings.fontSize}px</label>
+              <input
+                type="range"
+                min={12}
+                max={20}
+                step={1}
+                value={fontSettings.fontSize}
+                onChange={(e) => updateFont({ fontSize: Number(e.target.value) })}
+                className="settings-range"
+              />
+              <div className="settings-range-labels">
+                <span>12px</span>
+                <span>20px</span>
+              </div>
+            </div>
+
+            <div className="settings-typography-field">
+              <label>Line Height: {fontSettings.lineHeight.toFixed(1)}</label>
+              <input
+                type="range"
+                min={1.2}
+                max={2.0}
+                step={0.1}
+                value={fontSettings.lineHeight}
+                onChange={(e) => updateFont({ lineHeight: Number(e.target.value) })}
+                className="settings-range"
+              />
+              <div className="settings-range-labels">
+                <span>1.2</span>
+                <span>2.0</span>
+              </div>
+            </div>
+          </div>
+
+          <div className="settings-typography-preview">
+            <p className="settings-typography-preview-label">Preview</p>
+            <p
+              className="settings-typography-preview-text"
+              style={{
+                fontFamily: fontSettings.fontFamily === 'System Default'
+                  ? '-apple-system, BlinkMacSystemFont, system-ui, sans-serif'
+                  : `'${fontSettings.fontFamily}', sans-serif`,
+                fontSize: `${fontSettings.fontSize}px`,
+                lineHeight: fontSettings.lineHeight,
+              }}
+            >
+              The quick brown fox jumps over the lazy dog. 0123456789
+            </p>
+            <p
+              className="settings-typography-preview-text"
+              style={{
+                fontFamily: `'${fontSettings.monoFontFamily}', monospace`,
+                fontSize: `${fontSettings.fontSize}px`,
+                lineHeight: fontSettings.lineHeight,
+              }}
+            >
+              {'const hello = "world"; // monospace preview'}
+            </p>
+          </div>
+        </div>
+      </section>
 
       <section className="settings-section">
         <div className="settings-section-header">

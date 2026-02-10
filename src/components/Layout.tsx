@@ -6,7 +6,7 @@ import { fileSystemService } from '@/services';
 import './Layout.css';
 
 export function Layout() {
-  const { sidebarOpen, setSidebarOpen, hasFileSystemAccess, setHasFileSystemAccess, theme, setTheme } = useStore();
+  const { sidebarOpen, setSidebarOpen, hasFileSystemAccess, setHasFileSystemAccess, theme, setTheme, fontSettings } = useStore();
 
   // On mount, attempt to restore file system access from IndexedDB
   useEffect(() => {
@@ -31,6 +31,23 @@ export function Layout() {
       root.setAttribute('data-theme', theme);
     }
   }, [theme]);
+
+  // Apply font settings as CSS custom properties on :root
+  useEffect(() => {
+    const root = document.documentElement;
+    const sansFallbacks = "-apple-system, BlinkMacSystemFont, system-ui, sans-serif";
+    const monoFallbacks = "'SF Mono', Monaco, 'Cascadia Code', 'Roboto Mono', Consolas, 'Courier New', monospace";
+
+    if (fontSettings.fontFamily === 'System Default') {
+      root.style.setProperty('--font-sans', sansFallbacks);
+    } else {
+      root.style.setProperty('--font-sans', `'${fontSettings.fontFamily}', ${sansFallbacks}`);
+    }
+
+    root.style.setProperty('--font-mono', `'${fontSettings.monoFontFamily}', ${monoFallbacks}`);
+    root.style.setProperty('--font-size-base', `${fontSettings.fontSize}px`);
+    root.style.setProperty('--line-height-content', `${fontSettings.lineHeight}`);
+  }, [fontSettings]);
 
   const cycleTheme = () => {
     const next = theme === 'auto' ? 'light' : theme === 'light' ? 'dark' : 'auto';
