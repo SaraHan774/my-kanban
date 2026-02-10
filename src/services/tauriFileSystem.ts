@@ -8,6 +8,8 @@ import { open } from '@tauri-apps/plugin-dialog';
 import {
   readTextFile,
   writeTextFile,
+  readFile as tauriReadBinaryFile,
+  writeFile as tauriWriteBinaryFile,
   mkdir,
   readDir,
   remove,
@@ -145,6 +147,14 @@ export class TauriFileSystemService implements IFileSystemService {
     return await fsExists(this.resolvePath(path));
   }
 
+  async writeBinaryFile(path: string, data: Uint8Array): Promise<void> {
+    await tauriWriteBinaryFile(this.resolvePath(path), data);
+  }
+
+  async readBinaryFile(path: string): Promise<Uint8Array> {
+    return await tauriReadBinaryFile(this.resolvePath(path));
+  }
+
   /**
    * Recursively scan a directory and return all page paths
    */
@@ -158,6 +168,7 @@ export class TauriFileSystemService implements IFileSystemService {
         const fullPath = dirPath ? `${dirPath}/${entry.name}` : entry.name;
 
         if (entry.kind === 'directory') {
+          if (entry.name === '.images') continue;
           const indexPath = `${fullPath}/index.md`;
           if (await this.exists(indexPath)) {
             pagePaths.push(fullPath);

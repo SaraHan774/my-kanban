@@ -323,6 +323,26 @@ export class FileSystemService implements IFileSystemService {
     return currentHandle;
   }
 
+  async writeBinaryFile(path: string, data: Uint8Array): Promise<void> {
+    if (!this.rootHandle) {
+      throw new Error('No root directory selected');
+    }
+    const fileHandle = await this.getFileHandle(path, true);
+    const writable = await fileHandle.createWritable();
+    await writable.write(data.buffer as ArrayBuffer);
+    await writable.close();
+  }
+
+  async readBinaryFile(path: string): Promise<Uint8Array> {
+    if (!this.rootHandle) {
+      throw new Error('No root directory selected');
+    }
+    const fileHandle = await this.getFileHandle(path);
+    const file = await fileHandle.getFile();
+    const buffer = await file.arrayBuffer();
+    return new Uint8Array(buffer);
+  }
+
   /**
    * Recursively scan a directory and return all page paths
    * @param path - Directory path to scan
@@ -337,6 +357,7 @@ export class FileSystemService implements IFileSystemService {
         const fullPath = dirPath ? `${dirPath}/${entry.name}` : entry.name;
 
         if (entry.kind === 'directory') {
+          if (entry.name === '.images') continue;
           // Check if this directory has an index.md
           const indexPath = `${fullPath}/index.md`;
           if (await service.exists(indexPath)) {

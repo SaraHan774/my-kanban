@@ -10,13 +10,25 @@
     "fs:default",
     "fs:allow-read-text-file",
     "fs:allow-write-text-file",
+    "fs:allow-read-file",
+    "fs:allow-write-file",
     "fs:allow-exists",
     "fs:allow-mkdir",
     "fs:allow-remove",
     "fs:allow-read-dir",
     {
       "identifier": "fs:scope",
-      "allow": ["$HOME/**", "$DOCUMENT/**", "$DESKTOP/**"]
+      "allow": [
+        "$HOME/**",
+        "$HOME/**/.images",
+        "$HOME/**/.images/**",
+        "$DOCUMENT/**",
+        "$DOCUMENT/**/.images",
+        "$DOCUMENT/**/.images/**",
+        "$DESKTOP/**",
+        "$DESKTOP/**/.images",
+        "$DESKTOP/**/.images/**"
+      ]
     }
   ]
 }

@@ -5,3 +5,4 @@ export { fileSystemService } from './fileSystemFactory';
 export * from './markdown';
 export * from './pageService';
 export * from './configService';
+export * from './imageService';

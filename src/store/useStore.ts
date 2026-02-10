@@ -5,7 +5,7 @@
 import { create } from 'zustand';
 import { Page, AppConfig, DEFAULT_CONFIG, SortOptions } from '@/types';
 import { AppSlashCommand, DEFAULT_SLASH_COMMANDS } from '@/data/defaultSlashCommands';
-import { configService, FontSettings, DEFAULT_FONT_SETTINGS } from '@/services/configService';
+import { configService, FontSettings } from '@/services/configService';
 
 // Load initial settings from localStorage (synchronous, fast first render)
 const initialSettings = configService.loadFromLocalStorage();
