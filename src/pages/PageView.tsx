@@ -5,6 +5,7 @@ import { pageService, markdownService } from '@/services';
 import { Page } from '@/types';
 import { PageEditor } from '@/components/PageEditor';
 import { FindBar } from '@/components/FindBar';
+import { useMermaid } from '@/hooks/useMermaid';
 import './PageView.css';
 
 export function PageView() {
@@ -15,8 +16,11 @@ export function PageView() {
   const [htmlContent, setHtmlContent] = useState<string>('');
   const [loading, setLoading] = useState(true);
   const [editing, setEditing] = useState(false);
-  const [showFindBar, setShowFindBar] = useState(false);
   const contentRef = useRef<HTMLDivElement>(null);
+  const [showFindBar, setShowFindBar] = useState(false);
+
+  // Render mermaid diagrams after HTML content updates
+  useMermaid(contentRef, htmlContent);
 
   useEffect(() => {
     if (pageId) {
@@ -116,20 +120,13 @@ export function PageView() {
     setEditing(false);
   };
 
-  // Keyboard shortcuts for edit mode
+  // Keyboard shortcuts for edit mode and find
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      // Cmd+F to open find bar (in preview mode only; edit mode handles its own)
+      // Cmd+F for find
       if ((e.metaKey || e.ctrlKey) && e.key === 'f' && !editing) {
         e.preventDefault();
-        setShowFindBar(true);
-        return;
-      }
-
-      // Escape to close find bar
-      if (e.key === 'Escape' && showFindBar) {
-        e.preventDefault();
-        setShowFindBar(false);
+        setShowFindBar(prev => !prev);
         return;
       }
 
@@ -156,7 +153,7 @@ export function PageView() {
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [editing, showFindBar]);
+  }, [editing]);
 
   if (loading) {
     return (
@@ -175,9 +172,6 @@ export function PageView() {
   }
 
   if (editing) {
-    // Close find bar when entering edit mode (editor has its own find bar)
-    if (showFindBar) setShowFindBar(false);
-
     return (
       <div className="page-view">
         <PageEditor
@@ -234,14 +228,15 @@ export function PageView() {
         </div>
       </div>
 
-      {showFindBar && (
-        <FindBar
-          onClose={() => setShowFindBar(false)}
-          contentRef={contentRef}
-        />
-      )}
-
       <div className="document-view">
+        {showFindBar && (
+          <FindBar
+            mode="preview"
+            content={page.content}
+            contentRef={contentRef}
+            onClose={() => setShowFindBar(false)}
+          />
+        )}
         <div
           ref={contentRef}
           className="markdown-content"

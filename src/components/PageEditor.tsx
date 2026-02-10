@@ -4,6 +4,7 @@ import { pageService, markdownService } from '@/services';
 import { useStore } from '@/store/useStore';
 import { useSlashCommands, SlashCommandPalette } from '@/lib/slash-commands';
 import { useMarkdownShortcuts } from '@/hooks/useMarkdownShortcuts';
+import { useMermaid } from '@/hooks/useMermaid';
 import { FindBar } from '@/components/FindBar';
 import './PageEditor.css';
 
@@ -55,9 +56,10 @@ export function PageEditor({ page, onSave, onCancel }: PageEditorProps) {
   const [preview, setPreview] = useState(false);
   const [previewHtml, setPreviewHtml] = useState('');
   const [showToast, setShowToast] = useState(false);
-  const [showFindBar, setShowFindBar] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
+  const previewRef = useRef<HTMLDivElement>(null);
   const editorPreviewRef = useRef<HTMLDivElement>(null);
+  const [showFindBar, setShowFindBar] = useState(false);
 
   const slash = useSlashCommands({
     textareaRef,
@@ -67,6 +69,9 @@ export function PageEditor({ page, onSave, onCancel }: PageEditorProps) {
   });
 
   const markdown = useMarkdownShortcuts(textareaRef, content, setContent);
+
+  // Render mermaid diagrams in editor preview
+  useMermaid(previewRef, previewHtml);
 
   // Derive existing columns from all pages' kanbanColumn values (case-insensitive dedup)
   const existingColumns = Array.from(
@@ -159,13 +164,9 @@ export function PageEditor({ page, onSave, onCancel }: PageEditorProps) {
     // Handle markdown shortcuts (Cmd+B, Cmd+I, Cmd+E) first
     if (markdown.handleMarkdownShortcut(e)) return;
 
-    // Handle Escape key: close find bar first, then cancel editor
+    // Handle Escape key (only when slash palette is not open)
     if (e.key === 'Escape' && !slash.isOpen) {
       e.preventDefault();
-      if (showFindBar) {
-        setShowFindBar(false);
-        return;
-      }
       onCancel();
       return;
     }
@@ -266,18 +267,16 @@ export function PageEditor({ page, onSave, onCancel }: PageEditorProps) {
     slash.handleKeyDown(e);
   };
 
-  // Keyboard shortcut: Ctrl+S to save, Cmd+F to find
+  // Keyboard shortcut: Ctrl+S to save, Cmd+F for find
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && e.key === 's') {
         e.preventDefault();
         handleSave();
-        return;
       }
       if ((e.metaKey || e.ctrlKey) && e.key === 'f') {
         e.preventDefault();
-        setShowFindBar(true);
-        return;
+        setShowFindBar(prev => !prev);
       }
     };
     window.addEventListener('keydown', handleKeyDown);
@@ -465,27 +464,36 @@ export function PageEditor({ page, onSave, onCancel }: PageEditorProps) {
         </div>
       </div>
 
-      {showFindBar && (
-        <FindBar
-          onClose={() => setShowFindBar(false)}
-          contentRef={editorPreviewRef}
-          textareaRef={preview ? undefined : textareaRef}
-          content={preview ? undefined : content}
-        />
-      )}
-
       {preview ? (
-        <div
-          ref={editorPreviewRef}
-          className="editor-preview markdown-content"
-          dangerouslySetInnerHTML={{ __html: previewHtml }}
-        />
+        <div ref={editorPreviewRef}>
+          {showFindBar && (
+            <FindBar
+              mode="preview"
+              content={content}
+              contentRef={previewRef}
+              onClose={() => setShowFindBar(false)}
+            />
+          )}
+          <div
+            ref={previewRef}
+            className="editor-preview markdown-content"
+            dangerouslySetInnerHTML={{ __html: previewHtml }}
+          />
+        </div>
       ) : (
         <div
           className="editor-textarea-wrapper"
           onDragOver={handleDragOver}
           onDrop={handleDrop}
         >
+          {showFindBar && (
+            <FindBar
+              mode="edit"
+              content={content}
+              textareaRef={textareaRef}
+              onClose={() => setShowFindBar(false)}
+            />
+          )}
           {slash.isOpen && slash.palettePosition && (
             <SlashCommandPalette
               commands={slash.filteredCommands}
