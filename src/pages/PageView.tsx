@@ -4,6 +4,7 @@ import { useStore } from '@/store/useStore';
 import { pageService, markdownService } from '@/services';
 import { Page } from '@/types';
 import { PageEditor } from '@/components/PageEditor';
+import { FindBar } from '@/components/FindBar';
 import './PageView.css';
 
 export function PageView() {
@@ -14,6 +15,7 @@ export function PageView() {
   const [htmlContent, setHtmlContent] = useState<string>('');
   const [loading, setLoading] = useState(true);
   const [editing, setEditing] = useState(false);
+  const [showFindBar, setShowFindBar] = useState(false);
   const contentRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -117,6 +119,20 @@ export function PageView() {
   // Keyboard shortcuts for edit mode
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
+      // Cmd+F to open find bar (in preview mode only; edit mode handles its own)
+      if ((e.metaKey || e.ctrlKey) && e.key === 'f' && !editing) {
+        e.preventDefault();
+        setShowFindBar(true);
+        return;
+      }
+
+      // Escape to close find bar
+      if (e.key === 'Escape' && showFindBar) {
+        e.preventDefault();
+        setShowFindBar(false);
+        return;
+      }
+
       // Prevent Cmd+S when not editing
       if ((e.metaKey || e.ctrlKey) && e.key === 's' && !editing) {
         e.preventDefault();
@@ -140,7 +156,7 @@ export function PageView() {
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [editing]);
+  }, [editing, showFindBar]);
 
   if (loading) {
     return (
@@ -159,6 +175,9 @@ export function PageView() {
   }
 
   if (editing) {
+    // Close find bar when entering edit mode (editor has its own find bar)
+    if (showFindBar) setShowFindBar(false);
+
     return (
       <div className="page-view">
         <PageEditor
@@ -214,6 +233,13 @@ export function PageView() {
           </div>
         </div>
       </div>
+
+      {showFindBar && (
+        <FindBar
+          onClose={() => setShowFindBar(false)}
+          contentRef={contentRef}
+        />
+      )}
 
       <div className="document-view">
         <div
