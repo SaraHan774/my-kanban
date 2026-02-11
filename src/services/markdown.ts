@@ -89,7 +89,9 @@ export class MarkdownService {
       viewType: data.viewType || 'document',
       ...(data.dueDate && { dueDate: data.dueDate }),
       ...(data.kanbanColumn && { kanbanColumn: data.kanbanColumn }),
-      ...(data.googleCalendarEventId && { googleCalendarEventId: data.googleCalendarEventId })
+      ...(data.googleCalendarEventId && { googleCalendarEventId: data.googleCalendarEventId }),
+      ...(data.pinned !== undefined && { pinned: data.pinned }),
+      ...(data.pinnedAt && { pinnedAt: data.pinnedAt })
     };
   }
 
