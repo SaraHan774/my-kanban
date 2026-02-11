@@ -17,6 +17,8 @@ export interface Page {
   viewType: ViewType;
   kanbanColumn?: string;         // Which column this card belongs to (= one of parent's tags)
   googleCalendarEventId?: string;
+  pinned?: boolean;              // Whether this card is pinned to the top of its column
+  pinnedAt?: string;             // Timestamp when pinned (for sorting multiple pinned cards)
 
   // Runtime properties (not stored in frontmatter)
   path: string;
@@ -45,6 +47,8 @@ export interface PageFrontmatter {
   viewType: ViewType;
   kanbanColumn?: string;
   googleCalendarEventId?: string;
+  pinned?: boolean;
+  pinnedAt?: string;
 }
 
 /**

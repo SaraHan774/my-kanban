@@ -264,6 +264,28 @@ export function Home() {
     setDraggedCardId(null);
   };
 
+  // Pin/Unpin card
+  const handleTogglePin = async (cardId: string, e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+
+    const card = pages.find(c => c.id === cardId);
+    if (!card) return;
+
+    const updatedCard = {
+      ...card,
+      pinned: !card.pinned,
+      pinnedAt: !card.pinned ? new Date().toISOString() : undefined,
+    };
+
+    try {
+      await pageService.updatePage(updatedCard);
+      updatePageInStore(updatedCard);
+    } catch (error) {
+      console.error('Failed to pin/unpin card:', error);
+    }
+  };
+
   // No pages and no columns yet
   if (pages.length === 0) {
     return (
@@ -327,7 +349,19 @@ export function Home() {
       {boardView === 'kanban' ? (
         <div className="kanban-board">
           {columns.map((col, idx) => {
-            const columnCards = pages.filter(p => p.kanbanColumn?.toLowerCase() === col.toLowerCase());
+            const columnCards = pages
+              .filter(p => p.kanbanColumn?.toLowerCase() === col.toLowerCase())
+              .sort((a, b) => {
+                // Pinned cards first
+                if (a.pinned && !b.pinned) return -1;
+                if (!a.pinned && b.pinned) return 1;
+                // If both pinned, sort by pinnedAt (most recent first)
+                if (a.pinned && b.pinned) {
+                  return (b.pinnedAt || '').localeCompare(a.pinnedAt || '');
+                }
+                // Non-pinned cards keep original order
+                return 0;
+              });
             const color = columnColors[col.toLowerCase()] || DEFAULT_PALETTE[idx % DEFAULT_PALETTE.length];
             return (
               <div
@@ -350,11 +384,20 @@ export function Home() {
                   {columnCards.map(card => (
                     <div
                       key={card.id}
-                      className={`kanban-card ${draggedCardId === card.id ? 'dragging' : ''}`}
+                      className={`kanban-card ${draggedCardId === card.id ? 'dragging' : ''} ${card.pinned ? 'pinned' : ''}`}
                       draggable
                       onDragStart={(e) => handleDragStart(card.id, e)}
                       onDragEnd={() => setDraggedCardId(null)}
                     >
+                      <button
+                        className={`pin-btn ${card.pinned ? 'pinned' : ''}`}
+                        onClick={(e) => handleTogglePin(card.id, e)}
+                        title={card.pinned ? 'Unpin from top' : 'Pin to top'}
+                      >
+                        <span className="material-symbols-outlined">
+                          {card.pinned ? 'keep' : 'keep_off'}
+                        </span>
+                      </button>
                       <Link to={`/page/${card.id}`} className="card-link">
                         <h4>{card.title}</h4>
                         {card.dueDate && (
@@ -385,27 +428,48 @@ export function Home() {
                 </span>
               </div>
               <div className="column-content">
-                {pages.filter(p => !p.kanbanColumn).map(card => (
-                  <div
-                    key={card.id}
-                    className={`kanban-card ${draggedCardId === card.id ? 'dragging' : ''}`}
-                    draggable
-                    onDragStart={(e) => handleDragStart(card.id, e)}
-                    onDragEnd={() => setDraggedCardId(null)}
-                  >
-                    <Link to={`/page/${card.id}`} className="card-link">
-                      <h4>{card.title}</h4>
-                      {card.dueDate && (
-                        <div className="card-due">
-                          Due: {new Date(card.dueDate).toLocaleDateString()}
-                        </div>
-                      )}
-                      <p className="card-excerpt">
-                        {markdownService.getExcerpt(card.content)}
-                      </p>
-                    </Link>
-                  </div>
-                ))}
+                {pages
+                  .filter(p => !p.kanbanColumn)
+                  .sort((a, b) => {
+                    // Pinned cards first
+                    if (a.pinned && !b.pinned) return -1;
+                    if (!a.pinned && b.pinned) return 1;
+                    // If both pinned, sort by pinnedAt (most recent first)
+                    if (a.pinned && b.pinned) {
+                      return (b.pinnedAt || '').localeCompare(a.pinnedAt || '');
+                    }
+                    return 0;
+                  })
+                  .map(card => (
+                    <div
+                      key={card.id}
+                      className={`kanban-card ${draggedCardId === card.id ? 'dragging' : ''} ${card.pinned ? 'pinned' : ''}`}
+                      draggable
+                      onDragStart={(e) => handleDragStart(card.id, e)}
+                      onDragEnd={() => setDraggedCardId(null)}
+                    >
+                      <button
+                        className={`pin-btn ${card.pinned ? 'pinned' : ''}`}
+                        onClick={(e) => handleTogglePin(card.id, e)}
+                        title={card.pinned ? 'Unpin from top' : 'Pin to top'}
+                      >
+                        <span className="material-symbols-outlined">
+                          {card.pinned ? 'keep' : 'keep_off'}
+                        </span>
+                      </button>
+                      <Link to={`/page/${card.id}`} className="card-link">
+                        <h4>{card.title}</h4>
+                        {card.dueDate && (
+                          <div className="card-due">
+                            Due: {new Date(card.dueDate).toLocaleDateString()}
+                          </div>
+                        )}
+                        <p className="card-excerpt">
+                          {markdownService.getExcerpt(card.content)}
+                        </p>
+                      </Link>
+                    </div>
+                  ))}
               </div>
             </div>
           )}

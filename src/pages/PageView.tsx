@@ -19,6 +19,7 @@ export function PageView() {
   const contentRef = useRef<HTMLDivElement>(null);
   const [showFindBar, setShowFindBar] = useState(false);
   const [zoomedDiagram, setZoomedDiagram] = useState<string | null>(null);
+  const [showScrollTop, setShowScrollTop] = useState(false);
 
   // Render mermaid diagrams after HTML content updates
   useMermaid(contentRef, htmlContent);
@@ -191,6 +192,24 @@ export function PageView() {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [editing]);
 
+  // Track scroll position to show/hide scroll to top button
+  useEffect(() => {
+    const handleScroll = () => {
+      // Show button when scrolled down more than 300px
+      setShowScrollTop(window.scrollY > 300);
+    };
+
+    window.addEventListener('scroll', handleScroll);
+    return () => window.removeEventListener('scroll', handleScroll);
+  }, []);
+
+  const scrollToTop = () => {
+    window.scrollTo({
+      top: 0,
+      behavior: 'smooth'
+    });
+  };
+
   if (loading) {
     return (
       <div className="page-view">
@@ -312,6 +331,17 @@ export function PageView() {
             dangerouslySetInnerHTML={{ __html: zoomedDiagram }}
           />
         </div>
+      )}
+
+      {/* Scroll to top button */}
+      {showScrollTop && !editing && (
+        <button
+          className="scroll-to-top"
+          onClick={scrollToTop}
+          title="Scroll to top"
+        >
+          <span className="material-symbols-outlined">arrow_upward</span>
+        </button>
       )}
     </>
   );
