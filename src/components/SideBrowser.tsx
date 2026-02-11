@@ -1,5 +1,4 @@
 import { useEffect, useRef, useState } from 'react';
-import { invoke } from '@tauri-apps/api/core';
 import './SideBrowser.css';
 
 interface SideBrowserProps {
@@ -27,7 +26,8 @@ export function SideBrowser({ url, onClose }: SideBrowserProps) {
       try {
         const iframe = iframeRef.current;
         if (iframe && iframe.contentWindow) {
-          const _ = iframe.contentWindow.location.href;
+          // Try to access location to check if iframe is accessible
+          void iframe.contentWindow.location.href;
           // If successful, it's just slow loading
           setIsLoading(false);
         }
@@ -58,7 +58,8 @@ export function SideBrowser({ url, onClose }: SideBrowserProps) {
       try {
         const iframe = iframeRef.current;
         if (iframe && iframe.contentWindow) {
-          const _ = iframe.contentWindow.location.href;
+          // Try to access location to check if iframe is accessible
+          void iframe.contentWindow.location.href;
           setIsLoading(false);
         }
       } catch (error) {
@@ -88,7 +89,8 @@ export function SideBrowser({ url, onClose }: SideBrowserProps) {
         try {
           const iframe = iframeRef.current;
           if (iframe && iframe.contentWindow) {
-            const _ = iframe.contentWindow.location.href;
+            // Try to access location to check if iframe is accessible
+            void iframe.contentWindow.location.href;
             setIsLoading(false);
           }
         } catch (error) {
@@ -105,7 +107,7 @@ export function SideBrowser({ url, onClose }: SideBrowserProps) {
       const iframe = iframeRef.current;
       if (iframe && iframe.contentWindow) {
         // Attempt to access the iframe's location - this will throw if blocked
-        const _ = iframe.contentWindow.location.href;
+        void iframe.contentWindow.location.href;
         // If we got here, iframe loaded successfully
         setIsLoading(false);
         setIsBlocked(false);
@@ -127,8 +129,8 @@ export function SideBrowser({ url, onClose }: SideBrowserProps) {
   const handleOpenInExternal = async () => {
     try {
       // Use Tauri's opener plugin via Rust backend
-      const { open } = await import('@tauri-apps/plugin-opener');
-      await open(currentUrl);
+      const { openUrl } = await import('@tauri-apps/plugin-opener');
+      await openUrl(currentUrl);
     } catch (error) {
       console.error('Failed to open URL in external browser:', error);
       // Fallback: try using window.open
