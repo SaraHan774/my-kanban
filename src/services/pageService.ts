@@ -122,7 +122,9 @@ export class PageService {
       viewType: page.viewType,
       ...(page.dueDate && { dueDate: page.dueDate }),
       ...(page.kanbanColumn && { kanbanColumn: page.kanbanColumn }),
-      ...(page.googleCalendarEventId && { googleCalendarEventId: page.googleCalendarEventId })
+      ...(page.googleCalendarEventId && { googleCalendarEventId: page.googleCalendarEventId }),
+      ...(page.pinned !== undefined && { pinned: page.pinned }),
+      ...(page.pinnedAt && { pinnedAt: page.pinnedAt })
     };
 
     const markdown = markdownService.serialize(frontmatter, page.content);
