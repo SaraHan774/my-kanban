@@ -4,6 +4,7 @@ import { useStore } from '@/store/useStore';
 import { fileSystemService, pageService, markdownService } from '@/services';
 import { CreatePageModal } from '@/components/CreatePageModal';
 import { CreateTodoModal } from '@/components/CreateTodoModal';
+import { ContextMenu } from '@/components/ContextMenu';
 import './Home.css';
 
 const DEFAULT_PALETTE = ['#3b82f6', '#f59e0b', '#22c55e', '#ef4444', '#8b5cf6', '#ec4899', '#14b8a6', '#f97316'];
@@ -22,6 +23,7 @@ export function Home() {
   const [draggedColumn, setDraggedColumn] = useState<string | null>(null);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [showTodoModal, setShowTodoModal] = useState(false);
+  const [contextMenu, setContextMenu] = useState<{ x: number; y: number; pageId: string } | null>(null);
 
   // 'idle' = checking, 'prompt' = needs user click, 'none' = no saved handle
   const [restoreState, setRestoreState] = useState<'idle' | 'prompt' | 'none'>('idle');
@@ -286,6 +288,23 @@ export function Home() {
     }
   };
 
+  // Context menu handlers
+  const handleCardContextMenu = (e: React.MouseEvent, pageId: string) => {
+    e.preventDefault();
+    setContextMenu({ x: e.clientX, y: e.clientY, pageId });
+  };
+
+  const handleCopyLink = async (pageId: string) => {
+    const link = `${window.location.origin}/page/${pageId}`;
+    try {
+      await navigator.clipboard.writeText(link);
+      // You could add a toast notification here
+      console.log('Link copied to clipboard:', link);
+    } catch (error) {
+      console.error('Failed to copy link:', error);
+    }
+  };
+
   // No pages and no columns yet
   if (pages.length === 0) {
     return (
@@ -359,14 +378,15 @@ export function Home() {
                 if (a.pinned && b.pinned) {
                   return (b.pinnedAt || '').localeCompare(a.pinnedAt || '');
                 }
-                // Non-pinned cards keep original order
-                return 0;
+                // Non-pinned cards sorted by creation date (newest first)
+                return b.createdAt.localeCompare(a.createdAt);
               });
             const color = columnColors[col.toLowerCase()] || DEFAULT_PALETTE[idx % DEFAULT_PALETTE.length];
             return (
               <div
                 key={col}
                 className={`kanban-column ${draggedCardId ? 'droppable' : ''} ${draggedColumn === col ? 'column-dragging' : ''} ${draggedColumn && draggedColumn !== col ? 'column-drop-target' : ''}`}
+                style={{ borderTopColor: color }}
                 onDragOver={(e) => { handleDragOver(e); handleColumnDragOver(e); }}
                 onDrop={(e) => { if (draggedColumn) handleColumnDrop(col, e); else handleDrop(col, e); }}
               >
@@ -388,6 +408,7 @@ export function Home() {
                       draggable
                       onDragStart={(e) => handleDragStart(card.id, e)}
                       onDragEnd={() => setDraggedCardId(null)}
+                      onContextMenu={(e) => handleCardContextMenu(e, card.id)}
                     >
                       <button
                         className={`pin-btn ${card.pinned ? 'pinned' : ''}`}
@@ -418,6 +439,7 @@ export function Home() {
           {hasUncategorized && (
             <div
               className={`kanban-column ${draggedCardId ? 'droppable' : ''}`}
+              style={{ borderTopColor: '#6b7280' }}
               onDragOver={handleDragOver}
               onDrop={(e) => handleDropUncategorized(e)}
             >
@@ -438,7 +460,8 @@ export function Home() {
                     if (a.pinned && b.pinned) {
                       return (b.pinnedAt || '').localeCompare(a.pinnedAt || '');
                     }
-                    return 0;
+                    // Non-pinned cards sorted by creation date (newest first)
+                    return b.createdAt.localeCompare(a.createdAt);
                   })
                   .map(card => (
                     <div
@@ -447,6 +470,7 @@ export function Home() {
                       draggable
                       onDragStart={(e) => handleDragStart(card.id, e)}
                       onDragEnd={() => setDraggedCardId(null)}
+                      onContextMenu={(e) => handleCardContextMenu(e, card.id)}
                     >
                       <button
                         className={`pin-btn ${card.pinned ? 'pinned' : ''}`}
@@ -549,6 +573,20 @@ export function Home() {
       )}
       {showTodoModal && (
         <CreateTodoModal onClose={() => setShowTodoModal(false)} />
+      )}
+      {contextMenu && (
+        <ContextMenu
+          x={contextMenu.x}
+          y={contextMenu.y}
+          onClose={() => setContextMenu(null)}
+          items={[
+            {
+              label: 'Copy Link',
+              icon: 'link',
+              onClick: () => handleCopyLink(contextMenu.pageId),
+            },
+          ]}
+        />
       )}
     </div>
   );

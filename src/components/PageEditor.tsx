@@ -1,4 +1,5 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Page } from '@/types';
 import { pageService, markdownService, saveImage, resolveImagesInHtml, clearImageCache } from '@/services';
 import { useStore } from '@/store/useStore';
@@ -6,6 +7,7 @@ import { useSlashCommands, SlashCommandPalette } from '@/lib/slash-commands';
 import { useMarkdownShortcuts } from '@/hooks/useMarkdownShortcuts';
 import { useMermaid } from '@/hooks/useMermaid';
 import { FindBar } from '@/components/FindBar';
+import { openExternalUrl } from '@/lib/openExternal';
 import './PageEditor.css';
 
 function insertImageMarkdown(
@@ -33,6 +35,7 @@ interface PageEditorProps {
 }
 
 export function PageEditor({ page, onSave, onCancel }: PageEditorProps) {
+  const navigate = useNavigate();
   const { updatePageInStore, pages, slashCommands, columnColors } = useStore();
   const [title, setTitle] = useState(page.title);
   const [content, setContent] = useState(page.content);
@@ -65,6 +68,66 @@ export function PageEditor({ page, onSave, onCancel }: PageEditorProps) {
 
   // Render mermaid diagrams in editor preview
   useMermaid(previewRef, previewHtml);
+
+  // Attach click handlers to internal links in preview mode for SPA navigation
+  useEffect(() => {
+    if (!preview) return;
+    const container = previewRef.current;
+    if (!container) return;
+
+    const links = container.querySelectorAll<HTMLAnchorElement>('a[href^="/page/"]');
+    const handlers: Array<(e: Event) => void> = [];
+
+    links.forEach((link) => {
+      const handler = (e: Event) => {
+        e.preventDefault();
+        const href = link.getAttribute('href');
+        if (href) {
+          const targetPageId = href.replace('/page/', '');
+          // Only navigate if the target page is different from the current page
+          if (targetPageId !== page.id) {
+            navigate(href);
+          }
+        }
+      };
+      link.addEventListener('click', handler);
+      handlers.push(handler);
+    });
+
+    return () => {
+      links.forEach((link, index) => {
+        link.removeEventListener('click', handlers[index]);
+      });
+    };
+  }, [preview, previewHtml, navigate, page.id]);
+
+  // Attach click handlers to external links in preview mode to open in browser
+  useEffect(() => {
+    if (!preview) return;
+    const container = previewRef.current;
+    if (!container) return;
+
+    const externalLinks = container.querySelectorAll<HTMLAnchorElement>('a[href^="http://"], a[href^="https://"]');
+    const handlers: Array<(e: Event) => void> = [];
+
+    externalLinks.forEach((link) => {
+      const handler = (e: Event) => {
+        e.preventDefault();
+        const href = link.getAttribute('href');
+        if (href) {
+          openExternalUrl(href);
+        }
+      };
+      link.addEventListener('click', handler);
+      handlers.push(handler);
+    });
+
+    return () => {
+      externalLinks.forEach((link, index) => {
+        link.removeEventListener('click', handlers[index]);
+      });
+    };
+  }, [preview, previewHtml]);
 
   // Attach click handlers to mermaid diagrams in preview mode for zoom functionality
   useEffect(() => {
@@ -196,12 +259,16 @@ export function PageEditor({ page, onSave, onCancel }: PageEditorProps) {
 
   const handlePreview = useCallback(async () => {
     if (!preview) {
-      let html = await markdownService.toHtml(content);
+      // Convert wiki-style links before rendering markdown
+      const { convertWikiLinksToMarkdown } = await import('@/utils/wikiLinks');
+      const contentWithLinks = convertWikiLinksToMarkdown(content, pages);
+
+      let html = await markdownService.toHtml(contentWithLinks);
       html = await resolveImagesInHtml(html, page.path);
       setPreviewHtml(html);
     }
     setPreview(!preview);
-  }, [preview, content, page.path]);
+  }, [preview, content, page.path, pages]);
 
   // Clean up blob URLs on unmount
   useEffect(() => {

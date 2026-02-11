@@ -6,12 +6,14 @@ import { Page } from '@/types';
 import { PageEditor } from '@/components/PageEditor';
 import { FindBar } from '@/components/FindBar';
 import { useMermaid } from '@/hooks/useMermaid';
+import { convertWikiLinksToMarkdown } from '@/utils/wikiLinks';
+import { openExternalUrl } from '@/lib/openExternal';
 import './PageView.css';
 
 export function PageView() {
   const { pageId } = useParams<{ pageId: string }>();
   const navigate = useNavigate();
-  const { pages, removePage, updatePageInStore, sidebarOpen, setSidebarOpen, columnColors } = useStore();
+  const { pages, removePage, updatePageInStore, columnColors } = useStore();
   const [page, setPage] = useState<Page | null>(null);
   const [htmlContent, setHtmlContent] = useState<string>('');
   const [loading, setLoading] = useState(true);
@@ -50,7 +52,9 @@ export function PageView() {
       if (foundPage) {
         const fullPage = await pageService.loadPageWithChildren(foundPage.path);
         setPage(fullPage);
-        let html = await markdownService.toHtml(fullPage.content);
+        // Convert wiki-style links before rendering markdown
+        const contentWithLinks = convertWikiLinksToMarkdown(fullPage.content, pages);
+        let html = await markdownService.toHtml(contentWithLinks);
         html = await resolveImagesInHtml(html, fullPage.path);
         setHtmlContent(html);
       }
@@ -77,7 +81,9 @@ export function PageView() {
     setPage(updatedPage);
     updatePageInStore(updatedPage);
 
-    let html = await markdownService.toHtml(newContent);
+    // Convert wiki-style links before rendering markdown
+    const contentWithLinks = convertWikiLinksToMarkdown(newContent, pages);
+    let html = await markdownService.toHtml(contentWithLinks);
     html = await resolveImagesInHtml(html, page.path);
     setHtmlContent(html);
 
@@ -87,6 +93,64 @@ export function PageView() {
       console.error('Failed to save checkbox state:', err);
     }
   }, [page, updatePageInStore]);
+
+  // Attach click handlers to internal links for SPA navigation
+  useEffect(() => {
+    const container = contentRef.current;
+    if (!container) return;
+
+    const links = container.querySelectorAll<HTMLAnchorElement>('a[href^="/page/"]');
+    const handlers: Array<(e: Event) => void> = [];
+
+    links.forEach((link) => {
+      const handler = (e: Event) => {
+        e.preventDefault();
+        const href = link.getAttribute('href');
+        if (href) {
+          const targetPageId = href.replace('/page/', '');
+          // Only navigate if the target page is different from the current page
+          if (targetPageId !== pageId) {
+            navigate(href);
+          }
+        }
+      };
+      link.addEventListener('click', handler);
+      handlers.push(handler);
+    });
+
+    return () => {
+      links.forEach((link, index) => {
+        link.removeEventListener('click', handlers[index]);
+      });
+    };
+  }, [htmlContent, navigate, pageId]);
+
+  // Attach click handlers to external links to open in browser
+  useEffect(() => {
+    const container = contentRef.current;
+    if (!container) return;
+
+    const externalLinks = container.querySelectorAll<HTMLAnchorElement>('a[href^="http://"], a[href^="https://"]');
+    const handlers: Array<(e: Event) => void> = [];
+
+    externalLinks.forEach((link) => {
+      const handler = (e: Event) => {
+        e.preventDefault();
+        const href = link.getAttribute('href');
+        if (href) {
+          openExternalUrl(href);
+        }
+      };
+      link.addEventListener('click', handler);
+      handlers.push(handler);
+    });
+
+    return () => {
+      externalLinks.forEach((link, index) => {
+        link.removeEventListener('click', handlers[index]);
+      });
+    };
+  }, [htmlContent]);
 
   // Attach click handlers to rendered checkboxes
   useEffect(() => {
@@ -246,11 +310,6 @@ export function PageView() {
           <button className="btn-icon" onClick={() => navigate(-1)} title="Go back">
             <span className="material-symbols-outlined">arrow_back</span>
           </button>
-          {!sidebarOpen && (
-            <button className="btn-icon" onClick={() => setSidebarOpen(true)} title="Open sidebar">
-              ☰
-            </button>
-          )}
           <h1>{page.title}</h1>
           <div className="page-actions">
             <button className="btn btn-secondary" onClick={() => setEditing(true)}>

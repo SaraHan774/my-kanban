@@ -110,23 +110,30 @@ pre code {
   padding: 0;
 }
 
-/* Scrollbar */
+/* Scrollbar - thin and elegant */
 ::-webkit-scrollbar {
-  width: 10px;
-  height: 10px;
+  width: 6px;
+  height: 6px;
 }
 
 ::-webkit-scrollbar-track {
-  background: var(--bg-secondary);
+  background: transparent;
 }
 
 ::-webkit-scrollbar-thumb {
   background: var(--border-color);
-  border-radius: 5px;
+  border-radius: 3px;
+  transition: background-color 0.2s;
 }
 
 ::-webkit-scrollbar-thumb:hover {
   background: var(--text-secondary);
+}
+
+/* Firefox scrollbar */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--border-color) transparent;
 }
 
 /* Buttons */
