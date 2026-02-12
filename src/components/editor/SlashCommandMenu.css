@@ -1,0 +1,77 @@
+.slash-command-menu {
+  position: absolute;
+  z-index: 1000;
+  min-width: 300px;
+  max-width: 400px;
+  max-height: 400px;
+  overflow-y: auto;
+  background-color: var(--bg-primary);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  padding: 0.5rem 0;
+}
+
+.command-item {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  width: 100%;
+  padding: 0.75rem 1rem;
+  background-color: transparent;
+  border: none;
+  cursor: pointer;
+  transition: background-color 0.15s;
+  text-align: left;
+}
+
+.command-item:hover,
+.command-item.selected {
+  background-color: var(--bg-secondary);
+}
+
+.command-item.selected {
+  border-left: 3px solid var(--accent-primary);
+}
+
+.command-icon {
+  font-size: 1.25rem;
+  color: var(--text-secondary);
+  flex-shrink: 0;
+}
+
+.command-content {
+  flex: 1;
+  min-width: 0;
+}
+
+.command-label {
+  font-size: 0.9rem;
+  font-weight: 500;
+  color: var(--text-primary);
+  margin-bottom: 0.125rem;
+}
+
+.command-description {
+  font-size: 0.75rem;
+  color: var(--text-secondary);
+}
+
+/* Scrollbar styling */
+.slash-command-menu::-webkit-scrollbar {
+  width: 6px;
+}
+
+.slash-command-menu::-webkit-scrollbar-track {
+  background: var(--bg-secondary);
+  border-radius: 3px;
+}
+
+.slash-command-menu::-webkit-scrollbar-thumb {
+  background: var(--border-color);
+  border-radius: 3px;
+}
+
+.slash-command-menu::-webkit-scrollbar-thumb:hover {
+  background: var(--text-secondary);
+}

@@ -21,6 +21,7 @@
     "@tauri-apps/plugin-dialog": "^2",
     "@tauri-apps/plugin-fs": "^2",
     "@tauri-apps/plugin-opener": "^2.5.3",
+    "@toast-ui/editor": "^3.2.2",
     "date-fns": "^3.3.1",
     "gray-matter": "^4.0.3",
     "highlight.js": "^11.9.0",
