@@ -8,9 +8,11 @@ Available as both a **Progressive Web App (PWA)** and a **native desktop app** p
 
 ### Core Functionality
 - **Markdown Notes** - Full markdown syntax support with YAML frontmatter
-- **Notion-style Pages** - Everything is a page; create nested page structures infinitely
+- **Page Links** - Wiki-style links `[[Page Title]]` or `[[page-id|Display]]` to connect pages
+- **Backlinks** - See which pages reference the current page
+- **Notion-style Pages** - Everything is a page; create nested page structures with `parentId`
 - **Tag System** - Categorize pages with tags and filter by them
-- **Kanban Boards** - Any page can become a Kanban board with custom columns
+- **Kanban Boards** - Root-level pages organized into kanban columns
 - **Todo Checklists** - GitHub-style checklists with interactive checkboxes
 - **Filter & Search** - Filter by tags, dates, and full-text search
 - **Code Formatting** - Code blocks with syntax highlighting via highlight.js
@@ -24,7 +26,8 @@ Available as both a **Progressive Web App (PWA)** and a **native desktop app** p
 - **PWA Support** - Install from the browser and use offline
 
 ### Editor
-- **Image Insertion** - Paste from clipboard, drag-and-drop, or use the toolbar file picker. Images are stored as files in a `.images/` directory (not inline base64), keeping your markdown clean
+- **Image Insertion** - Paste from clipboard, drag-and-drop, or use the toolbar file picker. Images are stored in centralized `workspace/.images/` (not inline base64), keeping your markdown clean
+- **Page Links** - Type `[[` to create links to other pages (auto-complete coming soon)
 - **Keyboard Shortcuts** - Cmd/Ctrl+B (bold), Cmd/Ctrl+I (italic), Cmd/Ctrl+E (inline code), Cmd/Ctrl+S (save)
 - **Tab Indentation** - Tab/Shift+Tab to indent/dedent lines (works with multi-line selections)
 - **Quick Edit** - Press `E` on any page to enter edit mode, `Escape` to cancel
@@ -46,29 +49,28 @@ Available as both a **Progressive Web App (PWA)** and a **native desktop app** p
 
 ## Data Structure
 
-Every entity in the app is a **Page** (Notion-style unified model):
+Every entity in the app is a **Page** (Notion-style unified model). Pages are stored as individual markdown files:
 
 ```
 workspace/
-├── Project A/
-│   ├── index.md           # Project A page (viewType: kanban)
-│   ├── .images/           # Images referenced by index.md
-│   │   └── a1b2c3d4e5f6.png
-│   ├── Task 1/
-│   │   ├── index.md       # Task 1 card
-│   │   └── Subtask 1-1/
-│   │       └── index.md   # Nested sub-page
-│   └── Task 2/
-│       └── index.md
-└── Project B/
-    └── index.md
+├── .images/              # Centralized image storage
+│   ├── a1b2c3d4.png     # Content-hashed (SHA-256)
+│   └── e5f6g7h8.png
+├── Project A.md         # Root-level page
+├── Task 1.md            # Child page (parentId → Project A)
+├── Task 2.md            # Child page (parentId → Project A)
+└── Personal Notes.md    # Root-level page
 ```
 
-Images pasted or dropped into a page are saved as files under each page's `.images/` directory with content-hashed filenames (SHA-256). The markdown references them with short relative paths like `![screenshot](.images/a1b2c3d4e5f6.png)` instead of embedding large base64 data URLs.
+**Key Features:**
+- **Single file per page** - Each page is a `.md` file (not folder + index.md)
+- **Centralized images** - All images in `workspace/.images/`, automatic deduplication via content hashing
+- **Page hierarchy** - `parentId` field links child pages to parents
+- **Page links** - Use `[[Page Title]]` or `[[page-id|Display]]` to reference other pages
 
-Each `index.md` contains:
-- **YAML frontmatter** - metadata (title, tags, dates, view type, etc.)
-- **Markdown content** - the actual page content
+Each page contains:
+- **YAML frontmatter** - metadata (title, tags, dates, parentId, etc.)
+- **Markdown content** - the actual page content with support for links, images, code, etc.
 
 Example page:
 
@@ -77,25 +79,29 @@ Example page:
 id: "550e8400-e29b-41d4-a716-446655440000"
 title: "My Project Tasks"
 tags: ["work", "urgent"]
+parentId: "parent-board-id"  # Optional: links to parent page
+kanbanColumn: "In Progress"  # Optional: kanban column
 createdAt: "2026-02-08T10:30:00Z"
 updatedAt: "2026-02-08T15:45:00Z"
-viewType: "kanban"
-kanbanColumns:
-  - id: "col-1"
-    name: "To Do"
-    order: 0
-  - id: "col-2"
-    name: "In Progress"
-    order: 1
-  - id: "col-3"
-    name: "Done"
-    order: 2
+viewType: "document"
 ---
 
 # My Project Tasks
 
 This is the content of the page.
+
+You can link to other pages: [[Another Page]] or [[page-id|Custom Link Text]]
+
+Images: ![screenshot](.images/a1b2c3d4.png)
 ```
+
+### Migration from Old Structure
+
+If you have existing data in the old folder-based structure, the app will automatically detect it and show a migration option in Settings. The migration:
+- Converts `workspace/Page/index.md` → `workspace/Page.md`
+- Moves all images to `workspace/.images/`
+- Sets `parentId` for nested pages
+- Cleans up empty folders
 
 ## Getting Started
 
