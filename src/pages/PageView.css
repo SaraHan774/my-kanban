@@ -379,3 +379,14 @@
     font-size: 22px;
   }
 }
+
+/* Copy Link Button */
+.copy-link-btn {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+}
+
+.copy-link-btn .material-symbols-outlined {
+  font-size: 1.125rem;
+}

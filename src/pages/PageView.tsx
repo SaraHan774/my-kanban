@@ -214,6 +214,30 @@ export function PageView() {
     }
   };
 
+  const handleCopyLink = async () => {
+    if (!page) return;
+
+    // Use ID-based link format: [[page-id|Page Title]]
+    // This is safe from file name changes since ID never changes
+    const linkText = `[[${page.id}|${page.title}]]`;
+
+    try {
+      await navigator.clipboard.writeText(linkText);
+      // Show a temporary toast/notification
+      const btn = document.querySelector('.copy-link-btn');
+      if (btn) {
+        const originalText = btn.textContent;
+        btn.textContent = '✓ Copied!';
+        setTimeout(() => {
+          btn.textContent = originalText;
+        }, 2000);
+      }
+    } catch (error) {
+      console.error('Failed to copy link:', error);
+      alert('Failed to copy link to clipboard');
+    }
+  };
+
   const handleEditorSave = async (updatedPage: Page) => {
     setPage(updatedPage);
     setEditing(false);
@@ -312,6 +336,10 @@ export function PageView() {
           </button>
           <h1>{page.title}</h1>
           <div className="page-actions">
+            <button className="btn btn-secondary copy-link-btn" onClick={handleCopyLink} title="Copy link to this page">
+              <span className="material-symbols-outlined">link</span>
+              Copy Link
+            </button>
             <button className="btn btn-secondary" onClick={() => setEditing(true)}>
               Edit
             </button>
