@@ -150,9 +150,13 @@ export function Home() {
     );
   }
 
+  // NEW: Filter root-level pages (no parentId) for Home Kanban board
+  // Pages with parentId belong to other boards (e.g., nested kanban boards)
+  const rootPages = pages.filter(p => !p.parentId);
+
   // Derive columns from all unique kanbanColumn values (case-insensitive dedup)
   const unsortedColumns = Array.from(
-    pages.map(p => p.kanbanColumn).filter(Boolean).reduce((map, col) => {
+    rootPages.map(p => p.kanbanColumn).filter(Boolean).reduce((map, col) => {
       const key = (col as string).toLowerCase();
       if (!map.has(key)) map.set(key, col as string);
       return map;
@@ -169,7 +173,7 @@ export function Home() {
     return aIdx - bIdx;
   });
 
-  const hasUncategorized = pages.some(p => !p.kanbanColumn);
+  const hasUncategorized = rootPages.some(p => !p.kanbanColumn);
 
   // --- Card drag & drop ---
   const handleDragStart = (cardId: string, e: React.DragEvent) => {
@@ -388,7 +392,7 @@ export function Home() {
       {boardView === 'kanban' ? (
         <div className="kanban-board">
           {columns.map((col, idx) => {
-            const columnCards = pages
+            const columnCards = rootPages
               .filter(p => p.kanbanColumn?.toLowerCase() === col.toLowerCase())
               .sort((a, b) => {
                 // Pinned cards first
@@ -468,11 +472,11 @@ export function Home() {
               <div className="column-header" style={{ borderTopColor: '#6b7280' }}>
                 <h3>Uncategorized</h3>
                 <span className="card-count">
-                  {pages.filter(p => !p.kanbanColumn).length}
+                  {rootPages.filter(p => !p.kanbanColumn).length}
                 </span>
               </div>
               <div className="column-content">
-                {pages
+                {rootPages
                   .filter(p => !p.kanbanColumn)
                   .sort((a, b) => {
                     // Pinned cards first
@@ -556,7 +560,7 @@ export function Home() {
             </span>
           </div>
           {(() => {
-            const sorted = [...pages];
+            const sorted = [...rootPages];
             sorted.sort((a, b) => {
               const aVal = a[listSortField] || '';
               const bVal = b[listSortField] || '';
