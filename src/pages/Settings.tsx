@@ -1,7 +1,8 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useStore } from '@/store/useStore';
 import { DEFAULT_FONT_SETTINGS, FontSettings } from '@/services/configService';
 import { AppSlashCommand } from '@/data/defaultSlashCommands';
+import { migrationService } from '@/services';
 import './Settings.css';
 
 const SANS_FONT_OPTIONS = [
@@ -55,6 +56,60 @@ export function Settings() {
   const [formInsert, setFormInsert] = useState('');
   const [formCursorOffset, setFormCursorOffset] = useState('');
   const [formError, setFormError] = useState('');
+
+  // Migration state
+  const [needsMigration, setNeedsMigration] = useState(false);
+  const [isMigrating, setIsMigrating] = useState(false);
+  const [migrationResult, setMigrationResult] = useState<string | null>(null);
+
+  // Check if migration is needed on mount
+  useEffect(() => {
+    const checkMigration = async () => {
+      const needs = await migrationService.needsMigration();
+      setNeedsMigration(needs);
+    };
+    checkMigration();
+  }, []);
+
+  const handleMigrate = async () => {
+    if (!window.confirm(
+      'This will convert your workspace from folder-based to file-based structure.\n\n' +
+      'Before proceeding:\n' +
+      '1. Make sure you have a backup of your workspace\n' +
+      '2. Close all open pages\n' +
+      '3. This action cannot be undone\n\n' +
+      'Continue with migration?'
+    )) {
+      return;
+    }
+
+    setIsMigrating(true);
+    setMigrationResult(null);
+
+    try {
+      const result = await migrationService.migrate();
+
+      if (result.success) {
+        setMigrationResult(
+          `✅ Migration successful!\n\n` +
+          `Migrated ${result.migratedPages} pages\n` +
+          `Moved ${result.migratedImages} images to centralized storage\n\n` +
+          `Please refresh the page to see the changes.`
+        );
+        setNeedsMigration(false);
+      } else {
+        setMigrationResult(
+          `⚠️ Migration completed with errors:\n\n` +
+          `Migrated: ${result.migratedPages} pages, ${result.migratedImages} images\n\n` +
+          `Errors:\n${result.errors.join('\n')}`
+        );
+      }
+    } catch (error) {
+      setMigrationResult(`❌ Migration failed: ${error}`);
+    } finally {
+      setIsMigrating(false);
+    }
+  };
 
   const startEdit = (cmd: AppSlashCommand) => {
     setEditingId(cmd.id);
@@ -409,6 +464,38 @@ export function Settings() {
           </div>
         )}
       </section>
+
+      {needsMigration && (
+        <section className="settings-section">
+          <div className="settings-section-header">
+            <h2>⚠️ Migration Required</h2>
+          </div>
+          <p className="settings-description">
+            Your workspace uses the old folder-based structure.
+            Migrate to the new file-based structure to use the latest features like page links and improved performance.
+          </p>
+          <div className="settings-migration-info">
+            <h4>What will happen:</h4>
+            <ul>
+              <li>Each <code>workspace/Page/index.md</code> → <code>workspace/Page.md</code></li>
+              <li>All images moved to <code>workspace/.images/</code></li>
+              <li>Nested pages will get <code>parentId</code> field set</li>
+              <li>Old folders will be deleted</li>
+            </ul>
+            <p><strong>⚠️ Important: Create a backup before proceeding!</strong></p>
+          </div>
+          <button
+            className="btn btn-primary"
+            onClick={handleMigrate}
+            disabled={isMigrating}
+          >
+            {isMigrating ? 'Migrating...' : 'Start Migration'}
+          </button>
+          {migrationResult && (
+            <pre className="settings-migration-result">{migrationResult}</pre>
+          )}
+        </section>
+      )}
 
       <section className="settings-section">
         <div className="settings-section-header">
