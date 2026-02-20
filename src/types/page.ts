@@ -1,9 +1,14 @@
 /**
  * Core Page interface - represents a page/card in the system
  *
+ * File-based model (NEW):
+ *  - Each page is a single .md file (e.g., "workspace/Page Name.md")
+ *  - Pages can link to each other using [[Page Title]] or [[page-id|Display Text]]
+ *  - Kanban cards reference their board via `parentId` field
+ *
  * Kanban model:
  *  - A board page has viewType='kanban'. Its `tags` define the columns.
- *  - A card (child of a board) has `kanbanColumn` set to one of the parent's tags.
+ *  - A card (child of a board) has `parentId` set to the board's id and `kanbanColumn` to one of the board's tags.
  *  - The board can be displayed as kanban or list (UI toggle, not a separate type).
  */
 export interface Page {
@@ -15,16 +20,17 @@ export interface Page {
   updatedAt: string;
   dueDate?: string;
   viewType: ViewType;
+  parentId?: string;             // ID of parent page (e.g., kanban board this card belongs to)
   kanbanColumn?: string;         // Which column this card belongs to (= one of parent's tags)
   googleCalendarEventId?: string;
   pinned?: boolean;              // Whether this card is pinned to the top of its column
   pinnedAt?: string;             // Timestamp when pinned (for sorting multiple pinned cards)
 
   // Runtime properties (not stored in frontmatter)
-  path: string;
+  path: string;                  // File path (e.g., "workspace/Page Name.md")
   content: string;
-  children?: Page[];
-  parent?: Page;
+  children?: Page[];             // Computed at runtime by filtering pages with matching parentId
+  parent?: Page;                 // Computed at runtime by looking up parentId
 }
 
 /**
@@ -45,6 +51,7 @@ export interface PageFrontmatter {
   updatedAt: string;
   dueDate?: string;
   viewType: ViewType;
+  parentId?: string;             // ID of parent page
   kanbanColumn?: string;
   googleCalendarEventId?: string;
   pinned?: boolean;
