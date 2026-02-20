@@ -227,3 +227,25 @@ input:focus, textarea:focus {
 .p-4 {
   padding: 1rem;
 }
+
+/* Page Link Styles - Wiki-style links [[Page Title]] */
+.page-link {
+  color: var(--accent-primary);
+  text-decoration: none;
+  border-bottom: 1px solid transparent;
+  transition: border-color 0.2s ease;
+}
+
+.page-link:hover {
+  border-bottom-color: var(--accent-primary);
+}
+
+.page-link[data-page-id]:not([data-page-id=""]) {
+  /* ID-based links (more reliable) */
+  opacity: 1;
+}
+
+.page-link[data-page-ref]:not([data-page-ref=""]) {
+  /* Title-based links (might break if title changes) */
+  opacity: 0.9;
+}

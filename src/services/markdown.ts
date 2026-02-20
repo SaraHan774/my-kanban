@@ -70,10 +70,44 @@ export class MarkdownService {
 
   /**
    * Convert markdown to HTML
+   * NEW: Also converts wiki-style links [[Page Title]] to HTML anchors
    * @param markdown - Markdown content
    */
   async toHtml(markdown: string): Promise<string> {
-    return marked(markdown);
+    // First convert wiki-style links to HTML
+    const withLinks = this.convertWikiLinksToHtml(markdown);
+    // Then process markdown
+    return marked(withLinks);
+  }
+
+  /**
+   * Convert wiki-style links to HTML anchor tags
+   * [[Page Title]] → <a href="#" data-page-ref="Page Title">Page Title</a>
+   * [[page-id|Display]] → <a href="#" data-page-id="page-id">Display</a>
+   */
+  private convertWikiLinksToHtml(content: string): string {
+    return content.replace(
+      /\[\[([^\]|]+)(?:\|([^\]]+))?\]\]/g,
+      (_match, targetRef, displayText) => {
+        const display = displayText?.trim() || targetRef.trim();
+        const ref = targetRef.trim();
+        const isId = this.looksLikeId(ref);
+
+        if (isId) {
+          return `<a href="#" class="page-link" data-page-id="${ref}">${display}</a>`;
+        } else {
+          return `<a href="#" class="page-link" data-page-ref="${ref}">${display}</a>`;
+        }
+      }
+    );
+  }
+
+  /**
+   * Check if a string looks like a UUID/ID vs a page title
+   */
+  private looksLikeId(str: string): boolean {
+    const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    return uuidPattern.test(str);
   }
 
   /**
@@ -90,6 +124,7 @@ export class MarkdownService {
       createdAt: data.createdAt || now,
       updatedAt: data.updatedAt || now,
       viewType: data.viewType || 'document',
+      ...(data.parentId && { parentId: data.parentId }),
       ...(data.dueDate && { dueDate: data.dueDate }),
       ...(data.kanbanColumn && { kanbanColumn: data.kanbanColumn }),
       ...(data.googleCalendarEventId && { googleCalendarEventId: data.googleCalendarEventId }),
@@ -108,6 +143,7 @@ export class MarkdownService {
     let text = markdown
       .replace(/- \[[ x]\]\s*/g, '') // Checkboxes
       .replace(/!\[.*?\]\(.*?\)/g, '') // Images
+      .replace(/\[\[([^\]|]+)(?:\|([^\]]+))?\]\]/g, '$2$1') // Wiki links (display text or target)
       .replace(/#{1,6}\s+/g, '') // Headers
       .replace(/\*\*(.+?)\*\*/g, '$1') // Bold
       .replace(/\*(.+?)\*/g, '$1') // Italic
