@@ -43,6 +43,7 @@ export function Settings() {
     slashCommands, addSlashCommand, updateSlashCommand, removeSlashCommand, resetSlashCommands,
     pages, columnColors, setColumnColor, removeColumnColor,
     fontSettings, setFontSettings,
+    boardDensity, setBoardDensity,
   } = useStore();
   const [editingId, setEditingId] = useState<string | null>(null);
   const [isAdding, setIsAdding] = useState(false);
@@ -341,6 +342,30 @@ export function Settings() {
             >
               {'const hello = "world"; // monospace preview'}
             </p>
+          </div>
+        </div>
+      </section>
+
+      <section className="settings-section">
+        <h2>Board Appearance</h2>
+        <div className="settings-density-container">
+          <label>Card Density</label>
+          <p className="settings-density-description">Control how much information is shown on kanban cards</p>
+          <div className="settings-density-toggle">
+            <button
+              className={`density-btn ${boardDensity === 'normal' ? 'active' : ''}`}
+              onClick={() => setBoardDensity('normal')}
+            >
+              <span className="density-btn-title">Normal</span>
+              <span className="density-btn-desc">Shows title, due date, and excerpt</span>
+            </button>
+            <button
+              className={`density-btn ${boardDensity === 'compact' ? 'active' : ''}`}
+              onClick={() => setBoardDensity('compact')}
+            >
+              <span className="density-btn-title">Compact</span>
+              <span className="density-btn-desc">Title only, narrower columns (200px)</span>
+            </button>
           </div>
         </div>
       </section>

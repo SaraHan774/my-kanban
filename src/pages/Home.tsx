@@ -14,6 +14,7 @@ export function Home() {
     hasFileSystemAccess, setHasFileSystemAccess, setSidebarOpen,
     pages, updatePageInStore, columnColors,
     columnOrder, setColumnOrder,
+    boardDensity,
   } = useStore();
 
   const [boardView, setBoardView] = useState<'kanban' | 'list'>('kanban');
@@ -404,7 +405,7 @@ export function Home() {
             return (
               <div
                 key={col}
-                className={`kanban-column ${draggedCardId ? 'droppable' : ''} ${draggedColumn === col ? 'column-dragging' : ''} ${draggedColumn && draggedColumn !== col ? 'column-drop-target' : ''}`}
+                className={`kanban-column ${boardDensity === 'compact' ? 'compact-density' : ''} ${draggedCardId ? 'droppable' : ''} ${draggedColumn === col ? 'column-dragging' : ''} ${draggedColumn && draggedColumn !== col ? 'column-drop-target' : ''}`}
                 style={{ borderTopColor: color }}
                 onDragOver={(e) => { handleDragOver(e); handleColumnDragOver(e); }}
                 onDrop={(e) => { if (draggedColumn) handleColumnDrop(col, e); else handleDrop(col, e); }}
@@ -459,7 +460,7 @@ export function Home() {
           })}
           {hasUncategorized && (
             <div
-              className={`kanban-column ${draggedCardId ? 'droppable' : ''}`}
+              className={`kanban-column ${boardDensity === 'compact' ? 'compact-density' : ''} ${draggedCardId ? 'droppable' : ''}`}
               style={{ borderTopColor: '#6b7280' }}
               onDragOver={handleDragOver}
               onDrop={(e) => handleDropUncategorized(e)}

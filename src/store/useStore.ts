@@ -18,6 +18,7 @@ const persistSettings = (state: {
   columnOrder: string[];
   zoomLevel: number;
   fontSettings: FontSettings;
+  boardDensity: 'normal' | 'compact';
 }) => {
   configService.save({
     columnColors: state.columnColors,
@@ -26,6 +27,7 @@ const persistSettings = (state: {
     columnOrder: state.columnOrder,
     zoomLevel: state.zoomLevel,
     fontSettings: state.fontSettings,
+    boardDensity: state.boardDensity,
   });
 };
 
@@ -91,6 +93,10 @@ interface AppState {
   // Font settings (persisted)
   fontSettings: FontSettings;
   setFontSettings: (fontSettings: FontSettings) => void;
+
+  // Board density (persisted)
+  boardDensity: 'normal' | 'compact';
+  setBoardDensity: (density: 'normal' | 'compact') => void;
 
   // Settings persistence
   loadSettingsFromFile: () => Promise<void>;
@@ -214,6 +220,14 @@ export const useStore = create<AppState>((set, get) => ({
     persistSettings({ ...state, fontSettings });
   },
 
+  // Board density
+  boardDensity: initialSettings.boardDensity,
+  setBoardDensity: (density) => {
+    set({ boardDensity: density });
+    const state = get();
+    persistSettings({ ...state, boardDensity: density });
+  },
+
   // Load settings from .kanban-config.json (called when FS access is granted)
   loadSettingsFromFile: async () => {
     const fileSettings = await configService.loadFromFile();
@@ -226,6 +240,7 @@ export const useStore = create<AppState>((set, get) => ({
         columnOrder: fileSettings.columnOrder,
         zoomLevel: fileSettings.zoomLevel,
         fontSettings: fileSettings.fontSettings,
+        boardDensity: fileSettings.boardDensity,
       });
       // Sync localStorage cache
       configService.saveToLocalStorage(fileSettings);
@@ -239,6 +254,7 @@ export const useStore = create<AppState>((set, get) => ({
         columnOrder: state.columnOrder,
         zoomLevel: state.zoomLevel,
         fontSettings: state.fontSettings,
+        boardDensity: state.boardDensity,
       });
     }
   },

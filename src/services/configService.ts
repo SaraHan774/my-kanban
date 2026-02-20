@@ -16,6 +16,7 @@ const LS_THEME = 'kanban-theme';
 const LS_COLUMN_ORDER = 'kanban-column-order';
 const LS_ZOOM_LEVEL = 'kanban-zoom-level';
 const LS_FONT_SETTINGS = 'kanban-font-settings';
+const LS_BOARD_DENSITY = 'kanban-board-density';
 
 export interface FontSettings {
   fontFamily: string;
@@ -38,6 +39,7 @@ export interface KanbanSettings {
   columnOrder: string[];
   zoomLevel: number;
   fontSettings: FontSettings;
+  boardDensity: 'normal' | 'compact';
 }
 
 const DEFAULT_SETTINGS: KanbanSettings = {
@@ -47,6 +49,7 @@ const DEFAULT_SETTINGS: KanbanSettings = {
   columnOrder: [],
   zoomLevel: 100,
   fontSettings: DEFAULT_FONT_SETTINGS,
+  boardDensity: 'normal',
 };
 
 class ConfigService {
@@ -68,6 +71,7 @@ class ConfigService {
         fontSettings: parsed.fontSettings
           ? { ...DEFAULT_FONT_SETTINGS, ...parsed.fontSettings }
           : DEFAULT_SETTINGS.fontSettings,
+        boardDensity: parsed.boardDensity ?? DEFAULT_SETTINGS.boardDensity,
       };
     } catch {
       return null;
@@ -122,6 +126,9 @@ class ConfigService {
       if (fonts) settings.fontSettings = { ...DEFAULT_FONT_SETTINGS, ...JSON.parse(fonts) };
     } catch { /* ignore */ }
 
+    const boardDensity = localStorage.getItem(LS_BOARD_DENSITY) as KanbanSettings['boardDensity'] | null;
+    if (boardDensity) settings.boardDensity = boardDensity;
+
     return settings;
   }
 
@@ -135,6 +142,7 @@ class ConfigService {
     localStorage.setItem(LS_COLUMN_ORDER, JSON.stringify(settings.columnOrder));
     localStorage.setItem(LS_ZOOM_LEVEL, JSON.stringify(settings.zoomLevel));
     localStorage.setItem(LS_FONT_SETTINGS, JSON.stringify(settings.fontSettings));
+    localStorage.setItem(LS_BOARD_DENSITY, settings.boardDensity);
   }
 
   /**
