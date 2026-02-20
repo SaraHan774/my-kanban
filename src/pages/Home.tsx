@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import { useStore } from '@/store/useStore';
 import { fileSystemService, pageService, markdownService } from '@/services';
@@ -24,6 +24,8 @@ export function Home() {
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [showTodoModal, setShowTodoModal] = useState(false);
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number; pageId: string } | null>(null);
+  const [previewCard, setPreviewCard] = useState<{ id: string; html: string; rect: DOMRect } | null>(null);
+  const hoverTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // 'idle' = checking, 'prompt' = needs user click, 'none' = no saved handle
   const [restoreState, setRestoreState] = useState<'idle' | 'prompt' | 'none'>('idle');
@@ -288,6 +290,23 @@ export function Home() {
     }
   };
 
+  // Hover preview handlers
+  const handleCardMouseEnter = (card: { id: string; content: string }, e: React.MouseEvent) => {
+    if (hoverTimerRef.current) clearTimeout(hoverTimerRef.current);
+    if (!card.content.trim()) return;
+    const target = e.currentTarget as HTMLElement;
+    hoverTimerRef.current = setTimeout(async () => {
+      const rect = target.getBoundingClientRect();
+      const html = await markdownService.toHtml(card.content);
+      setPreviewCard({ id: card.id, html, rect });
+    }, 350);
+  };
+
+  const handleCardMouseLeave = () => {
+    if (hoverTimerRef.current) clearTimeout(hoverTimerRef.current);
+    setPreviewCard(null);
+  };
+
   // Context menu handlers
   const handleCardContextMenu = (e: React.MouseEvent, pageId: string) => {
     e.preventDefault();
@@ -409,6 +428,8 @@ export function Home() {
                       onDragStart={(e) => handleDragStart(card.id, e)}
                       onDragEnd={() => setDraggedCardId(null)}
                       onContextMenu={(e) => handleCardContextMenu(e, card.id)}
+                      onMouseEnter={(e) => handleCardMouseEnter(card, e)}
+                      onMouseLeave={handleCardMouseLeave}
                     >
                       <button
                         className={`pin-btn ${card.pinned ? 'pinned' : ''}`}
@@ -471,6 +492,8 @@ export function Home() {
                       onDragStart={(e) => handleDragStart(card.id, e)}
                       onDragEnd={() => setDraggedCardId(null)}
                       onContextMenu={(e) => handleCardContextMenu(e, card.id)}
+                      onMouseEnter={(e) => handleCardMouseEnter(card, e)}
+                      onMouseLeave={handleCardMouseLeave}
                     >
                       <button
                         className={`pin-btn ${card.pinned ? 'pinned' : ''}`}
@@ -567,6 +590,25 @@ export function Home() {
           })()}
         </div>
       )}
+
+      {previewCard && (() => {
+        const { rect, html } = previewCard;
+        const previewWidth = 320;
+        const previewMaxHeight = 420;
+        const left = rect.right + 12 + previewWidth > window.innerWidth
+          ? rect.left - previewWidth - 12
+          : rect.right + 12;
+        const cardMidY = rect.top + rect.height / 2;
+        // Clamp so the preview doesn't clip at viewport edges (accounting for transform: translateY(-50%))
+        const top = Math.max(previewMaxHeight / 2 + 8, Math.min(cardMidY, window.innerHeight - previewMaxHeight / 2 - 8));
+        return (
+          <div
+            className="card-hover-preview markdown-content"
+            style={{ left, top }}
+            dangerouslySetInnerHTML={{ __html: html }}
+          />
+        );
+      })()}
 
       {showCreateModal && (
         <CreatePageModal onClose={() => setShowCreateModal(false)} />

@@ -11,6 +11,9 @@ import { PageFrontmatter, RawPageData } from '@/types';
 
 const FRONTMATTER_RE = /^---\r?\n([\s\S]*?)\r?\n---\r?\n?([\s\S]*)$/;
 
+// Enable GFM line breaks: single newline → <br>
+marked.use({ breaks: true });
+
 // Configure marked with syntax highlighting + mermaid code block support
 marked.use(
   markedHighlight({

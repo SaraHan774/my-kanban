@@ -17,6 +17,11 @@ const SANS_FONT_OPTIONS = [
   { value: 'Nunito', label: 'Nunito' },
   { value: 'IBM Plex Sans', label: 'IBM Plex Sans' },
   { value: 'IBM Plex Sans KR', label: 'IBM Plex Sans KR' },
+  { value: 'Nanum Gothic', label: '나눔고딕 (Nanum Gothic)' },
+  { value: 'Nanum Myeongjo', label: '나눔명조 (Nanum Myeongjo)' },
+  { value: 'Gmarket Sans', label: 'Gmarket Sans' },
+  { value: 'Spoqa Han Sans Neo', label: 'Spoqa Han Sans Neo' },
+  { value: 'Do Hyeon', label: '도현 (Do Hyeon)' },
 ];
 
 const MONO_FONT_OPTIONS = [

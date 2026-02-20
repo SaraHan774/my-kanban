@@ -57,6 +57,16 @@ export function PageEditor({ page, onSave, onCancel }: PageEditorProps) {
   const [showFindBar, setShowFindBar] = useState(false);
   const [zoomedDiagram, setZoomedDiagram] = useState<string | null>(null);
 
+  // Focus textarea at end of content when editor mounts
+  useEffect(() => {
+    const textarea = textareaRef.current;
+    if (textarea) {
+      textarea.focus();
+      textarea.setSelectionRange(textarea.value.length, textarea.value.length);
+      textarea.scrollTop = textarea.scrollHeight;
+    }
+  }, []);
+
   const slash = useSlashCommands({
     textareaRef,
     content,
@@ -302,6 +312,64 @@ export function PageEditor({ page, onSave, onCancel }: PageEditorProps) {
       return;
     }
 
+    // Handle Enter for auto list continuation when slash palette is NOT open
+    if (e.key === 'Enter' && !slash.isOpen) {
+      const textarea = textareaRef.current;
+      if (!textarea) return;
+
+      const start = textarea.selectionStart;
+      const beforeCursor = content.substring(0, start);
+      const lineStart = beforeCursor.lastIndexOf('\n') + 1;
+      const currentLine = beforeCursor.substring(lineStart);
+
+      // Match list item: optional whitespace (2 spaces per level) + bullet + space
+      const listMatch = currentLine.match(/^(\s*)([-*+]|\d+\.)\s/);
+      if (listMatch) {
+        e.preventDefault();
+        const indent = listMatch[1];
+        const bullet = listMatch[2];
+        const lineContent = currentLine.substring(listMatch[0].length);
+
+        if (lineContent.trim() === '') {
+          if (indent.length >= 2) {
+            // Sublist: go up one level (remove 2 spaces of indent)
+            const newIndent = indent.substring(2);
+            const newLine = `${newIndent}${bullet} `;
+            const newContent = content.substring(0, lineStart) + newLine + content.substring(start);
+            setContent(newContent);
+            const newPos = lineStart + newLine.length;
+            setTimeout(() => {
+              textarea.focus();
+              textarea.setSelectionRange(newPos, newPos);
+            }, 0);
+          } else {
+            // Top-level: exit the list (remove bullet, leave plain line)
+            const newContent = content.substring(0, lineStart) + content.substring(start);
+            setContent(newContent);
+            setTimeout(() => {
+              textarea.focus();
+              textarea.setSelectionRange(lineStart, lineStart);
+            }, 0);
+          }
+        } else {
+          // Has content: continue list with same indentation and bullet
+          let nextBullet = bullet;
+          if (/^\d+\.$/.test(bullet)) {
+            nextBullet = `${parseInt(bullet) + 1}.`;
+          }
+          const insertion = `\n${indent}${nextBullet} `;
+          const newContent = content.substring(0, start) + insertion + content.substring(start);
+          setContent(newContent);
+          const newPos = start + insertion.length;
+          setTimeout(() => {
+            textarea.focus();
+            textarea.setSelectionRange(newPos, newPos);
+          }, 0);
+        }
+        return;
+      }
+    }
+
     // Handle Tab indent when slash palette is NOT open
     if (e.key === 'Tab' && !slash.isOpen) {
       e.preventDefault();
@@ -383,13 +451,30 @@ export function PageEditor({ page, onSave, onCancel }: PageEditorProps) {
           }, 0);
         }
       } else {
-        // Tab: insert 2 spaces at cursor
-        const newContent = content.substring(0, start) + '  ' + content.substring(end);
-        setContent(newContent);
-        setTimeout(() => {
-          textarea.focus();
-          textarea.setSelectionRange(start + 2, start + 2);
-        }, 0);
+        // Tab: if on a list item line, indent the whole line; otherwise insert 2 spaces at cursor
+        const beforeCursor = content.substring(0, start);
+        const lineStart = beforeCursor.lastIndexOf('\n') + 1;
+        const lineEnd = content.indexOf('\n', start);
+        const currentLine = content.substring(lineStart, lineEnd === -1 ? content.length : lineEnd);
+
+        if (/^\s*([-*+]|\d+\.)\s/.test(currentLine)) {
+          // Indent entire list line by 2 spaces
+          const newLine = '  ' + currentLine;
+          const newContent = content.substring(0, lineStart) + newLine + (lineEnd === -1 ? '' : content.substring(lineEnd));
+          setContent(newContent);
+          setTimeout(() => {
+            textarea.focus();
+            textarea.setSelectionRange(start + 2, start + 2);
+          }, 0);
+        } else {
+          // Non-list line: insert 2 spaces at cursor
+          const newContent = content.substring(0, start) + '  ' + content.substring(end);
+          setContent(newContent);
+          setTimeout(() => {
+            textarea.focus();
+            textarea.setSelectionRange(start + 2, start + 2);
+          }, 0);
+        }
       }
       return;
     }
