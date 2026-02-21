@@ -60,6 +60,12 @@ export function Layout() {
     root.style.setProperty('--font-mono', `'${fontSettings.monoFontFamily}', ${monoFallbacks}`);
     root.style.setProperty('--font-size-base', `${fontSettings.fontSize}px`);
     root.style.setProperty('--line-height-content', `${fontSettings.lineHeight}`);
+
+    // Apply heading colors
+    root.style.setProperty('--heading-h1-color', fontSettings.headingColors.h1);
+    root.style.setProperty('--heading-h2-color', fontSettings.headingColors.h2);
+    root.style.setProperty('--heading-h3-color', fontSettings.headingColors.h3);
+    root.style.setProperty('--heading-h4-color', fontSettings.headingColors.h4);
   }, [fontSettings]);
 
   // Apply zoom CSS on the root element

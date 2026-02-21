@@ -18,7 +18,7 @@ export function Home() {
   } = useStore();
 
   const [boardView, setBoardView] = useState<'kanban' | 'list'>('kanban');
-  const [listSortField, setListSortField] = useState<'title' | 'createdAt' | 'dueDate'>('title');
+  const [listSortField, setListSortField] = useState<'title' | 'createdAt' | 'dueDate' | 'kanbanColumn'>('title');
   const [listSortDir, setListSortDir] = useState<'asc' | 'desc'>('asc');
   const [draggedCardId, setDraggedCardId] = useState<string | null>(null);
   const [draggedColumn, setDraggedColumn] = useState<string | null>(null);
@@ -172,6 +172,16 @@ export function Home() {
     if (bIdx === -1) return -1;
     return aIdx - bIdx;
   });
+
+  // Create a stable color mapping based on alphabetically sorted columns
+  // This ensures each column always gets the same color regardless of display order
+  const sortedColumnNames = [...unsortedColumns].sort((a, b) => a.toLowerCase().localeCompare(b.toLowerCase()));
+  const getColumnColor = (columnName: string) => {
+    const customColor = columnColors[columnName.toLowerCase()];
+    if (customColor) return customColor;
+    const stableIndex = sortedColumnNames.findIndex(c => c.toLowerCase() === columnName.toLowerCase());
+    return DEFAULT_PALETTE[stableIndex % DEFAULT_PALETTE.length];
+  };
 
   const hasUncategorized = rootPages.some(p => !p.kanbanColumn);
 
@@ -391,7 +401,7 @@ export function Home() {
 
       {boardView === 'kanban' ? (
         <div className="kanban-board">
-          {columns.map((col, idx) => {
+          {columns.map((col) => {
             const columnCards = rootPages
               .filter(p => p.kanbanColumn?.toLowerCase() === col.toLowerCase())
               .sort((a, b) => {
@@ -405,7 +415,7 @@ export function Home() {
                 // Non-pinned cards sorted by creation date (newest first)
                 return b.createdAt.localeCompare(a.createdAt);
               });
-            const color = columnColors[col.toLowerCase()] || DEFAULT_PALETTE[idx % DEFAULT_PALETTE.length];
+            const color = getColumnColor(col);
             return (
               <div
                 key={col}
@@ -539,7 +549,15 @@ export function Home() {
             >
               Title {listSortField === 'title' ? (listSortDir === 'asc' ? '↑' : '↓') : ''}
             </span>
-            <span className="list-col-header">Column</span>
+            <span
+              className={`list-col-header sortable ${listSortField === 'kanbanColumn' ? 'active' : ''}`}
+              onClick={() => {
+                if (listSortField === 'kanbanColumn') setListSortDir(d => d === 'asc' ? 'desc' : 'asc');
+                else { setListSortField('kanbanColumn'); setListSortDir('asc'); }
+              }}
+            >
+              Column {listSortField === 'kanbanColumn' ? (listSortDir === 'asc' ? '↑' : '↓') : ''}
+            </span>
             <span
               className={`list-col-header sortable ${listSortField === 'dueDate' ? 'active' : ''}`}
               onClick={() => {
@@ -562,8 +580,17 @@ export function Home() {
           {(() => {
             const sorted = [...rootPages];
             sorted.sort((a, b) => {
-              const aVal = a[listSortField] || '';
-              const bVal = b[listSortField] || '';
+              let aVal: string | undefined;
+              let bVal: string | undefined;
+
+              if (listSortField === 'kanbanColumn') {
+                aVal = a.kanbanColumn?.toLowerCase() || '';
+                bVal = b.kanbanColumn?.toLowerCase() || '';
+              } else {
+                aVal = a[listSortField] || '';
+                bVal = b[listSortField] || '';
+              }
+
               const cmp = aVal < bVal ? -1 : aVal > bVal ? 1 : 0;
               return listSortDir === 'asc' ? cmp : -cmp;
             });
@@ -571,16 +598,11 @@ export function Home() {
               <Link key={page.id} to={`/page/${page.id}`} className="list-row">
                 <span className="list-cell list-cell-title">{page.title}</span>
                 <span className="list-cell">
-                  {page.kanbanColumn && (() => {
-                    const colIdx = columns.indexOf(page.kanbanColumn!);
-                    const colColor = columnColors[page.kanbanColumn!.toLowerCase()]
-                      || DEFAULT_PALETTE[(colIdx >= 0 ? colIdx : 0) % DEFAULT_PALETTE.length];
-                    return (
-                      <span className="tag-small" style={{ backgroundColor: colColor, color: 'white' }}>
-                        {page.kanbanColumn}
-                      </span>
-                    );
-                  })()}
+                  {page.kanbanColumn && (
+                    <span className="tag-small" style={{ backgroundColor: getColumnColor(page.kanbanColumn), color: 'white' }}>
+                      {page.kanbanColumn}
+                    </span>
+                  )}
                 </span>
                 <span className="list-cell list-cell-date">
                   {page.dueDate ? new Date(page.dueDate).toLocaleDateString() : '—'}

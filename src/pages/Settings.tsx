@@ -282,8 +282,14 @@ export function Settings() {
     }, new Map<string, string>()).values()
   );
 
-  const getColumnColor = (col: string, idx: number) => {
-    return columnColors[col.toLowerCase()] || DEFAULT_PALETTE[idx % DEFAULT_PALETTE.length];
+  // Sort columns alphabetically for stable color assignment
+  const sortedColumnNames = [...existingColumns].sort((a, b) => a.toLowerCase().localeCompare(b.toLowerCase()));
+
+  const getColumnColor = (col: string) => {
+    const customColor = columnColors[col.toLowerCase()];
+    if (customColor) return customColor;
+    const stableIndex = sortedColumnNames.findIndex(c => c.toLowerCase() === col.toLowerCase());
+    return DEFAULT_PALETTE[stableIndex % DEFAULT_PALETTE.length];
   };
 
   const updateFont = (patch: Partial<FontSettings>) => {
@@ -373,8 +379,112 @@ export function Settings() {
             </div>
           </div>
 
+          <div className="settings-typography-row">
+            <h3 style={{ gridColumn: '1 / -1', marginTop: '1rem', marginBottom: '0.5rem' }}>Heading Colors</h3>
+
+            <div className="settings-typography-field">
+              <label>H1 Color</label>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                <input
+                  type="color"
+                  value={fontSettings.headingColors.h1 === 'inherit' ? '#1a1a1a' : fontSettings.headingColors.h1}
+                  onChange={(e) => updateFont({ headingColors: { ...fontSettings.headingColors, h1: e.target.value } })}
+                  className="settings-color-input"
+                />
+                <button
+                  className="btn btn-secondary"
+                  onClick={() => updateFont({ headingColors: { ...fontSettings.headingColors, h1: 'inherit' } })}
+                  style={{ padding: '0.25rem 0.5rem', fontSize: '0.75rem' }}
+                >
+                  Reset
+                </button>
+              </div>
+            </div>
+
+            <div className="settings-typography-field">
+              <label>H2 Color</label>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                <input
+                  type="color"
+                  value={fontSettings.headingColors.h2 === 'inherit' ? '#1a1a1a' : fontSettings.headingColors.h2}
+                  onChange={(e) => updateFont({ headingColors: { ...fontSettings.headingColors, h2: e.target.value } })}
+                  className="settings-color-input"
+                />
+                <button
+                  className="btn btn-secondary"
+                  onClick={() => updateFont({ headingColors: { ...fontSettings.headingColors, h2: 'inherit' } })}
+                  style={{ padding: '0.25rem 0.5rem', fontSize: '0.75rem' }}
+                >
+                  Reset
+                </button>
+              </div>
+            </div>
+
+            <div className="settings-typography-field">
+              <label>H3 Color</label>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                <input
+                  type="color"
+                  value={fontSettings.headingColors.h3 === 'inherit' ? '#1a1a1a' : fontSettings.headingColors.h3}
+                  onChange={(e) => updateFont({ headingColors: { ...fontSettings.headingColors, h3: e.target.value } })}
+                  className="settings-color-input"
+                />
+                <button
+                  className="btn btn-secondary"
+                  onClick={() => updateFont({ headingColors: { ...fontSettings.headingColors, h3: 'inherit' } })}
+                  style={{ padding: '0.25rem 0.5rem', fontSize: '0.75rem' }}
+                >
+                  Reset
+                </button>
+              </div>
+            </div>
+
+            <div className="settings-typography-field">
+              <label>H4 Color</label>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                <input
+                  type="color"
+                  value={fontSettings.headingColors.h4 === 'inherit' ? '#1a1a1a' : fontSettings.headingColors.h4}
+                  onChange={(e) => updateFont({ headingColors: { ...fontSettings.headingColors, h4: e.target.value } })}
+                  className="settings-color-input"
+                />
+                <button
+                  className="btn btn-secondary"
+                  onClick={() => updateFont({ headingColors: { ...fontSettings.headingColors, h4: 'inherit' } })}
+                  style={{ padding: '0.25rem 0.5rem', fontSize: '0.75rem' }}
+                >
+                  Reset
+                </button>
+              </div>
+            </div>
+          </div>
+
           <div className="settings-typography-preview">
             <p className="settings-typography-preview-label">Preview</p>
+            <h1 style={{
+              color: fontSettings.headingColors.h1,
+              marginBottom: '0.5rem',
+            }}>
+              Heading 1 Preview
+            </h1>
+            <h2 style={{
+              color: fontSettings.headingColors.h2,
+              marginBottom: '0.5rem',
+            }}>
+              Heading 2 Preview
+            </h2>
+            <h3 style={{
+              color: fontSettings.headingColors.h3,
+              marginBottom: '0.5rem',
+            }}>
+              Heading 3 Preview
+            </h3>
+            <h4 style={{
+              color: fontSettings.headingColors.h4,
+              marginBottom: '0.5rem',
+            }}>
+              Heading 4 Preview
+            </h4>
             <p
               className="settings-typography-preview-text"
               style={{
@@ -434,8 +544,8 @@ export function Settings() {
           <p className="settings-empty-hint">No columns yet. Assign a column to a page to see it here.</p>
         ) : (
           <div className="settings-color-list">
-            {existingColumns.map((col, idx) => {
-              const color = getColumnColor(col, idx);
+            {existingColumns.map((col) => {
+              const color = getColumnColor(col);
               const isCustom = !!columnColors[col.toLowerCase()];
               return (
                 <div key={col} className="settings-color-row">

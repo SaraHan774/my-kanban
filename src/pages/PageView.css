@@ -131,6 +131,22 @@
   margin-bottom: 1rem;
 }
 
+.markdown-content h1 {
+  color: var(--heading-h1-color, inherit);
+}
+
+.markdown-content h2 {
+  color: var(--heading-h2-color, inherit);
+}
+
+.markdown-content h3 {
+  color: var(--heading-h3-color, inherit);
+}
+
+.markdown-content h4 {
+  color: var(--heading-h4-color, inherit);
+}
+
 .markdown-content p {
   margin-bottom: 1rem;
 }
@@ -158,7 +174,21 @@
   color: var(--text-secondary);
 }
 
-.markdown-content a {
+/* Page links (wiki-style [[Page Title]] links) */
+.markdown-content .page-link {
+  color: var(--accent-primary, #007acc);
+  text-decoration: none;
+  border-bottom: none;
+  cursor: pointer;
+  font-weight: 500;
+}
+
+.markdown-content .page-link:hover {
+  text-decoration: underline;
+}
+
+/* Regular external/markdown links */
+.markdown-content a:not(.page-link):not(.wiki-link-broken) {
   color: var(--accent-primary, #007acc);
   text-decoration: none;
   border-bottom: 1px solid transparent;
@@ -166,7 +196,7 @@
   cursor: pointer;
 }
 
-.markdown-content a:hover {
+.markdown-content a:not(.page-link):not(.wiki-link-broken):hover {
   border-bottom-color: var(--accent-primary, #007acc);
 }
 

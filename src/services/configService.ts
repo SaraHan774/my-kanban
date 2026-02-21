@@ -23,6 +23,12 @@ export interface FontSettings {
   monoFontFamily: string;
   fontSize: number;
   lineHeight: number;
+  headingColors: {
+    h1: string;
+    h2: string;
+    h3: string;
+    h4: string;
+  };
 }
 
 export const DEFAULT_FONT_SETTINGS: FontSettings = {
@@ -30,6 +36,12 @@ export const DEFAULT_FONT_SETTINGS: FontSettings = {
   monoFontFamily: 'Fira Code',
   fontSize: 16,
   lineHeight: 1.6,
+  headingColors: {
+    h1: 'inherit', // Use default text color
+    h2: 'inherit',
+    h3: 'inherit',
+    h4: 'inherit',
+  },
 };
 
 export interface KanbanSettings {

@@ -11,19 +11,30 @@ Available as both a **Progressive Web App (PWA)** and a **native desktop app** p
 - **Page Links** - Wiki-style links `[[Page Title]]` or `[[page-id|Display]]` to connect pages
 - **Backlinks** - See which pages reference the current page
 - **Notion-style Pages** - Everything is a page; create nested page structures with `parentId`
-- **Tag System** - Categorize pages with tags and filter by them
-- **Kanban Boards** - Root-level pages organized into kanban columns
+- **Hierarchical Sub-pages** - Create sub-pages with automatic parent-child relationships, inheriting column assignments
+- **Tag System** - Categorize pages with tags and filter by them in the sidebar
+- **Kanban Boards** - Root-level pages organized into customizable kanban columns with drag-and-drop reordering
+- **Column Colors** - Customize colors for each kanban column or use automatic palette-based coloring
+- **Board Density** - Switch between normal and compact board layouts
 - **Todo Checklists** - GitHub-style checklists with interactive checkboxes
-- **Filter & Search** - Filter by tags, dates, and full-text search
+- **Filter & Search** - Filter by tags, dates, and full-text search across titles and content
 - **Code Formatting** - Code blocks with syntax highlighting via highlight.js
 - **Mermaid Diagrams** - Render flowcharts, sequence diagrams, and more with [Mermaid](https://mermaid.js.org/) syntax. Click any diagram to zoom in
 - **Find in Page** - Press `Cmd/Ctrl+F` to search within the current page with overlay highlighting
 - **Slash Commands** - Type `/` in the editor to quickly insert markdown snippets (headings, code blocks, tables, links, etc.). Fully customizable via Settings
-- **Font Customization** - Customize font family and size for the editor, preview, and UI independently via Settings
+- **Font & Color Customization** - Customize font family, size, and heading colors (H1-H4) independently via Settings
 - **Dark/Light Theme** - Toggle between dark and light modes
 - **Desktop Zoom** - `Cmd/Ctrl + =` to zoom in, `Cmd/Ctrl + -` to zoom out, `Cmd/Ctrl + 0` to reset
 - **Native Desktop App** - Tauri-powered app for macOS, Windows, and Linux
 - **PWA Support** - Install from the browser and use offline
+
+### Sidebar & Navigation
+- **Hierarchical Tree View** - Nested page structure with visual borders showing parent-child relationships
+- **Expand/Collapse** - Click ▸/▾ buttons to expand/collapse individual sub-pages, or use "Expand all" / "Collapse all" for bulk operations
+- **Color-Coded Tag Filters** - Filter by tags with color-coded chips matching your column colors
+- **Search** - Full-text search across page titles and content
+- **Sorting** - Sort pages by title, created date, updated date, or due date
+- **Quick Sub-page Creation** - Click + button next to any page to create a child page that inherits the parent's column
 
 ### Editor
 - **Image Insertion** - Paste from clipboard, drag-and-drop, or use the toolbar file picker. Images are stored in centralized `workspace/.images/` (not inline base64), keeping your markdown clean
@@ -156,10 +167,12 @@ npm run tauri:build
 
 ### Kanban Boards
 
-1. Create a page and set its view type to Kanban
-2. Define custom columns
-3. Sub-pages automatically become cards
-4. Cards show title, tags, due date, and excerpt
+1. **Create columns** - Pages are organized by their `kanbanColumn` property
+2. **Customize colors** - Set custom colors for each column in Settings, or use automatic palette-based colors
+3. **Reorder columns** - Drag column headers to rearrange their order (colors stay with column names)
+4. **Card management** - Root-level pages appear as cards on the main board
+5. **Board density** - Switch between normal and compact layouts for different information density
+6. **List view** - Alternative list view with sortable columns (Title, Column, Due Date, Created)
 
 ### Tags & Filtering
 
@@ -278,9 +291,9 @@ my-kanban/
 
 - [x] Core page CRUD operations
 - [x] Markdown parsing with frontmatter
-- [x] Kanban board view
-- [x] Tag system
-- [x] File system integration
+- [x] Kanban board view with drag-and-drop column reordering
+- [x] Tag system with color-coded filtering
+- [x] File system integration (Browser + Tauri)
 - [x] Dark/light theme toggle
 - [x] Slash commands with full customization
 - [x] Settings page for command management
@@ -292,14 +305,22 @@ my-kanban/
 - [x] Mermaid diagram rendering with click-to-zoom
 - [x] Find in page (`Cmd/Ctrl+F`) with overlay highlighting
 - [x] Font customization (editor, preview, UI fonts and sizes)
+- [x] Heading color customization (H1-H4)
 - [x] Desktop zoom controls (`Cmd+=/Cmd+-/Cmd+0`)
-- [ ] Drag-and-drop for kanban cards
-- [ ] Due date tracking
-- [ ] Google Calendar sync
-- [ ] Advanced filtering UI
+- [x] Hierarchical sub-pages with parent-child relationships
+- [x] Sidebar expand/collapse for nested pages
+- [x] Column color customization with stable color assignment
+- [x] Board density settings (normal/compact)
+- [x] List view with sortable columns
+- [ ] Drag-and-drop for kanban cards (between columns)
+- [ ] Due date tracking and reminders
+- [ ] Calendar integration
+- [ ] Advanced filtering UI (multiple filters, date ranges)
 - [ ] Rich text editor mode
 - [ ] Export to PDF
 - [ ] Mobile responsive design
+- [ ] Batch operations (multi-select pages)
+- [ ] Page templates
 
 ## Contributing
 

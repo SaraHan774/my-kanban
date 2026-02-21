@@ -482,3 +482,28 @@
   max-height: 300px;
   overflow-y: auto;
 }
+
+/* Color input */
+.settings-color-input {
+  width: 60px;
+  height: 36px;
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  cursor: pointer;
+  background: none;
+  padding: 4px;
+}
+
+.settings-color-input::-webkit-color-swatch-wrapper {
+  padding: 0;
+}
+
+.settings-color-input::-webkit-color-swatch {
+  border: none;
+  border-radius: 4px;
+}
+
+.settings-color-input::-moz-color-swatch {
+  border: none;
+  border-radius: 4px;
+}
