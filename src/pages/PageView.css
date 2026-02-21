@@ -1,8 +1,35 @@
+/* Container for terminal split view */
+.page-view-container {
+  display: flex;
+  width: 100%;
+  height: 100vh;
+  overflow: hidden;
+}
+
+.page-view-container.with-terminal {
+  display: flex;
+  flex-direction: row;
+}
+
+.page-view-container.with-terminal .page-view {
+  width: 50%;
+  overflow-y: auto;
+  height: 100vh;
+  order: 1;
+}
+
+.page-view-container.with-terminal .terminal-container {
+  width: 50%;
+  flex-shrink: 0;
+  order: 2;
+}
+
 .page-view {
   width: 100%;
   margin: 0;
   padding: 2rem;
   transition: width 0.3s ease-out;
+  overflow-y: auto;
 }
 
 /* When side browser is open, shrink page view */
@@ -13,6 +40,14 @@
 @media (max-width: 768px) {
   .page-view.with-browser {
     display: none; /* On mobile, hide the page and show only browser */
+  }
+
+  .page-view-container.with-terminal .terminal-container {
+    width: 100%;
+  }
+
+  .page-view-container.with-terminal .page-view {
+    display: none;
   }
 }
 
@@ -419,4 +454,133 @@
 
 .copy-link-btn .material-symbols-outlined {
   font-size: 1.125rem;
+}
+
+/* Highlight styles */
+mark.highlight {
+  border-radius: 2px;
+  padding: 0 2px;
+  cursor: pointer;
+  transition: opacity 0.2s;
+  color: inherit; /* 텍스트 색상 유지 */
+}
+
+mark.highlight-highlight {
+  /* Background color set inline */
+}
+
+mark.highlight-underline {
+  background-color: transparent !important;
+  /* Border bottom set inline */
+  padding-bottom: 2px;
+}
+
+/* Dark mode adjustments */
+[data-theme="dark"] mark.highlight {
+  opacity: 0.85;
+  color: var(--text-primary); /* 다크모드에서 텍스트 색상 명시 */
+}
+
+[data-theme="dark"] mark.highlight-underline {
+  color: var(--text-primary); /* 밑줄 스타일도 텍스트 색상 보장 */
+}
+
+/* Active button state */
+.page-actions .btn.active {
+  background-color: var(--accent-primary);
+  color: white;
+  border-color: var(--accent-primary);
+}
+
+.page-actions .btn.active:hover {
+  opacity: 0.9;
+}
+
+/* Page menu dropdown */
+.page-menu-container {
+  position: relative;
+}
+
+.page-actions .btn .material-symbols-outlined {
+  font-size: 1.125rem;
+}
+
+.btn-icon {
+  padding: 0.5rem;
+  min-width: auto;
+}
+
+.btn-icon .material-symbols-outlined {
+  font-size: 1.125rem;
+}
+
+.page-menu-dropdown {
+  position: absolute;
+  top: calc(100% + 0.5rem);
+  right: 0;
+  background-color: var(--bg-primary);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  min-width: 200px;
+  z-index: 1000;
+  overflow: hidden;
+  animation: dropdownFadeIn 0.15s ease-out;
+}
+
+@keyframes dropdownFadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(-8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.page-menu-item {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.75rem 1rem;
+  background: none;
+  border: none;
+  color: var(--text-primary);
+  font-size: 0.9rem;
+  cursor: pointer;
+  transition: background-color 0.15s;
+  text-align: left;
+}
+
+.page-menu-item:hover {
+  background-color: var(--bg-secondary);
+}
+
+.page-menu-item .material-symbols-outlined {
+  font-size: 1.25rem;
+  color: var(--text-secondary);
+}
+
+.page-menu-item-danger {
+  color: #ef4444;
+}
+
+.page-menu-item-danger .material-symbols-outlined {
+  color: #ef4444;
+}
+
+.page-menu-item-danger:hover {
+  background-color: #fee;
+}
+
+[data-theme="dark"] .page-menu-item-danger:hover {
+  background-color: #422;
+}
+
+.page-menu-divider {
+  height: 1px;
+  background-color: var(--border-color);
+  margin: 0.25rem 0;
 }
