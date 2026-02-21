@@ -2,9 +2,13 @@ import { useEffect, useState, useRef, useCallback } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { useStore } from '@/store/useStore';
 import { pageService, markdownService, resolveImagesInHtml, clearImageCache } from '@/services';
-import { Page } from '@/types';
+import { Page, Highlight } from '@/types';
 import { PageEditor } from '@/components/PageEditor';
 import { FindBar } from '@/components/FindBar';
+import { ConfirmModal } from '@/components/ConfirmModal';
+import { HighlightPalette } from '@/components/HighlightPalette';
+import { HighlightHoverMenu } from '@/components/HighlightHoverMenu';
+import { Terminal } from '@/components/Terminal';
 import { useMermaid } from '@/hooks/useMermaid';
 import { convertWikiLinksToMarkdown } from '@/utils/wikiLinks';
 import { openExternalUrl } from '@/lib/openExternal';
@@ -13,7 +17,7 @@ import './PageView.css';
 export function PageView() {
   const { pageId } = useParams<{ pageId: string }>();
   const navigate = useNavigate();
-  const { pages, removePage, updatePageInStore, columnColors } = useStore();
+  const { pages, removePage, updatePageInStore, columnColors, showToast, highlightColors, config } = useStore();
   const [page, setPage] = useState<Page | null>(null);
   const [htmlContent, setHtmlContent] = useState<string>('');
   const [loading, setLoading] = useState(true);
@@ -22,6 +26,20 @@ export function PageView() {
   const [showFindBar, setShowFindBar] = useState(false);
   const [zoomedDiagram, setZoomedDiagram] = useState<string | null>(null);
   const [showScrollTop, setShowScrollTop] = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [showHighlightPalette, setShowHighlightPalette] = useState(false);
+  const [palettePosition, setPalettePosition] = useState({ top: 0, left: 0 });
+  const [highlightsVisible, setHighlightsVisible] = useState(true);
+  const selectedRangeRef = useRef<Range | null>(null);
+  const [showHoverMenu, setShowHoverMenu] = useState(false);
+  const [hoverMenuPosition, setHoverMenuPosition] = useState({ top: 0, left: 0 });
+  const [hoveredHighlightId, setHoveredHighlightId] = useState<string | null>(null);
+  const isMouseOverMenuRef = useRef(false);
+  const closeMenuTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const mousePositionRef = useRef({ x: 0, y: 0 });
+  const [showTerminal, setShowTerminal] = useState(false);
+  const [showPageMenu, setShowPageMenu] = useState(false);
+  const pageMenuRef = useRef<HTMLDivElement>(null);
 
   // Render mermaid diagrams after HTML content updates
   useMermaid(contentRef, htmlContent);
@@ -35,6 +53,8 @@ export function PageView() {
     if (pageId) {
       loadPage(pageId);
       setEditing(false);
+      // Reset scroll position to top when navigating to a new page
+      window.scrollTo(0, 0);
     }
   }, [pageId]);
 
@@ -56,6 +76,8 @@ export function PageView() {
         const contentWithLinks = convertWikiLinksToMarkdown(fullPage.content, pages);
         let html = await markdownService.toHtml(contentWithLinks);
         html = await resolveImagesInHtml(html, fullPage.path);
+        // Apply highlights
+        html = applyHighlightsToHtml(html, fullPage.highlights || []);
         setHtmlContent(html);
       }
     } catch (error) {
@@ -85,6 +107,7 @@ export function PageView() {
     const contentWithLinks = convertWikiLinksToMarkdown(newContent, pages);
     let html = await markdownService.toHtml(contentWithLinks);
     html = await resolveImagesInHtml(html, page.path);
+    html = applyHighlightsToHtml(html, page.highlights || []);
     setHtmlContent(html);
 
     try {
@@ -92,7 +115,7 @@ export function PageView() {
     } catch (err) {
       console.error('Failed to save checkbox state:', err);
     }
-  }, [page, updatePageInStore]);
+  }, [page, updatePageInStore, pages]);
 
   // Attach click handlers to internal links for SPA navigation
   useEffect(() => {
@@ -202,16 +225,265 @@ export function PageView() {
     };
   }, [htmlContent]);
 
-  const handleDelete = async () => {
+  const handleDelete = () => {
+    setShowDeleteConfirm(true);
+  };
+
+  const confirmDelete = async () => {
     if (!page) return;
-    if (!window.confirm(`Delete "${page.title}"? This will also delete all sub-pages.`)) return;
+    const pageTitle = page.title;
+    setShowDeleteConfirm(false);
+
     try {
       await pageService.deletePage(page.path);
       removePage(page.id);
-      navigate('/');
+
+      // Show success toast (will persist after navigation)
+      showToast(`"${pageTitle}" deleted successfully`, 'success');
+
+      // Navigate to home after a brief delay (replace history since page no longer exists)
+      setTimeout(() => {
+        navigate('/', { replace: true });
+      }, 300);
     } catch (error) {
       console.error('Failed to delete page:', error);
+      showToast('Failed to delete page. Please try again.', 'error');
     }
+  };
+
+  // Highlight functionality uses colors from store
+
+  const handleTextSelection = useCallback(() => {
+    if (editing) return; // Don't show palette in edit mode
+
+    const selection = window.getSelection();
+    if (!selection || selection.isCollapsed || selection.rangeCount === 0) {
+      setShowHighlightPalette(false);
+      return;
+    }
+
+    const range = selection.getRangeAt(0);
+    const selectedText = selection.toString().trim();
+
+    // Ignore selections shorter than 2 characters
+    if (selectedText.length < 2) {
+      setShowHighlightPalette(false);
+      return;
+    }
+
+    // Check if selection is within the content area
+    const contentEl = contentRef.current;
+    if (!contentEl || !contentEl.contains(range.commonAncestorContainer)) {
+      setShowHighlightPalette(false);
+      return;
+    }
+
+    // Store the range for later use
+    selectedRangeRef.current = range.cloneRange();
+
+    // Calculate palette position based on mouse cursor position
+    // Position palette 80px above and centered on cursor
+    setPalettePosition({
+      top: mousePositionRef.current.y + window.scrollY - 80,
+      left: mousePositionRef.current.x - 150, // Center palette (approx 300px wide)
+    });
+
+    setShowHighlightPalette(true);
+  }, [editing]);
+
+  const applyHighlight = useCallback(async (color: string, style: 'highlight' | 'underline') => {
+    if (!page || !selectedRangeRef.current) return;
+
+    const selection = window.getSelection();
+    const text = selection?.toString().trim() || '';
+    if (!text) return;
+
+    const range = selectedRangeRef.current;
+
+    // Calculate text offset in the plain content
+    const contentEl = contentRef.current;
+    if (!contentEl) return;
+
+    const plainText = contentEl.textContent || '';
+    const beforeRange = document.createRange();
+    beforeRange.setStart(contentEl, 0);
+    beforeRange.setEnd(range.startContainer, range.startOffset);
+    const startOffset = beforeRange.toString().length;
+    const endOffset = startOffset + text.length;
+
+    // Get context
+    const contextBefore = plainText.substring(Math.max(0, startOffset - 20), startOffset);
+    const contextAfter = plainText.substring(endOffset, Math.min(plainText.length, endOffset + 20));
+
+    const highlight: Highlight = {
+      id: crypto.randomUUID(),
+      text,
+      color,
+      style,
+      startOffset,
+      endOffset,
+      contextBefore,
+      contextAfter,
+      createdAt: new Date().toISOString(),
+    };
+
+    const updatedHighlights = [...(page.highlights || []), highlight];
+    const updatedPage = {
+      ...page,
+      highlights: updatedHighlights,
+      updatedAt: new Date().toISOString(),
+    };
+
+    setPage(updatedPage);
+    updatePageInStore(updatedPage);
+
+    // Re-render with new highlights
+    const contentWithLinks = convertWikiLinksToMarkdown(page.content, pages);
+    let html = await markdownService.toHtml(contentWithLinks);
+    html = await resolveImagesInHtml(html, page.path);
+    html = applyHighlightsToHtml(html, updatedHighlights);
+    setHtmlContent(html);
+
+    try {
+      await pageService.updatePage(updatedPage);
+    } catch (err) {
+      console.error('Failed to save highlight:', err);
+      showToast('Failed to save highlight', 'error');
+    }
+
+    // Clear selection
+    selection?.removeAllRanges();
+    setShowHighlightPalette(false);
+  }, [page, pages, updatePageInStore, showToast]);
+
+  const handleChangeHighlightColor = useCallback(async (highlightId: string, newColor: string) => {
+    if (!page) return;
+
+    const updatedHighlights = (page.highlights || []).map(h =>
+      h.id === highlightId ? { ...h, color: newColor } : h
+    );
+
+    const updatedPage = {
+      ...page,
+      highlights: updatedHighlights,
+      updatedAt: new Date().toISOString(),
+    };
+
+    setPage(updatedPage);
+    updatePageInStore(updatedPage);
+
+    // Re-render with updated highlights
+    const contentWithLinks = convertWikiLinksToMarkdown(page.content, pages);
+    let html = await markdownService.toHtml(contentWithLinks);
+    html = await resolveImagesInHtml(html, page.path);
+    html = applyHighlightsToHtml(html, updatedHighlights);
+    setHtmlContent(html);
+
+    try {
+      await pageService.updatePage(updatedPage);
+    } catch (err) {
+      console.error('Failed to update highlight:', err);
+      showToast('Failed to update highlight', 'error');
+    }
+
+    setShowHoverMenu(false);
+  }, [page, pages, updatePageInStore, showToast]);
+
+  const handleDeleteHighlight = useCallback(async (highlightId: string) => {
+    if (!page) return;
+
+    const updatedHighlights = (page.highlights || []).filter(h => h.id !== highlightId);
+
+    const updatedPage = {
+      ...page,
+      highlights: updatedHighlights,
+      updatedAt: new Date().toISOString(),
+    };
+
+    setPage(updatedPage);
+    updatePageInStore(updatedPage);
+
+    // Re-render without deleted highlight
+    const contentWithLinks = convertWikiLinksToMarkdown(page.content, pages);
+    let html = await markdownService.toHtml(contentWithLinks);
+    html = await resolveImagesInHtml(html, page.path);
+    html = applyHighlightsToHtml(html, updatedHighlights);
+    setHtmlContent(html);
+
+    try {
+      await pageService.updatePage(updatedPage);
+    } catch (err) {
+      console.error('Failed to delete highlight:', err);
+      showToast('Failed to delete highlight', 'error');
+    }
+
+    setShowHoverMenu(false);
+  }, [page, pages, updatePageInStore, showToast]);
+
+  const applyHighlightsToHtml = (html: string, highlights: Highlight[]): string => {
+    if (!highlights || highlights.length === 0 || !highlightsVisible) return html;
+
+    // Create a temporary div to parse HTML
+    const tempDiv = document.createElement('div');
+    tempDiv.innerHTML = html;
+
+    // Sort highlights by offset (reverse order to avoid offset shifting)
+    const sorted = [...highlights].sort((a, b) => b.startOffset - a.startOffset);
+
+    sorted.forEach(h => {
+      const walker = document.createTreeWalker(
+        tempDiv,
+        NodeFilter.SHOW_TEXT,
+        null
+      );
+
+      let textNode;
+      let currentOffset = 0;
+      const nodesToProcess: Array<{ node: Node; start: number; end: number }> = [];
+
+      // First pass: collect all text nodes that overlap with this highlight
+      while (textNode = walker.nextNode()) {
+        const textContent = textNode.textContent || '';
+        const nodeStart = currentOffset;
+        const nodeEnd = currentOffset + textContent.length;
+
+        // Check if this text node overlaps with the highlight range
+        if (nodeStart < h.endOffset && nodeEnd > h.startOffset) {
+          nodesToProcess.push({ node: textNode, start: nodeStart, end: nodeEnd });
+        }
+
+        currentOffset = nodeEnd;
+      }
+
+      // Second pass: apply highlights to collected nodes
+      nodesToProcess.forEach(({ node, start: nodeStart, end: _nodeEnd }) => {
+        const textContent = node.textContent || '';
+
+        // Calculate which part of this text node should be highlighted
+        const highlightStart = Math.max(0, h.startOffset - nodeStart);
+        const highlightEnd = Math.min(textContent.length, h.endOffset - nodeStart);
+
+        const before = textContent.substring(0, highlightStart);
+        const highlighted = textContent.substring(highlightStart, highlightEnd);
+        const after = textContent.substring(highlightEnd);
+
+        const mark = document.createElement('mark');
+        mark.className = `highlight highlight-${h.style}`;
+        mark.style.backgroundColor = h.style === 'highlight' ? h.color : 'transparent';
+        mark.style.borderBottom = h.style === 'underline' ? `3px solid ${h.color}` : 'none';
+        mark.setAttribute('data-highlight-id', h.id);
+        mark.textContent = highlighted;
+
+        const fragment = document.createDocumentFragment();
+        if (before) fragment.appendChild(document.createTextNode(before));
+        fragment.appendChild(mark);
+        if (after) fragment.appendChild(document.createTextNode(after));
+
+        node.parentNode?.replaceChild(fragment, node);
+      });
+    });
+
+    return tempDiv.innerHTML;
   };
 
   const handleCopyLink = async () => {
@@ -291,6 +563,124 @@ export function PageView() {
     return () => window.removeEventListener('scroll', handleScroll);
   }, []);
 
+  // Close page menu on click outside
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (pageMenuRef.current && !pageMenuRef.current.contains(e.target as Node)) {
+        setShowPageMenu(false);
+      }
+    };
+
+    if (showPageMenu) {
+      document.addEventListener('mousedown', handleClickOutside);
+    }
+
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [showPageMenu]);
+
+  // Track mouse position for palette positioning
+  useEffect(() => {
+    const handleMouseMove = (e: MouseEvent) => {
+      mousePositionRef.current = { x: e.clientX, y: e.clientY };
+    };
+
+    document.addEventListener('mousemove', handleMouseMove);
+    return () => document.removeEventListener('mousemove', handleMouseMove);
+  }, []);
+
+  // Handle text selection for highlighting
+  useEffect(() => {
+    const handleMouseUp = () => {
+      // Small delay to allow selection to complete
+      setTimeout(handleTextSelection, 50);
+    };
+
+    document.addEventListener('mouseup', handleMouseUp);
+    return () => document.removeEventListener('mouseup', handleMouseUp);
+  }, [handleTextSelection]);
+
+  // Attach hover handlers to highlight marks
+  useEffect(() => {
+    const container = contentRef.current;
+    if (!container || editing || !highlightsVisible) return;
+
+    const marks = container.querySelectorAll<HTMLElement>('mark.highlight[data-highlight-id]');
+    const handlers: Array<{ enter: (e: MouseEvent) => void; leave: (e: MouseEvent) => void }> = [];
+
+    marks.forEach((mark) => {
+      const handleMouseEnter = (_e: MouseEvent) => {
+        // Clear any pending close timeout
+        if (closeMenuTimeoutRef.current) {
+          clearTimeout(closeMenuTimeoutRef.current);
+          closeMenuTimeoutRef.current = null;
+        }
+
+        const highlightId = mark.getAttribute('data-highlight-id');
+        if (!highlightId) return;
+
+        // Only reposition if this is a different highlight
+        // This prevents menu from jumping when hovering over different parts of a multi-line highlight
+        const isDifferentHighlight = hoveredHighlightId !== highlightId;
+
+        if (isDifferentHighlight) {
+          // For multi-line highlights, position based on the hovered mark element
+          // This ensures the menu appears close to the actual highlighted text
+          const rect = mark.getBoundingClientRect();
+
+          setHoverMenuPosition({
+            top: rect.top + window.scrollY - 45, // 45px above the hovered line
+            left: mousePositionRef.current.x - 100, // Horizontally centered on cursor
+          });
+        }
+
+        setHoveredHighlightId(highlightId);
+        setShowHoverMenu(true);
+      };
+
+      const handleMouseLeave = (_e: MouseEvent) => {
+        // Delay closing to allow mouse to move to menu
+        closeMenuTimeoutRef.current = setTimeout(() => {
+          if (!isMouseOverMenuRef.current) {
+            setShowHoverMenu(false);
+            setHoveredHighlightId(null);
+          }
+        }, 100);
+      };
+
+      mark.addEventListener('mouseenter', handleMouseEnter);
+      mark.addEventListener('mouseleave', handleMouseLeave);
+      handlers.push({ enter: handleMouseEnter, leave: handleMouseLeave });
+    });
+
+    return () => {
+      marks.forEach((mark, index) => {
+        mark.removeEventListener('mouseenter', handlers[index].enter);
+        mark.removeEventListener('mouseleave', handlers[index].leave);
+      });
+      // Clear timeout on cleanup
+      if (closeMenuTimeoutRef.current) {
+        clearTimeout(closeMenuTimeoutRef.current);
+      }
+    };
+  }, [htmlContent, editing, highlightsVisible]);
+
+  // Re-render when highlights visibility changes
+  useEffect(() => {
+    if (!page) return;
+
+    const reRender = async () => {
+      const contentWithLinks = convertWikiLinksToMarkdown(page.content, pages);
+      let html = await markdownService.toHtml(contentWithLinks);
+      html = await resolveImagesInHtml(html, page.path);
+      html = applyHighlightsToHtml(html, page.highlights || []);
+      setHtmlContent(html);
+    };
+
+    reRender();
+  }, [highlightsVisible, page, pages]);
+
   const scrollToTop = () => {
     window.scrollTo({
       top: 0,
@@ -328,7 +718,8 @@ export function PageView() {
 
   return (
     <>
-      <div className="page-view">
+      <div className={`page-view-container ${showTerminal ? 'with-terminal' : ''}`}>
+        <div className="page-view">
         <div className="page-header">
         <div className="page-header-top">
           <button className="btn-icon" onClick={() => navigate(-1)} title="Go back">
@@ -336,16 +727,66 @@ export function PageView() {
           </button>
           <h1>{page.title}</h1>
           <div className="page-actions">
-            <button className="btn btn-secondary copy-link-btn" onClick={handleCopyLink} title="Copy link to this page">
-              <span className="material-symbols-outlined">link</span>
-              Copy Link
-            </button>
             <button className="btn btn-secondary" onClick={() => setEditing(true)}>
+              <span className="material-symbols-outlined">edit</span>
               Edit
             </button>
-            <button className="btn btn-danger" onClick={handleDelete}>
-              Delete
-            </button>
+            <div className="page-menu-container" ref={pageMenuRef}>
+              <button
+                className="btn btn-secondary btn-icon"
+                onClick={() => setShowPageMenu(!showPageMenu)}
+                title="More options"
+              >
+                <span className="material-symbols-outlined">more_vert</span>
+              </button>
+              {showPageMenu && (
+                <div className="page-menu-dropdown">
+                  <button
+                    className="page-menu-item"
+                    onClick={() => {
+                      handleCopyLink();
+                      setShowPageMenu(false);
+                    }}
+                  >
+                    <span className="material-symbols-outlined">link</span>
+                    Copy Link
+                  </button>
+                  <button
+                    className="page-menu-item"
+                    onClick={() => {
+                      setHighlightsVisible(!highlightsVisible);
+                      setShowPageMenu(false);
+                    }}
+                  >
+                    <span className="material-symbols-outlined">
+                      {highlightsVisible ? 'visibility_off' : 'visibility'}
+                    </span>
+                    {highlightsVisible ? 'Hide Highlights' : 'Show Highlights'}
+                  </button>
+                  <button
+                    className="page-menu-item"
+                    onClick={() => {
+                      setShowTerminal(!showTerminal);
+                      setShowPageMenu(false);
+                    }}
+                  >
+                    <span className="material-symbols-outlined">terminal</span>
+                    {showTerminal ? 'Hide Terminal' : 'Show Terminal'}
+                  </button>
+                  <div className="page-menu-divider"></div>
+                  <button
+                    className="page-menu-item page-menu-item-danger"
+                    onClick={() => {
+                      setShowPageMenu(false);
+                      handleDelete();
+                    }}
+                  >
+                    <span className="material-symbols-outlined">delete</span>
+                    Delete Page
+                  </button>
+                </div>
+              )}
+            </div>
           </div>
         </div>
         <div className="page-meta">
@@ -406,6 +847,8 @@ export function PageView() {
           </div>
         )}
       </div>
+      {showTerminal && <Terminal workspacePath={config.workspacePath} />}
+      </div>
 
       {/* Mermaid diagram zoom modal */}
       {zoomedDiagram && (
@@ -430,6 +873,61 @@ export function PageView() {
           <span className="material-symbols-outlined">arrow_upward</span>
         </button>
       )}
+
+      {/* Highlight palette */}
+      {showHighlightPalette && (
+        <HighlightPalette
+          position={palettePosition}
+          colors={highlightColors}
+          onHighlight={applyHighlight}
+          onClose={() => setShowHighlightPalette(false)}
+        />
+      )}
+
+      {/* Highlight hover menu */}
+      {showHoverMenu && hoveredHighlightId && page && (
+        <div
+          onMouseEnter={() => {
+            isMouseOverMenuRef.current = true;
+            if (closeMenuTimeoutRef.current) {
+              clearTimeout(closeMenuTimeoutRef.current);
+              closeMenuTimeoutRef.current = null;
+            }
+          }}
+          onMouseLeave={() => {
+            isMouseOverMenuRef.current = false;
+            closeMenuTimeoutRef.current = setTimeout(() => {
+              setShowHoverMenu(false);
+              setHoveredHighlightId(null);
+            }, 100);
+          }}
+        >
+          <HighlightHoverMenu
+            highlightId={hoveredHighlightId}
+            currentColor={page.highlights?.find(h => h.id === hoveredHighlightId)?.color || highlightColors[0]}
+            colors={highlightColors}
+            position={hoverMenuPosition}
+            onChangeColor={handleChangeHighlightColor}
+            onDelete={handleDeleteHighlight}
+            onClose={() => {
+              setShowHoverMenu(false);
+              setHoveredHighlightId(null);
+            }}
+          />
+        </div>
+      )}
+
+      {/* Delete confirmation modal */}
+      <ConfirmModal
+        isOpen={showDeleteConfirm}
+        title="Delete Page"
+        message={`Are you sure you want to delete "${page?.title}"? This will also delete all sub-pages. This action cannot be undone.`}
+        confirmLabel="Delete"
+        cancelLabel="Cancel"
+        onConfirm={confirmDelete}
+        onCancel={() => setShowDeleteConfirm(false)}
+        danger={true}
+      />
     </>
   );
 }
