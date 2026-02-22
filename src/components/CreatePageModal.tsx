@@ -95,7 +95,7 @@ export function CreatePageModal({ onClose, parentId }: CreatePageModalProps) {
 
       addPage(page);
       onClose();
-      navigate(`/page/${page.id}`);
+      navigate(`/page/${page.id}`, { replace: true });
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to create page');
     } finally {

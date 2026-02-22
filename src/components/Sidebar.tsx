@@ -8,12 +8,13 @@ import './Sidebar.css';
 const DEFAULT_PALETTE = ['#3b82f6', '#f59e0b', '#22c55e', '#ef4444', '#8b5cf6', '#ec4899', '#14b8a6', '#f97316'];
 
 export function Sidebar() {
-  const { pages, setPages, hasFileSystemAccess, setSidebarOpen, activeFilters, setActiveFilters, sortOptions, setSortOptions, loadSettingsFromFile, columnColors } = useStore();
+  const { pages, setPages, hasFileSystemAccess, setSidebarOpen, activeFilters, setActiveFilters, sortOptions, setSortOptions, loadSettingsFromFile, columnColors, sidebarWidth, setSidebarWidth } = useStore();
   const [loading, setLoading] = useState(false);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [createParentId, setCreateParentId] = useState<string | undefined>();
   const [collapsedPages, setCollapsedPages] = useState<Set<string>>(new Set());
   const [searchText, setSearchText] = useState(activeFilters.searchText);
+  const [isResizing, setIsResizing] = useState(false);
 
   useEffect(() => {
     if (hasFileSystemAccess) {
@@ -47,6 +48,35 @@ export function Sidebar() {
       return next;
     });
   };
+
+  // Sidebar resize handlers
+  const MIN_WIDTH = 200;
+  const MAX_WIDTH = 600;
+
+  const handleResizeStart = () => {
+    setIsResizing(true);
+  };
+
+  useEffect(() => {
+    if (!isResizing) return;
+
+    const handleMouseMove = (e: MouseEvent) => {
+      const newWidth = Math.min(Math.max(e.clientX, MIN_WIDTH), MAX_WIDTH);
+      setSidebarWidth(newWidth);
+    };
+
+    const handleMouseUp = () => {
+      setIsResizing(false);
+    };
+
+    document.addEventListener('mousemove', handleMouseMove);
+    document.addEventListener('mouseup', handleMouseUp);
+
+    return () => {
+      document.removeEventListener('mousemove', handleMouseMove);
+      document.removeEventListener('mouseup', handleMouseUp);
+    };
+  }, [isResizing, setSidebarWidth]);
 
   const collapseAll = () => {
     const allPageIds = pages.map(p => p.id);
@@ -135,7 +165,7 @@ export function Sidebar() {
           ) : (
             <span className="collapse-btn-placeholder" />
           )}
-          <Link to={`/page/${page.id}`} className="sidebar-page-link">
+          <Link to={`/page/${page.id}`} className="sidebar-page-link" replace>
             <span className="page-title">{page.title}</span>
             {page.tags.length > 0 && (
               <span className="page-tags">
@@ -164,9 +194,9 @@ export function Sidebar() {
   const rootPages = filteredPages.filter(p => !p.parentId);
 
   return (
-    <aside className="sidebar">
+    <aside className="sidebar" style={{ width: `${sidebarWidth}px` }}>
       <div className="sidebar-header">
-        <Link to="/" className="sidebar-title">
+        <Link to="/" className="sidebar-title" replace>
           <h2>My Kanban</h2>
         </Link>
         <div className="sidebar-header-actions">
@@ -179,6 +209,14 @@ export function Sidebar() {
             title="New page"
           >
             <span className="material-symbols-outlined">add</span>
+          </button>
+          <button
+            className="btn-icon"
+            onClick={loadPages}
+            disabled={loading}
+            title="Refresh pages"
+          >
+            <span className="material-symbols-outlined">refresh</span>
           </button>
           <button
             onClick={() => setSidebarOpen(false)}
@@ -297,11 +335,6 @@ export function Sidebar() {
         )}
       </div>
 
-      <div className="sidebar-footer">
-        <button onClick={loadPages} className="btn btn-secondary" disabled={loading}>
-          {loading ? 'Refreshing...' : 'Refresh'}
-        </button>
-      </div>
 
       {showCreateModal && (
         <CreatePageModal
@@ -309,6 +342,14 @@ export function Sidebar() {
           onClose={() => setShowCreateModal(false)}
         />
       )}
+
+      {/* Resize handle */}
+      <div
+        className={`sidebar-resize-handle ${isResizing ? 'resizing' : ''}`}
+        onMouseDown={handleResizeStart}
+        onDoubleClick={() => setSidebarWidth(280)}
+        title="Drag to resize, double-click to reset"
+      />
     </aside>
   );
 }

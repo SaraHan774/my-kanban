@@ -15,9 +15,8 @@ export function Home() {
     pages, updatePageInStore, columnColors,
     columnOrder, setColumnOrder,
     boardDensity,
+    boardView, setBoardView,
   } = useStore();
-
-  const [boardView, setBoardView] = useState<'kanban' | 'list'>('kanban');
   const [listSortField, setListSortField] = useState<'title' | 'createdAt' | 'dueDate' | 'kanbanColumn'>('title');
   const [listSortDir, setListSortDir] = useState<'asc' | 'desc'>('asc');
   const [draggedCardId, setDraggedCardId] = useState<string | null>(null);
