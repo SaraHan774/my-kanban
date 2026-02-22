@@ -452,6 +452,7 @@ export function Home() {
                       <button
                         className={`pin-btn ${card.pinned ? 'pinned' : ''}`}
                         onClick={(e) => handleTogglePin(card.id, e)}
+                        onMouseEnter={handleCardMouseLeave}
                         title={card.pinned ? 'Unpin from top' : 'Pin to top'}
                       >
                         <span className="material-symbols-outlined">
@@ -516,6 +517,7 @@ export function Home() {
                       <button
                         className={`pin-btn ${card.pinned ? 'pinned' : ''}`}
                         onClick={(e) => handleTogglePin(card.id, e)}
+                        onMouseEnter={handleCardMouseLeave}
                         title={card.pinned ? 'Unpin from top' : 'Pin to top'}
                       >
                         <span className="material-symbols-outlined">
