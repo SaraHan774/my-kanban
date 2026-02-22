@@ -342,8 +342,8 @@
 
     .features-grid {
       display: grid;
-      grid-template-columns: repeat(3, 1fr);
-      gap: 24px;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 32px 24px;
     }
 
     .feature-card {
@@ -806,47 +806,15 @@
        ============================ -->
   <section class="features">
     <div class="container">
-      <h2 class="section-heading">Everything you need</h2>
+      <h2 class="section-heading">Powerful features where it matters</h2>
       <div class="features-grid">
-
-        <div class="feature-card">
-          <div class="feature-icon">
-            <span class="material-symbols-outlined">view_kanban</span>
-          </div>
-          <h3 class="feature-title">Kanban Board</h3>
-          <p class="feature-desc">Organize your work into customizable columns. Any page can become a Kanban board with nested sub-pages as cards.</p>
-        </div>
 
         <div class="feature-card">
           <div class="feature-icon">
             <span class="material-symbols-outlined">edit_note</span>
           </div>
-          <h3 class="feature-title">Markdown Notes</h3>
-          <p class="feature-desc">Write rich notes with full Markdown support, YAML frontmatter, syntax highlighting via highlight.js, and live preview.</p>
-        </div>
-
-        <div class="feature-card">
-          <div class="feature-icon">
-            <span class="material-symbols-outlined">check_circle</span>
-          </div>
-          <h3 class="feature-title">Todo Checklists</h3>
-          <p class="feature-desc">Create GitHub-style checklists. Toggle checkboxes interactively right from the view mode.</p>
-        </div>
-
-        <div class="feature-card">
-          <div class="feature-icon">
-            <span class="material-symbols-outlined">account_tree</span>
-          </div>
-          <h3 class="feature-title">Mermaid Diagrams</h3>
-          <p class="feature-desc">Render flowcharts, sequence diagrams, and more with Mermaid syntax. Click any diagram to zoom in.</p>
-        </div>
-
-        <div class="feature-card">
-          <div class="feature-icon">
-            <span class="material-symbols-outlined">search</span>
-          </div>
-          <h3 class="feature-title">Find in Page</h3>
-          <p class="feature-desc">Press Cmd/Ctrl+F to search within the current page with overlay highlighting and navigation.</p>
+          <h3 class="feature-title">Markdown with Live Preview</h3>
+          <p class="feature-desc">Write in Markdown with instant preview, syntax highlighting for code blocks, and seamless editing experience.</p>
         </div>
 
         <div class="feature-card">
@@ -854,55 +822,39 @@
             <span class="material-symbols-outlined">flash_on</span>
           </div>
           <h3 class="feature-title">Slash Commands</h3>
-          <p class="feature-desc">Type / in the editor to quickly insert markdown snippets. Fully customizable via Settings.</p>
+          <p class="feature-desc">Type / in the editor to quickly insert templates, headings, code blocks, and more. Fully customizable in Settings.</p>
         </div>
 
         <div class="feature-card">
           <div class="feature-icon">
-            <span class="material-symbols-outlined">image</span>
+            <span class="material-symbols-outlined">account_tree</span>
           </div>
-          <h3 class="feature-title">Image Storage</h3>
-          <p class="feature-desc">Paste, drag-and-drop, or upload images. Stored as files in .images/ directory with content hashing.</p>
+          <h3 class="feature-title">Mermaid Diagrams</h3>
+          <p class="feature-desc">Render flowcharts, sequence diagrams, and graphs with Mermaid syntax. Click any diagram to zoom in and explore details.</p>
         </div>
 
         <div class="feature-card">
           <div class="feature-icon">
-            <span class="material-symbols-outlined">text_fields</span>
+            <span class="material-symbols-outlined">brush</span>
           </div>
-          <h3 class="feature-title">Font Customization</h3>
-          <p class="feature-desc">Customize font family and size for the editor, preview, and UI independently via Settings.</p>
+          <h3 class="feature-title">Highlights &amp; Memos</h3>
+          <p class="feature-desc">Select text to highlight in custom colors and attach memos. Perfect for research, study notes, and documentation review.</p>
         </div>
 
         <div class="feature-card">
           <div class="feature-icon">
-            <span class="material-symbols-outlined">folder</span>
+            <span class="material-symbols-outlined">check_circle</span>
           </div>
-          <h3 class="feature-title">Local &amp; Private</h3>
-          <p class="feature-desc">Your data lives in plain Markdown files on your machine. Track changes with git.</p>
+          <h3 class="feature-title">Interactive Checklists</h3>
+          <p class="feature-desc">Create task lists with - [ ] syntax. Toggle checkboxes directly in view mode without switching to edit.</p>
         </div>
 
         <div class="feature-card">
           <div class="feature-icon">
-            <span class="material-symbols-outlined">desktop_windows</span>
+            <span class="material-symbols-outlined">link</span>
           </div>
-          <h3 class="feature-title">Desktop App</h3>
-          <p class="feature-desc">Available as a native desktop app via Tauri v2. Works on macOS, Windows, and Linux.</p>
-        </div>
-
-        <div class="feature-card">
-          <div class="feature-icon">
-            <span class="material-symbols-outlined">label</span>
-          </div>
-          <h3 class="feature-title">Tag System</h3>
-          <p class="feature-desc">Categorize pages with tags and filter by them. Full-text search across all pages.</p>
-        </div>
-
-        <div class="feature-card">
-          <div class="feature-icon">
-            <span class="material-symbols-outlined">pwa</span>
-          </div>
-          <h3 class="feature-title">PWA Support</h3>
-          <p class="feature-desc">Install from your browser and use offline. Works with File System Access API.</p>
+          <h3 class="feature-title">Wiki-style Links</h3>
+          <p class="feature-desc">Connect your notes with [[Page Title]] syntax. Build a personal knowledge base with bidirectional linking.</p>
         </div>
 
       </div>
