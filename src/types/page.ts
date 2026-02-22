@@ -11,6 +11,33 @@
  *  - A card (child of a board) has `parentId` set to the board's id and `kanbanColumn` to one of the board's tags.
  *  - The board can be displayed as kanban or list (UI toggle, not a separate type).
  */
+export interface Highlight {
+  id: string;
+  text: string;
+  color: string;
+  style: 'highlight' | 'underline';
+  startOffset: number;
+  endOffset: number;
+  contextBefore: string;
+  contextAfter: string;
+  createdAt: string;
+}
+
+export interface Memo {
+  id: string;
+  type: 'independent' | 'linked';
+  note: string;
+  // Linked memo fields (only when type === 'linked')
+  highlightId?: string;
+  highlightText?: string;
+  highlightColor?: string;
+  // Metadata
+  tags?: string[];
+  createdAt: string;
+  updatedAt: string;
+  order: number;
+}
+
 export interface Page {
   // Metadata (stored in YAML frontmatter)
   id: string;
@@ -25,6 +52,8 @@ export interface Page {
   googleCalendarEventId?: string;
   pinned?: boolean;              // Whether this card is pinned to the top of its column
   pinnedAt?: string;             // Timestamp when pinned (for sorting multiple pinned cards)
+  highlights?: Highlight[];      // Text highlights with colors and styles
+  memos?: Memo[];                // Reading notes and annotations
 
   // Runtime properties (not stored in frontmatter)
   path: string;                  // File path (e.g., "workspace/Page Name.md")
@@ -56,6 +85,8 @@ export interface PageFrontmatter {
   googleCalendarEventId?: string;
   pinned?: boolean;
   pinnedAt?: string;
+  highlights?: Highlight[];
+  memos?: Memo[];
 }
 
 /**
