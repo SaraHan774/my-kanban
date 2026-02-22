@@ -117,8 +117,9 @@ function rgbToHex(rgb: RGB): string {
 /**
  * Calculate relative luminance (for contrast calculations)
  * https://www.w3.org/TR/WCAG20/#relativeluminancedef
+ * Reserved for future contrast ratio calculations
  */
-function getLuminance(rgb: RGB): number {
+function _getLuminance(rgb: RGB): number {
   const [r, g, b] = [rgb.r, rgb.g, rgb.b].map((val) => {
     const v = val / 255;
     return v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4);
