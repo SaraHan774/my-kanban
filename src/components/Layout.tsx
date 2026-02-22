@@ -1,6 +1,7 @@
 import { useEffect, useState, useCallback, useRef } from 'react';
 import { Outlet, Link } from 'react-router-dom';
 import { Sidebar } from './Sidebar';
+import { Toast } from './Toast';
 import { useStore } from '@/store/useStore';
 import { fileSystemService } from '@/services';
 import './Layout.css';
@@ -17,7 +18,7 @@ const ZOOM_MAX = 200;
 const ZOOM_STEP = 10;
 
 export function Layout() {
-  const { sidebarOpen, setSidebarOpen, hasFileSystemAccess, setHasFileSystemAccess, theme, setTheme, zoomLevel, setZoomLevel, fontSettings } = useStore();
+  const { sidebarOpen, setSidebarOpen, hasFileSystemAccess, setHasFileSystemAccess, theme, setTheme, zoomLevel, setZoomLevel, fontSettings, sidebarWidth } = useStore();
   const [zoomToast, setZoomToast] = useState<string | null>(null);
   const toastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -51,15 +52,31 @@ export function Layout() {
     const sansFallbacks = "-apple-system, BlinkMacSystemFont, system-ui, sans-serif";
     const monoFallbacks = "'SF Mono', Monaco, 'Cascadia Code', 'Roboto Mono', Consolas, 'Courier New', monospace";
 
-    if (fontSettings.fontFamily === 'System Default') {
-      root.style.setProperty('--font-sans', sansFallbacks);
+    // Content fonts (for reading - page view)
+    if (fontSettings.contentFontFamily === 'System Default') {
+      root.style.setProperty('--font-content', sansFallbacks);
     } else {
-      root.style.setProperty('--font-sans', `'${fontSettings.fontFamily}', ${sansFallbacks}`);
+      root.style.setProperty('--font-content', `'${fontSettings.contentFontFamily}', ${sansFallbacks}`);
     }
+    root.style.setProperty('--font-content-size', `${fontSettings.contentFontSize}px`);
+    root.style.setProperty('--line-height-content', `${fontSettings.contentLineHeight}`);
 
+    // UI fonts (for controls, sidebar, etc.)
+    if (fontSettings.uiFontFamily === 'System Default') {
+      root.style.setProperty('--font-ui', sansFallbacks);
+    } else {
+      root.style.setProperty('--font-ui', `'${fontSettings.uiFontFamily}', ${sansFallbacks}`);
+    }
+    root.style.setProperty('--font-ui-size', `${fontSettings.uiFontSize}px`);
+
+    // Monospace font (shared)
     root.style.setProperty('--font-mono', `'${fontSettings.monoFontFamily}', ${monoFallbacks}`);
-    root.style.setProperty('--font-size-base', `${fontSettings.fontSize}px`);
-    root.style.setProperty('--line-height-content', `${fontSettings.lineHeight}`);
+
+    // Legacy variables for backward compatibility (use UI font as default)
+    root.style.setProperty('--font-sans', fontSettings.uiFontFamily === 'System Default'
+      ? sansFallbacks
+      : `'${fontSettings.uiFontFamily}', ${sansFallbacks}`);
+    root.style.setProperty('--font-size-base', `${fontSettings.uiFontSize}px`);
 
     // Apply heading colors
     root.style.setProperty('--heading-h1-color', fontSettings.headingColors.h1);
@@ -136,7 +153,10 @@ export function Layout() {
 
   return (
     <div className="layout">
-      <div className={`sidebar-container ${sidebarOpen ? 'open' : 'closed'}`}>
+      <div
+        className={`sidebar-container ${sidebarOpen ? 'open' : 'closed'}`}
+        style={{ width: sidebarOpen ? `${sidebarWidth}px` : '0' }}
+      >
         <Sidebar />
       </div>
       <main className="main-content">
@@ -166,6 +186,9 @@ export function Layout() {
       {zoomToast && (
         <div className="zoom-toast">{zoomToast}</div>
       )}
+
+      {/* Global toast notifications */}
+      <Toast />
     </div>
   );
 }

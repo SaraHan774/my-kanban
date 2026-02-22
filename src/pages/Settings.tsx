@@ -45,6 +45,7 @@ export function Settings() {
     pages, columnColors, setColumnColor, removeColumnColor,
     fontSettings, setFontSettings,
     boardDensity, setBoardDensity,
+    highlightColors, setHighlightColors,
   } = useStore();
   const [editingId, setEditingId] = useState<string | null>(null);
   const [isAdding, setIsAdding] = useState(false);
@@ -315,12 +316,16 @@ export function Settings() {
         </div>
 
         <div className="settings-typography-grid">
+          <h3 style={{ gridColumn: '1 / -1', marginBottom: '0.5rem', fontSize: '1rem', color: 'var(--text-secondary)' }}>
+            📖 Content Font (Reading Area)
+          </h3>
+
           <div className="settings-typography-row">
             <div className="settings-typography-field">
               <label>Font Family</label>
               <select
-                value={fontSettings.fontFamily}
-                onChange={(e) => updateFont({ fontFamily: e.target.value })}
+                value={fontSettings.contentFontFamily}
+                onChange={(e) => updateFont({ contentFontFamily: e.target.value })}
                 className="settings-select"
               >
                 {SANS_FONT_OPTIONS.map((opt) => (
@@ -330,7 +335,43 @@ export function Settings() {
             </div>
 
             <div className="settings-typography-field">
-              <label>Monospace Font</label>
+              <label>Font Size: {fontSettings.contentFontSize}px</label>
+              <input
+                type="range"
+                min={14}
+                max={22}
+                step={1}
+                value={fontSettings.contentFontSize}
+                onChange={(e) => updateFont({ contentFontSize: Number(e.target.value) })}
+                className="settings-range"
+              />
+              <div className="settings-range-labels">
+                <span>14px</span>
+                <span>22px</span>
+              </div>
+            </div>
+          </div>
+
+          <div className="settings-typography-row">
+            <div className="settings-typography-field">
+              <label>Line Height: {fontSettings.contentLineHeight.toFixed(1)}</label>
+              <input
+                type="range"
+                min={1.4}
+                max={2.2}
+                step={0.1}
+                value={fontSettings.contentLineHeight}
+                onChange={(e) => updateFont({ contentLineHeight: Number(e.target.value) })}
+                className="settings-range"
+              />
+              <div className="settings-range-labels">
+                <span>1.4</span>
+                <span>2.2</span>
+              </div>
+            </div>
+
+            <div className="settings-typography-field">
+              <label>Monospace Font (Code Blocks)</label>
               <select
                 value={fontSettings.monoFontFamily}
                 onChange={(e) => updateFont({ monoFontFamily: e.target.value })}
@@ -343,38 +384,38 @@ export function Settings() {
             </div>
           </div>
 
+          <h3 style={{ gridColumn: '1 / -1', marginTop: '1.5rem', marginBottom: '0.5rem', fontSize: '1rem', color: 'var(--text-secondary)' }}>
+            🎨 UI Font (Controls & Sidebar)
+          </h3>
+
           <div className="settings-typography-row">
             <div className="settings-typography-field">
-              <label>Font Size: {fontSettings.fontSize}px</label>
+              <label>Font Family</label>
+              <select
+                value={fontSettings.uiFontFamily}
+                onChange={(e) => updateFont({ uiFontFamily: e.target.value })}
+                className="settings-select"
+              >
+                {SANS_FONT_OPTIONS.map((opt) => (
+                  <option key={opt.value} value={opt.value}>{opt.label}</option>
+                ))}
+              </select>
+            </div>
+
+            <div className="settings-typography-field">
+              <label>Font Size: {fontSettings.uiFontSize}px</label>
               <input
                 type="range"
                 min={12}
-                max={20}
+                max={18}
                 step={1}
-                value={fontSettings.fontSize}
-                onChange={(e) => updateFont({ fontSize: Number(e.target.value) })}
+                value={fontSettings.uiFontSize}
+                onChange={(e) => updateFont({ uiFontSize: Number(e.target.value) })}
                 className="settings-range"
               />
               <div className="settings-range-labels">
                 <span>12px</span>
-                <span>20px</span>
-              </div>
-            </div>
-
-            <div className="settings-typography-field">
-              <label>Line Height: {fontSettings.lineHeight.toFixed(1)}</label>
-              <input
-                type="range"
-                min={1.2}
-                max={2.0}
-                step={0.1}
-                value={fontSettings.lineHeight}
-                onChange={(e) => updateFont({ lineHeight: Number(e.target.value) })}
-                className="settings-range"
-              />
-              <div className="settings-range-labels">
-                <span>1.2</span>
-                <span>2.0</span>
+                <span>18px</span>
               </div>
             </div>
           </div>
@@ -461,52 +502,65 @@ export function Settings() {
 
           <div className="settings-typography-preview">
             <p className="settings-typography-preview-label">Preview</p>
-            <h1 style={{
-              color: fontSettings.headingColors.h1,
-              marginBottom: '0.5rem',
-            }}>
-              Heading 1 Preview
-            </h1>
-            <h2 style={{
-              color: fontSettings.headingColors.h2,
-              marginBottom: '0.5rem',
-            }}>
-              Heading 2 Preview
-            </h2>
-            <h3 style={{
-              color: fontSettings.headingColors.h3,
-              marginBottom: '0.5rem',
-            }}>
-              Heading 3 Preview
-            </h3>
-            <h4 style={{
-              color: fontSettings.headingColors.h4,
-              marginBottom: '0.5rem',
-            }}>
-              Heading 4 Preview
-            </h4>
-            <p
-              className="settings-typography-preview-text"
-              style={{
-                fontFamily: fontSettings.fontFamily === 'System Default'
+
+            <div style={{ marginBottom: '1rem', padding: '1rem', backgroundColor: 'var(--bg-secondary)', borderRadius: '6px' }}>
+              <p style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginBottom: '0.5rem' }}>Content Font (Reading)</p>
+              <h1 style={{
+                color: fontSettings.headingColors.h1,
+                marginBottom: '0.5rem',
+                fontFamily: fontSettings.contentFontFamily === 'System Default'
                   ? '-apple-system, BlinkMacSystemFont, system-ui, sans-serif'
-                  : `'${fontSettings.fontFamily}', sans-serif`,
-                fontSize: `${fontSettings.fontSize}px`,
-                lineHeight: fontSettings.lineHeight,
-              }}
-            >
-              The quick brown fox jumps over the lazy dog. 0123456789
-            </p>
-            <p
-              className="settings-typography-preview-text"
-              style={{
-                fontFamily: `'${fontSettings.monoFontFamily}', monospace`,
-                fontSize: `${fontSettings.fontSize}px`,
-                lineHeight: fontSettings.lineHeight,
-              }}
-            >
-              {'const hello = "world"; // monospace preview'}
-            </p>
+                  : `'${fontSettings.contentFontFamily}', sans-serif`,
+                fontSize: `${fontSettings.contentFontSize * 1.75}px`,
+              }}>
+                Heading 1 Preview
+              </h1>
+              <h2 style={{
+                color: fontSettings.headingColors.h2,
+                marginBottom: '0.5rem',
+                fontFamily: fontSettings.contentFontFamily === 'System Default'
+                  ? '-apple-system, BlinkMacSystemFont, system-ui, sans-serif'
+                  : `'${fontSettings.contentFontFamily}', sans-serif`,
+                fontSize: `${fontSettings.contentFontSize * 1.5}px`,
+              }}>
+                Heading 2 Preview
+              </h2>
+              <p
+                style={{
+                  fontFamily: fontSettings.contentFontFamily === 'System Default'
+                    ? '-apple-system, BlinkMacSystemFont, system-ui, sans-serif'
+                    : `'${fontSettings.contentFontFamily}', sans-serif`,
+                  fontSize: `${fontSettings.contentFontSize}px`,
+                  lineHeight: fontSettings.contentLineHeight,
+                  marginBottom: '0.5rem',
+                }}
+              >
+                The quick brown fox jumps over the lazy dog. 빠른 갈색 여우가 게으른 개를 뛰어넘습니다. 0123456789
+              </p>
+              <p
+                style={{
+                  fontFamily: `'${fontSettings.monoFontFamily}', monospace`,
+                  fontSize: `${fontSettings.contentFontSize * 0.9}px`,
+                  lineHeight: fontSettings.contentLineHeight,
+                }}
+              >
+                {'const hello = "world"; // monospace code'}
+              </p>
+            </div>
+
+            <div style={{ padding: '1rem', backgroundColor: 'var(--bg-secondary)', borderRadius: '6px' }}>
+              <p style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginBottom: '0.5rem' }}>UI Font (Controls)</p>
+              <p
+                style={{
+                  fontFamily: fontSettings.uiFontFamily === 'System Default'
+                    ? '-apple-system, BlinkMacSystemFont, system-ui, sans-serif'
+                    : `'${fontSettings.uiFontFamily}', sans-serif`,
+                  fontSize: `${fontSettings.uiFontSize}px`,
+                }}
+              >
+                Sidebar, buttons, and control elements use this font. 사이드바 및 컨트롤 요소.
+              </p>
+            </div>
           </div>
         </div>
       </section>
@@ -533,6 +587,64 @@ export function Settings() {
             </button>
           </div>
         </div>
+      </section>
+
+      <section className="settings-section">
+        <div className="settings-section-header">
+          <h2>Highlight Colors</h2>
+        </div>
+        <p className="settings-section-description">
+          Customize the colors available in the text highlighter palette (up to 10 colors).
+          Colors are automatically adjusted for optimal visibility in dark mode.
+        </p>
+        <div className="settings-highlight-colors">
+          {highlightColors.map((color, index) => (
+            <div key={index} className="settings-highlight-color-item">
+              <input
+                type="color"
+                value={color}
+                onChange={(e) => {
+                  const newColors = [...highlightColors];
+                  newColors[index] = e.target.value;
+                  setHighlightColors(newColors);
+                }}
+                className="settings-highlight-color-input"
+              />
+              <button
+                className="btn-icon-small"
+                onClick={() => {
+                  if (highlightColors.length > 1) {
+                    const newColors = highlightColors.filter((_, i) => i !== index);
+                    setHighlightColors(newColors);
+                  }
+                }}
+                disabled={highlightColors.length <= 1}
+                title="Remove color"
+              >
+                ✕
+              </button>
+            </div>
+          ))}
+          {highlightColors.length < 10 && (
+            <button
+              className="btn-add-highlight-color"
+              onClick={() => {
+                setHighlightColors([...highlightColors, '#FFEB3B']);
+              }}
+              title="Add color"
+            >
+              + Add Color
+            </button>
+          )}
+        </div>
+        <button
+          className="btn-reset-highlight-colors"
+          onClick={() => {
+            setHighlightColors(['#FFEB3B', '#C5E1A5', '#90CAF9', '#FFCC80', '#F48FB1']);
+          }}
+        >
+          Reset to Defaults
+        </button>
       </section>
 
       <section className="settings-section">

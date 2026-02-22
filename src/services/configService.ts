@@ -17,12 +17,22 @@ const LS_COLUMN_ORDER = 'kanban-column-order';
 const LS_ZOOM_LEVEL = 'kanban-zoom-level';
 const LS_FONT_SETTINGS = 'kanban-font-settings';
 const LS_BOARD_DENSITY = 'kanban-board-density';
+const LS_BOARD_VIEW = 'kanban-board-view';
+const LS_SIDEBAR_WIDTH = 'kanban-sidebar-width';
+const LS_HIGHLIGHT_COLORS = 'kanban-highlight-colors';
 
 export interface FontSettings {
-  fontFamily: string;
+  // Content fonts (page view - reading area)
+  contentFontFamily: string;
+  contentFontSize: number;
+  contentLineHeight: number;
+
+  // UI fonts (controls, sidebar, buttons, etc.)
+  uiFontFamily: string;
+  uiFontSize: number;
+
+  // Shared settings
   monoFontFamily: string;
-  fontSize: number;
-  lineHeight: number;
   headingColors: {
     h1: string;
     h2: string;
@@ -32,10 +42,12 @@ export interface FontSettings {
 }
 
 export const DEFAULT_FONT_SETTINGS: FontSettings = {
-  fontFamily: 'Pretendard',
+  contentFontFamily: 'Pretendard',
+  contentFontSize: 16,
+  contentLineHeight: 1.7,
+  uiFontFamily: 'Pretendard',
+  uiFontSize: 14,
   monoFontFamily: 'Fira Code',
-  fontSize: 16,
-  lineHeight: 1.6,
   headingColors: {
     h1: 'inherit', // Use default text color
     h2: 'inherit',
@@ -52,6 +64,9 @@ export interface KanbanSettings {
   zoomLevel: number;
   fontSettings: FontSettings;
   boardDensity: 'normal' | 'compact';
+  boardView: 'kanban' | 'list';
+  sidebarWidth: number;
+  highlightColors: string[];
 }
 
 const DEFAULT_SETTINGS: KanbanSettings = {
@@ -62,6 +77,9 @@ const DEFAULT_SETTINGS: KanbanSettings = {
   zoomLevel: 100,
   fontSettings: DEFAULT_FONT_SETTINGS,
   boardDensity: 'normal',
+  boardView: 'kanban',
+  sidebarWidth: 280,
+  highlightColors: ['#FFEB3B', '#C5E1A5', '#90CAF9', '#FFCC80', '#F48FB1'],
 };
 
 class ConfigService {
@@ -74,16 +92,34 @@ class ConfigService {
       if (!fileSystemService.getRootHandle()) return null;
       const raw = await fileSystemService.readFile(CONFIG_FILE);
       const parsed = JSON.parse(raw);
+
+      // Migrate old font settings to new structure
+      let fontSettings = DEFAULT_FONT_SETTINGS;
+      if (parsed.fontSettings) {
+        const old = parsed.fontSettings;
+        fontSettings = {
+          ...DEFAULT_FONT_SETTINGS,
+          ...parsed.fontSettings,
+          // Migrate old fields to new structure
+          contentFontFamily: old.contentFontFamily ?? old.fontFamily ?? DEFAULT_FONT_SETTINGS.contentFontFamily,
+          contentFontSize: old.contentFontSize ?? old.fontSize ?? DEFAULT_FONT_SETTINGS.contentFontSize,
+          contentLineHeight: old.contentLineHeight ?? old.lineHeight ?? DEFAULT_FONT_SETTINGS.contentLineHeight,
+          uiFontFamily: old.uiFontFamily ?? old.fontFamily ?? DEFAULT_FONT_SETTINGS.uiFontFamily,
+          uiFontSize: old.uiFontSize ?? (old.fontSize ? old.fontSize - 2 : DEFAULT_FONT_SETTINGS.uiFontSize),
+        };
+      }
+
       return {
         columnColors: parsed.columnColors ?? DEFAULT_SETTINGS.columnColors,
         slashCommands: parsed.slashCommands ?? DEFAULT_SETTINGS.slashCommands,
         theme: parsed.theme ?? DEFAULT_SETTINGS.theme,
         columnOrder: parsed.columnOrder ?? DEFAULT_SETTINGS.columnOrder,
         zoomLevel: parsed.zoomLevel ?? DEFAULT_SETTINGS.zoomLevel,
-        fontSettings: parsed.fontSettings
-          ? { ...DEFAULT_FONT_SETTINGS, ...parsed.fontSettings }
-          : DEFAULT_SETTINGS.fontSettings,
+        fontSettings,
         boardDensity: parsed.boardDensity ?? DEFAULT_SETTINGS.boardDensity,
+        boardView: parsed.boardView ?? DEFAULT_SETTINGS.boardView,
+        sidebarWidth: parsed.sidebarWidth ?? DEFAULT_SETTINGS.sidebarWidth,
+        highlightColors: parsed.highlightColors ?? DEFAULT_SETTINGS.highlightColors,
       };
     } catch {
       return null;
@@ -135,11 +171,36 @@ class ConfigService {
 
     try {
       const fonts = localStorage.getItem(LS_FONT_SETTINGS);
-      if (fonts) settings.fontSettings = { ...DEFAULT_FONT_SETTINGS, ...JSON.parse(fonts) };
+      if (fonts) {
+        const old = JSON.parse(fonts);
+        settings.fontSettings = {
+          ...DEFAULT_FONT_SETTINGS,
+          ...old,
+          // Migrate old fields to new structure
+          contentFontFamily: old.contentFontFamily ?? old.fontFamily ?? DEFAULT_FONT_SETTINGS.contentFontFamily,
+          contentFontSize: old.contentFontSize ?? old.fontSize ?? DEFAULT_FONT_SETTINGS.contentFontSize,
+          contentLineHeight: old.contentLineHeight ?? old.lineHeight ?? DEFAULT_FONT_SETTINGS.contentLineHeight,
+          uiFontFamily: old.uiFontFamily ?? old.fontFamily ?? DEFAULT_FONT_SETTINGS.uiFontFamily,
+          uiFontSize: old.uiFontSize ?? (old.fontSize ? old.fontSize - 2 : DEFAULT_FONT_SETTINGS.uiFontSize),
+        };
+      }
     } catch { /* ignore */ }
 
     const boardDensity = localStorage.getItem(LS_BOARD_DENSITY) as KanbanSettings['boardDensity'] | null;
     if (boardDensity) settings.boardDensity = boardDensity;
+
+    const boardView = localStorage.getItem(LS_BOARD_VIEW) as KanbanSettings['boardView'] | null;
+    if (boardView) settings.boardView = boardView;
+
+    try {
+      const sidebarWidth = localStorage.getItem(LS_SIDEBAR_WIDTH);
+      if (sidebarWidth) settings.sidebarWidth = JSON.parse(sidebarWidth);
+    } catch { /* ignore */ }
+
+    try {
+      const highlightColors = localStorage.getItem(LS_HIGHLIGHT_COLORS);
+      if (highlightColors) settings.highlightColors = JSON.parse(highlightColors);
+    } catch { /* ignore */ }
 
     return settings;
   }
@@ -155,6 +216,9 @@ class ConfigService {
     localStorage.setItem(LS_ZOOM_LEVEL, JSON.stringify(settings.zoomLevel));
     localStorage.setItem(LS_FONT_SETTINGS, JSON.stringify(settings.fontSettings));
     localStorage.setItem(LS_BOARD_DENSITY, settings.boardDensity);
+    localStorage.setItem(LS_BOARD_VIEW, settings.boardView);
+    localStorage.setItem(LS_SIDEBAR_WIDTH, JSON.stringify(settings.sidebarWidth));
+    localStorage.setItem(LS_HIGHLIGHT_COLORS, JSON.stringify(settings.highlightColors));
   }
 
   /**
