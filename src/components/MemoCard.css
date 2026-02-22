@@ -1,0 +1,184 @@
+.memo-card {
+  background-color: var(--bg-secondary);
+  border-radius: 8px;
+  padding: 12px;
+  transition: all 0.15s;
+  border: 1px solid var(--border-color);
+}
+
+.memo-card-independent {
+  border-left: 3px solid var(--accent-primary, #007acc);
+}
+
+.memo-card-linked {
+  border-left: 3px solid #f59e0b;
+}
+
+.memo-card:hover {
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.08);
+  transform: translateY(-1px);
+}
+
+/* Header */
+.memo-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 10px;
+}
+
+.memo-card-type-badge {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  color: var(--text-secondary);
+  letter-spacing: 0.03em;
+  padding: 2px 8px;
+  background-color: var(--bg-primary);
+  border-radius: 4px;
+  opacity: 0.8;
+}
+
+.memo-card-delete {
+  background: none;
+  border: none;
+  color: var(--text-secondary);
+  font-size: 16px;
+  cursor: pointer;
+  padding: 4px;
+  width: 24px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 4px;
+  transition: all 0.15s;
+  opacity: 0.6;
+}
+
+.memo-card-delete:hover {
+  background-color: rgba(239, 68, 68, 0.1);
+  color: #ef4444;
+  opacity: 1;
+}
+
+[data-theme="dark"] .memo-card-delete:hover {
+  background-color: rgba(239, 68, 68, 0.15);
+}
+
+/* Highlight section (for linked memos) */
+.memo-card-highlight {
+  margin-bottom: 10px;
+}
+
+.memo-card-highlight-text {
+  position: relative;
+  font-size: 13px;
+  line-height: 1.5;
+  padding: 8px 10px;
+  background-color: var(--bg-primary);
+  border-radius: 4px;
+  border-left: 3px solid #94a3b8;
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: all 0.15s;
+  font-style: italic;
+}
+
+.memo-card-highlight-text:hover {
+  background-color: var(--bg-tertiary);
+  color: var(--text-primary);
+}
+
+.memo-card-highlight-color {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  border: 1px solid rgba(0, 0, 0, 0.1);
+}
+
+/* Notes section */
+.memo-card-notes {
+  margin-bottom: 8px;
+}
+
+.memo-card-note-display {
+  font-size: 14px;
+  line-height: 1.6;
+  color: var(--text-primary);
+  white-space: pre-wrap;
+  word-wrap: break-word;
+  padding: 8px 10px;
+  background-color: var(--bg-primary);
+  border-radius: 4px;
+  cursor: text;
+  min-height: 36px;
+  transition: all 0.15s;
+}
+
+.memo-card-note-display:hover {
+  background-color: var(--bg-tertiary);
+}
+
+.memo-card-note-placeholder {
+  color: var(--text-secondary);
+  font-size: 13px;
+  opacity: 0.7;
+}
+
+/* Edit mode */
+.memo-card-edit {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.memo-card-textarea {
+  width: 100%;
+  min-height: 72px;
+  padding: 8px 10px;
+  font-size: 14px;
+  line-height: 1.6;
+  border: 1px solid var(--accent-primary);
+  border-radius: 4px;
+  background-color: var(--bg-primary);
+  color: var(--text-primary);
+  font-family: inherit;
+  resize: vertical;
+  transition: all 0.15s;
+  box-shadow: 0 0 0 3px rgba(0, 122, 204, 0.1);
+}
+
+.memo-card-textarea:focus {
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(0, 122, 204, 0.15);
+}
+
+.memo-card-edit-actions {
+  display: flex;
+  gap: 6px;
+  justify-content: flex-end;
+}
+
+.memo-card-edit-actions .btn {
+  padding: 5px 12px;
+  font-size: 13px;
+}
+
+/* Metadata */
+.memo-card-meta {
+  font-size: 11px;
+  color: var(--text-secondary);
+  margin-top: 8px;
+  padding-top: 6px;
+  border-top: 1px solid var(--border-color);
+  opacity: 0.7;
+}
+
+/* Dark mode adjustments */
+[data-theme="dark"] .memo-card-highlight-color {
+  border-color: rgba(255, 255, 255, 0.2);
+}
