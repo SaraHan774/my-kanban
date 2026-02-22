@@ -151,7 +151,7 @@ export function adjustColorForDarkMode(color: string): string {
   if (!rgb) return color;
 
   const hsl = rgbToHsl(rgb);
-  const luminance = getLuminance(rgb);
+  // const luminance = getLuminance(rgb); // Reserved for future use
 
   // Adjustment strategy for dark mode:
   // - Very bright colors (L > 70): reduce lightness significantly, reduce saturation slightly

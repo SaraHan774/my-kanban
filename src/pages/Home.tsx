@@ -16,7 +16,6 @@ export function Home() {
     columnOrder, setColumnOrder,
     boardDensity,
     boardView, setBoardView,
-    sidebarWidth,
   } = useStore();
   const [listSortField, setListSortField] = useState<'title' | 'createdAt' | 'dueDate' | 'kanbanColumn'>('title');
   const [listSortDir, setListSortDir] = useState<'asc' | 'desc'>('asc');
