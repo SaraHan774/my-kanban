@@ -15,10 +15,13 @@ My Kanban uses a robust ID-based linking system that remains stable even when pa
 - ✅ Safe from title changes
 - ✅ Unique and permanent
 - ✅ Works even if page is moved
+- ✅ Custom display text supported
 
-**Example:**
+**Examples:**
 ```markdown
 [[550e8400-e29b-41d4-a716-446655440000|My Project]]
+[[page-123|Click here for details]]
+[[abc-def-ghi]]  <!-- Uses page title as display text -->
 ```
 
 ### Title-Based Links (Simple)
@@ -55,16 +58,19 @@ Every page has a "Copy Link" button that:
 ## How Links Are Resolved
 
 ### Rendering (markdown → HTML)
-1. Wiki link syntax `[[...]]` is detected
-2. Links are converted to HTML: `<a class="page-link" data-page-id="..." href="#">Display Text</a>`
-3. ID-based links use `data-page-id` attribute
-4. Title-based links use `data-page-ref` attribute
+1. Wiki link syntax `[[...]]` is detected in markdown content
+2. Links are converted directly to HTML (before markdown processing):
+   - Format: `<a href="/page/{id}" class="page-link">Display Text</a>`
+   - ID-based links: `[[page-id|Custom Text]]` → uses custom text or page title
+   - Title-based links: `[[Page Title]]` → looks up page by title
+3. Broken links (page not found) are styled with strikethrough: `<span class="wiki-link-broken">[[Missing]]</span>`
+4. Page links have distinct styling (underline on hover) vs regular markdown links (bottom border)
 
 ### Navigation (click handling)
-1. Click handler detects `data-page-id` or `data-page-ref`
-2. For ID-based: Direct lookup by ID (fast, reliable)
-3. For title-based: Scan all pages to find matching title (slower, case-insensitive)
-4. Navigate to `/page/{id}`
+1. Click handler intercepts clicks on links with `href="/page/{id}"`
+2. Uses React Router to navigate without page reload
+3. Only navigates if the target page is different from current page
+4. External links (`http://`, `https://`) open in system browser (desktop) or new tab (web)
 
 ## Stability Guarantees
 
@@ -84,19 +90,17 @@ Every page has a "Copy Link" button that:
 
 ## Implementation Details
 
-### Link Service (`src/services/linkService.ts`)
+### Wiki Link Converter (`src/utils/wikiLinks.ts`)
 ```typescript
-// Parse wiki links from markdown
-parseLinks(content: string): ParsedLink[]
+// Parse wiki-style links from markdown
+parseWikiLinks(content: string): WikiLink[]
 
-// Resolve page reference to ID
-resolvePageRef(ref: string, isIdBased: boolean): Promise<string | null>
+// Find a page by ID or title
+findPageByIdOrTitle(target: string, pages: Page[]): Page | undefined
 
-// Get backlinks (pages that link to this page)
-getBacklinks(pageId: string): Promise<Backlink[]>
-
-// Validate link
-validateLink(targetRef: string, isIdBased: boolean): Promise<LinkValidation>
+// Convert wiki links to HTML with proper classes
+// This runs BEFORE markdown processing to ensure correct styling
+convertWikiLinksToMarkdown(content: string, pages: Page[]): string
 ```
 
 ### Copy Link Handler (`src/pages/PageView.tsx`)
