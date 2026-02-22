@@ -29,10 +29,21 @@
   --shadow-md: 0 4px 6px rgba(0, 0, 0, 0.1);
   --shadow-lg: 0 10px 15px rgba(0, 0, 0, 0.1);
 
-  --font-sans: 'Pretendard', -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
+  /* Content fonts (page view - reading area) */
+  --font-content: 'Pretendard', -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
+  --font-content-size: 16px;
+  --line-height-content: 1.7;
+
+  /* UI fonts (controls, sidebar, etc.) */
+  --font-ui: 'Pretendard', -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
+  --font-ui-size: 14px;
+
+  /* Shared fonts */
   --font-mono: 'Fira Code', 'SF Mono', Monaco, 'Cascadia Code', 'Roboto Mono', Consolas, 'Courier New', monospace;
-  --font-size-base: 16px;
-  --line-height-content: 1.6;
+
+  /* Legacy (for backward compatibility - uses UI font) */
+  --font-sans: var(--font-ui);
+  --font-size-base: var(--font-ui-size);
 }
 
 @media (prefers-color-scheme: dark) {
@@ -60,11 +71,11 @@
 }
 
 body {
-  font-family: var(--font-sans);
-  font-size: var(--font-size-base, 16px);
+  font-family: var(--font-ui);
+  font-size: var(--font-ui-size);
   background-color: var(--bg-primary);
   color: var(--text-primary);
-  line-height: var(--line-height-content, 1.6);
+  line-height: 1.5;
   letter-spacing: -0.01em;
 }
 
@@ -115,30 +126,15 @@ pre code {
   padding: 0;
 }
 
-/* Scrollbar - thin and elegant */
+/* Hide scrollbar - all browsers */
 ::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
-}
-
-::-webkit-scrollbar-track {
-  background: transparent;
-}
-
-::-webkit-scrollbar-thumb {
-  background: var(--border-color);
-  border-radius: 3px;
-  transition: background-color 0.2s;
-}
-
-::-webkit-scrollbar-thumb:hover {
-  background: var(--text-secondary);
+  display: none;
 }
 
 /* Firefox scrollbar */
 * {
-  scrollbar-width: thin;
-  scrollbar-color: var(--border-color) transparent;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
 }
 
 /* Buttons */
@@ -156,6 +152,9 @@ button {
   font-family: var(--font-sans);
   font-weight: 600;
   transition: all 0.2s;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
 }
 
 .btn-primary {
