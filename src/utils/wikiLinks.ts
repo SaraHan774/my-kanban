@@ -44,7 +44,8 @@ export function findPageByIdOrTitle(target: string, pages: Page[]): Page | undef
 }
 
 /**
- * Convert wiki links to markdown links
+ * Convert wiki links to HTML with proper classes
+ * This allows us to style page links differently from regular markdown links
  */
 export function convertWikiLinksToMarkdown(content: string, pages: Page[]): string {
   const links = parseWikiLinks(content);
@@ -53,14 +54,26 @@ export function convertWikiLinksToMarkdown(content: string, pages: Page[]): stri
   let result = content;
   for (let i = links.length - 1; i >= 0; i--) {
     const link = links[i];
-    const page = findPageByIdOrTitle(link.target, pages);
+
+    // Check if it's an ID-based link (format: [[page-id|Display Text]])
+    const pipeIndex = link.target.indexOf('|');
+    let targetId = link.target;
+    let displayText = link.target;
+
+    if (pipeIndex !== -1) {
+      // ID-based link with custom display text
+      targetId = link.target.substring(0, pipeIndex).trim();
+      displayText = link.target.substring(pipeIndex + 1).trim();
+    }
+
+    const page = findPageByIdOrTitle(targetId, pages);
 
     if (page) {
-      // Convert to markdown link: [Page Title](/page/pageId)
-      const markdownLink = `[${page.title}](/page/${page.id})`;
-      result = result.substring(0, link.startIndex) + markdownLink + result.substring(link.endIndex);
+      // Convert to HTML link with page-link class to distinguish from regular links
+      const htmlLink = `<a href="/page/${page.id}" class="page-link">${displayText || page.title}</a>`;
+      result = result.substring(0, link.startIndex) + htmlLink + result.substring(link.endIndex);
     } else {
-      // Page not found - keep as plain text or mark as broken
+      // Page not found - mark as broken
       const brokenLink = `<span class="wiki-link-broken">[[${link.target}]]</span>`;
       result = result.substring(0, link.startIndex) + brokenLink + result.substring(link.endIndex);
     }

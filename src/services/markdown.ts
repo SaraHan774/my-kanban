@@ -129,7 +129,9 @@ export class MarkdownService {
       ...(data.kanbanColumn && { kanbanColumn: data.kanbanColumn }),
       ...(data.googleCalendarEventId && { googleCalendarEventId: data.googleCalendarEventId }),
       ...(data.pinned !== undefined && { pinned: data.pinned }),
-      ...(data.pinnedAt && { pinnedAt: data.pinnedAt })
+      ...(data.pinnedAt && { pinnedAt: data.pinnedAt }),
+      highlights: Array.isArray(data.highlights) ? data.highlights : [],
+      memos: Array.isArray(data.memos) ? data.memos : []
     };
   }
 

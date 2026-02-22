@@ -118,7 +118,9 @@ export class PageService {
       ...(page.kanbanColumn && { kanbanColumn: page.kanbanColumn }),
       ...(page.googleCalendarEventId && { googleCalendarEventId: page.googleCalendarEventId }),
       ...(page.pinned !== undefined && { pinned: page.pinned }),
-      ...(page.pinnedAt && { pinnedAt: page.pinnedAt })
+      ...(page.pinnedAt && { pinnedAt: page.pinnedAt }),
+      highlights: page.highlights || [],
+      memos: page.memos || []
     };
 
     const markdown = markdownService.serialize(frontmatter, page.content);
@@ -164,7 +166,9 @@ export class PageService {
       ...(page.kanbanColumn && { kanbanColumn: page.kanbanColumn }),
       ...(page.googleCalendarEventId && { googleCalendarEventId: page.googleCalendarEventId }),
       ...(page.pinned !== undefined && { pinned: page.pinned }),
-      ...(page.pinnedAt && { pinnedAt: page.pinnedAt })
+      ...(page.pinnedAt && { pinnedAt: page.pinnedAt }),
+      highlights: page.highlights || [],
+      memos: page.memos || []
     };
 
     const markdown = markdownService.serialize(frontmatter, page.content);
