@@ -1,4 +1,7 @@
-use tauri::{Manager, WebviewUrl, WebviewWindowBuilder};
+use tauri::{Manager, WebviewUrl, WebviewWindowBuilder, State};
+
+mod terminal;
+use terminal::TerminalManager;
 
 #[derive(serde::Serialize, serde::Deserialize)]
 struct WindowBounds {
@@ -51,15 +54,56 @@ async fn close_side_browser(app: tauri::AppHandle) -> Result<(), String> {
     Ok(())
 }
 
+#[tauri::command]
+async fn spawn_terminal(
+    app: tauri::AppHandle,
+    terminal_manager: State<'_, TerminalManager>,
+    working_dir: String,
+) -> Result<String, String> {
+    terminal_manager.spawn_terminal(app, working_dir)
+}
+
+#[tauri::command]
+async fn write_terminal(
+    terminal_manager: State<'_, TerminalManager>,
+    session_id: String,
+    data: String,
+) -> Result<(), String> {
+    terminal_manager.write_terminal(session_id, data)
+}
+
+#[tauri::command]
+async fn resize_terminal(
+    terminal_manager: State<'_, TerminalManager>,
+    session_id: String,
+    cols: u16,
+    rows: u16,
+) -> Result<(), String> {
+    terminal_manager.resize_terminal(session_id, cols, rows)
+}
+
+#[tauri::command]
+async fn close_terminal(
+    terminal_manager: State<'_, TerminalManager>,
+    session_id: String,
+) -> Result<(), String> {
+    terminal_manager.close_terminal(session_id)
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_fs::init())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_opener::init())
+        .manage(TerminalManager::new())
         .invoke_handler(tauri::generate_handler![
             open_side_browser,
-            close_side_browser
+            close_side_browser,
+            spawn_terminal,
+            write_terminal,
+            resize_terminal,
+            close_terminal
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

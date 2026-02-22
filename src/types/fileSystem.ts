@@ -17,4 +17,5 @@ export interface IFileSystemService {
   scanPages(path?: string): Promise<string[]>;
   writeBinaryFile(path: string, data: Uint8Array): Promise<void>;
   readBinaryFile(path: string): Promise<Uint8Array>;
+  getUniqueFileName(basePath: string, fileName: string): Promise<string>;
 }

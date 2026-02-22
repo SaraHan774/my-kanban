@@ -7,19 +7,29 @@
 /* Sidebar container with slide animation */
 .sidebar-container {
   position: relative;
-  transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1), width 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-  width: 280px;
   flex-shrink: 0;
   overflow: hidden;
+  height: 100vh;
+  /* Use only transform for GPU-accelerated animation */
+  transition: transform 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+  will-change: transform;
 }
 
 .sidebar-container.closed {
+  /* Slide sidebar off-screen (GPU-accelerated, no reflow) */
   transform: translateX(-100%);
-  width: 0;
+  /* Collapse width immediately after animation */
+  transition: transform 0.25s cubic-bezier(0.4, 0, 0.2, 1),
+              width 0s 0.25s;
+  width: 0 !important;
+  min-width: 0 !important;
 }
 
 .sidebar-container.open {
   transform: translateX(0);
+  /* Expand width immediately, then animate in */
+  transition: width 0s,
+              transform 0.25s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .main-content {
@@ -27,6 +37,8 @@
   overflow-y: auto;
   display: flex;
   flex-direction: column;
+  /* Performance hint: this element will resize */
+  contain: layout style paint;
 }
 
 .top-bar {

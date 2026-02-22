@@ -3,3 +3,4 @@ export * from './page';
 export * from './filter';
 export * from './config';
 export * from './fileSystem';
+export * from './link';

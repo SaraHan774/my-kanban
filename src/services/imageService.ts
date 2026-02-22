@@ -1,14 +1,17 @@
 /**
  * Image Service
- * Handles saving images to .images/ directories and resolving
- * image paths in rendered HTML using blob URLs with caching.
+ * NEW: Handles saving images to a centralized workspace/.images/ directory
+ * and resolving image paths in rendered HTML using blob URLs with caching.
+ *
+ * All images are stored in workspace/.images/ regardless of which page they belong to.
+ * This simplifies the structure and allows for easy deduplication via content hashing.
  */
 
 import { fileSystemService } from './fileSystemFactory';
 
-const IMAGES_DIR = '.images';
+const IMAGES_DIR = 'workspace/.images';
 
-// In-memory cache: "pagePath/.images/hash.ext" → "blob:..."
+// In-memory cache: "workspace/.images/hash.ext" → "blob:..."
 const blobUrlCache = new Map<string, string>();
 
 async function hashBytes(data: Uint8Array): Promise<string> {
@@ -39,27 +42,30 @@ function getImageExtension(fileName: string, mimeType?: string): string {
 }
 
 /**
- * Save an image file to the page's .images/ directory.
- * Returns the relative markdown path: `.images/{hash}.{ext}`
+ * Save an image file to the centralized workspace/.images/ directory.
+ * NEW: All images go to workspace/.images/ regardless of page
+ * Returns the relative markdown path from workspace root: `.images/{hash}.{ext}`
  */
-export async function saveImage(pagePath: string, file: File): Promise<string> {
+export async function saveImage(_pagePath: string, file: File): Promise<string> {
   const buffer = await file.arrayBuffer();
   const data = new Uint8Array(buffer);
   const hash = await hashBytes(data);
   const ext = getImageExtension(file.name, file.type);
   const imageFileName = `${hash}.${ext}`;
-  const imagesDir = `${pagePath}/${IMAGES_DIR}`;
-  const imagePath = `${imagesDir}/${imageFileName}`;
+  const imagePath = `${IMAGES_DIR}/${imageFileName}`;
 
-  if (!(await fileSystemService.exists(imagesDir))) {
-    await fileSystemService.createDirectory(imagesDir);
+  // Ensure .images directory exists
+  if (!(await fileSystemService.exists(IMAGES_DIR))) {
+    await fileSystemService.createDirectory(IMAGES_DIR);
   }
 
+  // Only write if file doesn't exist (content-addressed storage = automatic deduplication)
   if (!(await fileSystemService.exists(imagePath))) {
     await fileSystemService.writeBinaryFile(imagePath, data);
   }
 
-  return `${IMAGES_DIR}/${imageFileName}`;
+  // Return path relative to workspace root
+  return `.images/${imageFileName}`;
 }
 
 const MIME_MAP: Record<string, string> = {
@@ -73,13 +79,18 @@ const MIME_MAP: Record<string, string> = {
   ico: 'image/x-icon',
 };
 
-async function resolveImageUrl(pagePath: string, relativeImagePath: string): Promise<string> {
-  const cacheKey = `${pagePath}/${relativeImagePath}`;
+async function resolveImageUrl(_pagePath: string, relativeImagePath: string): Promise<string> {
+  // NEW: All images are in workspace/.images/, so pagePath is ignored
+  const cacheKey = relativeImagePath;
 
   const cached = blobUrlCache.get(cacheKey);
   if (cached) return cached;
 
-  const fullPath = `${pagePath}/${relativeImagePath}`;
+  // Resolve from workspace root
+  const fullPath = relativeImagePath.startsWith('.images/')
+    ? `workspace/${relativeImagePath}`
+    : relativeImagePath;
+
   const data = await fileSystemService.readBinaryFile(fullPath);
 
   const ext = relativeImagePath.split('.').pop()?.toLowerCase() || 'png';
@@ -137,22 +148,72 @@ export function clearImageCache(): void {
 }
 
 /**
- * Copy the .images/ directory from one page path to another.
- * Used during page move/copy operations.
+ * DEPRECATED: No longer needed with centralized image storage.
+ * All images are in workspace/.images/, so moving pages doesn't require copying images.
+ *
+ * Kept for backward compatibility during migration.
  */
-export async function copyImagesDir(sourcePath: string, destPath: string): Promise<void> {
-  const sourceImagesDir = `${sourcePath}/${IMAGES_DIR}`;
+export async function copyImagesDir(_sourcePath: string, _destPath: string): Promise<void> {
+  // No-op: centralized image storage means no per-page directories to copy
+  return;
+}
 
-  if (!(await fileSystemService.exists(sourceImagesDir))) return;
+/**
+ * Find all image references across all markdown pages
+ * Returns a Set of image file names that are currently referenced
+ */
+async function findReferencedImages(): Promise<Set<string>> {
+  const referenced = new Set<string>();
 
-  const destImagesDir = `${destPath}/${IMAGES_DIR}`;
-  await fileSystemService.createDirectory(destImagesDir);
+  try {
+    const pagePaths = await fileSystemService.scanPages('workspace');
 
-  const entries = await fileSystemService.listDirectory(sourceImagesDir);
-  for (const entry of entries) {
-    if (entry.kind === 'file') {
-      const data = await fileSystemService.readBinaryFile(`${sourceImagesDir}/${entry.name}`);
-      await fileSystemService.writeBinaryFile(`${destImagesDir}/${entry.name}`, data);
+    for (const pagePath of pagePaths) {
+      const content = await fileSystemService.readFile(pagePath);
+
+      // Find all markdown image references: ![alt](.images/hash.ext)
+      const imageRegex = /!\[.*?\]\(\.images\/([^)]+)\)/g;
+      let match;
+
+      while ((match = imageRegex.exec(content)) !== null) {
+        referenced.add(match[1]);
+      }
     }
+  } catch (error) {
+    console.error('Error scanning for referenced images:', error);
+  }
+
+  return referenced;
+}
+
+/**
+ * Clean up orphaned images (images that exist but are not referenced by any page)
+ * Returns the number of images deleted
+ */
+export async function cleanOrphanImages(): Promise<number> {
+  try {
+    if (!(await fileSystemService.exists(IMAGES_DIR))) {
+      return 0;
+    }
+
+    const entries = await fileSystemService.listDirectory(IMAGES_DIR);
+    const referencedImages = await findReferencedImages();
+
+    let deletedCount = 0;
+
+    for (const entry of entries) {
+      if (entry.kind === 'file' && !referencedImages.has(entry.name)) {
+        await fileSystemService.delete(`${IMAGES_DIR}/${entry.name}`);
+        deletedCount++;
+
+        // Also clear from blob cache
+        blobUrlCache.delete(`.images/${entry.name}`);
+      }
+    }
+
+    return deletedCount;
+  } catch (error) {
+    console.error('Error cleaning orphan images:', error);
+    return 0;
   }
 }

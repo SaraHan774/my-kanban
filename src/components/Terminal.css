@@ -1,0 +1,45 @@
+.terminal-container {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  background-color: #1e1e1e;
+  border-right: 1px solid var(--border-color);
+}
+
+.terminal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.5rem 1rem;
+  background-color: #2d2d2d;
+  border-bottom: 1px solid #3e3e3e;
+  font-size: 0.875rem;
+  color: #cccccc;
+}
+
+.terminal-title {
+  font-weight: 600;
+  color: #ffffff;
+}
+
+.terminal-path {
+  font-size: 0.75rem;
+  color: #888888;
+  font-family: 'Fira Code', monospace;
+}
+
+.terminal {
+  flex: 1;
+  padding: 0.5rem;
+  overflow: hidden;
+}
+
+/* Override xterm default styles */
+.terminal .xterm {
+  height: 100%;
+  padding: 0;
+}
+
+.terminal .xterm-viewport {
+  overflow-y: auto;
+}

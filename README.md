@@ -8,23 +8,37 @@ Available as both a **Progressive Web App (PWA)** and a **native desktop app** p
 
 ### Core Functionality
 - **Markdown Notes** - Full markdown syntax support with YAML frontmatter
-- **Notion-style Pages** - Everything is a page; create nested page structures infinitely
-- **Tag System** - Categorize pages with tags and filter by them
-- **Kanban Boards** - Any page can become a Kanban board with custom columns
+- **Page Links** - Wiki-style links `[[Page Title]]` or `[[page-id|Display]]` to connect pages
+- **Backlinks** - See which pages reference the current page
+- **Notion-style Pages** - Everything is a page; create nested page structures with `parentId`
+- **Hierarchical Sub-pages** - Create sub-pages with automatic parent-child relationships, inheriting column assignments
+- **Tag System** - Categorize pages with tags and filter by them in the sidebar
+- **Kanban Boards** - Root-level pages organized into customizable kanban columns with drag-and-drop reordering
+- **Column Colors** - Customize colors for each kanban column or use automatic palette-based coloring
+- **Board Density** - Switch between normal and compact board layouts
 - **Todo Checklists** - GitHub-style checklists with interactive checkboxes
-- **Filter & Search** - Filter by tags, dates, and full-text search
+- **Filter & Search** - Filter by tags, dates, and full-text search across titles and content
 - **Code Formatting** - Code blocks with syntax highlighting via highlight.js
 - **Mermaid Diagrams** - Render flowcharts, sequence diagrams, and more with [Mermaid](https://mermaid.js.org/) syntax. Click any diagram to zoom in
 - **Find in Page** - Press `Cmd/Ctrl+F` to search within the current page with overlay highlighting
 - **Slash Commands** - Type `/` in the editor to quickly insert markdown snippets (headings, code blocks, tables, links, etc.). Fully customizable via Settings
-- **Font Customization** - Customize font family and size for the editor, preview, and UI independently via Settings
+- **Font & Color Customization** - Customize font family, size, and heading colors (H1-H4) independently via Settings
 - **Dark/Light Theme** - Toggle between dark and light modes
 - **Desktop Zoom** - `Cmd/Ctrl + =` to zoom in, `Cmd/Ctrl + -` to zoom out, `Cmd/Ctrl + 0` to reset
 - **Native Desktop App** - Tauri-powered app for macOS, Windows, and Linux
 - **PWA Support** - Install from the browser and use offline
 
+### Sidebar & Navigation
+- **Hierarchical Tree View** - Nested page structure with visual borders showing parent-child relationships
+- **Expand/Collapse** - Click ▸/▾ buttons to expand/collapse individual sub-pages, or use "Expand all" / "Collapse all" for bulk operations
+- **Color-Coded Tag Filters** - Filter by tags with color-coded chips matching your column colors
+- **Search** - Full-text search across page titles and content
+- **Sorting** - Sort pages by title, created date, updated date, or due date
+- **Quick Sub-page Creation** - Click + button next to any page to create a child page that inherits the parent's column
+
 ### Editor
-- **Image Insertion** - Paste from clipboard, drag-and-drop, or use the toolbar file picker. Images are stored as files in a `.images/` directory (not inline base64), keeping your markdown clean
+- **Image Insertion** - Paste from clipboard, drag-and-drop, or use the toolbar file picker. Images are stored in centralized `workspace/.images/` (not inline base64), keeping your markdown clean
+- **Page Links** - Type `[[` to create links to other pages (auto-complete coming soon)
 - **Keyboard Shortcuts** - Cmd/Ctrl+B (bold), Cmd/Ctrl+I (italic), Cmd/Ctrl+E (inline code), Cmd/Ctrl+S (save)
 - **Tab Indentation** - Tab/Shift+Tab to indent/dedent lines (works with multi-line selections)
 - **Quick Edit** - Press `E` on any page to enter edit mode, `Escape` to cancel
@@ -46,29 +60,28 @@ Available as both a **Progressive Web App (PWA)** and a **native desktop app** p
 
 ## Data Structure
 
-Every entity in the app is a **Page** (Notion-style unified model):
+Every entity in the app is a **Page** (Notion-style unified model). Pages are stored as individual markdown files:
 
 ```
 workspace/
-├── Project A/
-│   ├── index.md           # Project A page (viewType: kanban)
-│   ├── .images/           # Images referenced by index.md
-│   │   └── a1b2c3d4e5f6.png
-│   ├── Task 1/
-│   │   ├── index.md       # Task 1 card
-│   │   └── Subtask 1-1/
-│   │       └── index.md   # Nested sub-page
-│   └── Task 2/
-│       └── index.md
-└── Project B/
-    └── index.md
+├── .images/              # Centralized image storage
+│   ├── a1b2c3d4.png     # Content-hashed (SHA-256)
+│   └── e5f6g7h8.png
+├── Project A.md         # Root-level page
+├── Task 1.md            # Child page (parentId → Project A)
+├── Task 2.md            # Child page (parentId → Project A)
+└── Personal Notes.md    # Root-level page
 ```
 
-Images pasted or dropped into a page are saved as files under each page's `.images/` directory with content-hashed filenames (SHA-256). The markdown references them with short relative paths like `![screenshot](.images/a1b2c3d4e5f6.png)` instead of embedding large base64 data URLs.
+**Key Features:**
+- **Single file per page** - Each page is a `.md` file (not folder + index.md)
+- **Centralized images** - All images in `workspace/.images/`, automatic deduplication via content hashing
+- **Page hierarchy** - `parentId` field links child pages to parents
+- **Page links** - Use `[[Page Title]]` or `[[page-id|Display]]` to reference other pages
 
-Each `index.md` contains:
-- **YAML frontmatter** - metadata (title, tags, dates, view type, etc.)
-- **Markdown content** - the actual page content
+Each page contains:
+- **YAML frontmatter** - metadata (title, tags, dates, parentId, etc.)
+- **Markdown content** - the actual page content with support for links, images, code, etc.
 
 Example page:
 
@@ -77,25 +90,29 @@ Example page:
 id: "550e8400-e29b-41d4-a716-446655440000"
 title: "My Project Tasks"
 tags: ["work", "urgent"]
+parentId: "parent-board-id"  # Optional: links to parent page
+kanbanColumn: "In Progress"  # Optional: kanban column
 createdAt: "2026-02-08T10:30:00Z"
 updatedAt: "2026-02-08T15:45:00Z"
-viewType: "kanban"
-kanbanColumns:
-  - id: "col-1"
-    name: "To Do"
-    order: 0
-  - id: "col-2"
-    name: "In Progress"
-    order: 1
-  - id: "col-3"
-    name: "Done"
-    order: 2
+viewType: "document"
 ---
 
 # My Project Tasks
 
 This is the content of the page.
+
+You can link to other pages: [[Another Page]] or [[page-id|Custom Link Text]]
+
+Images: ![screenshot](.images/a1b2c3d4.png)
 ```
+
+### Migration from Old Structure
+
+If you have existing data in the old folder-based structure, the app will automatically detect it and show a migration option in Settings. The migration:
+- Converts `workspace/Page/index.md` → `workspace/Page.md`
+- Moves all images to `workspace/.images/`
+- Sets `parentId` for nested pages
+- Cleans up empty folders
 
 ## Getting Started
 
@@ -150,10 +167,12 @@ npm run tauri:build
 
 ### Kanban Boards
 
-1. Create a page and set its view type to Kanban
-2. Define custom columns
-3. Sub-pages automatically become cards
-4. Cards show title, tags, due date, and excerpt
+1. **Create columns** - Pages are organized by their `kanbanColumn` property
+2. **Customize colors** - Set custom colors for each column in Settings, or use automatic palette-based colors
+3. **Reorder columns** - Drag column headers to rearrange their order (colors stay with column names)
+4. **Card management** - Root-level pages appear as cards on the main board
+5. **Board density** - Switch between normal and compact layouts for different information density
+6. **List view** - Alternative list view with sortable columns (Title, Column, Due Date, Created)
 
 ### Tags & Filtering
 
@@ -272,9 +291,9 @@ my-kanban/
 
 - [x] Core page CRUD operations
 - [x] Markdown parsing with frontmatter
-- [x] Kanban board view
-- [x] Tag system
-- [x] File system integration
+- [x] Kanban board view with drag-and-drop column reordering
+- [x] Tag system with color-coded filtering
+- [x] File system integration (Browser + Tauri)
 - [x] Dark/light theme toggle
 - [x] Slash commands with full customization
 - [x] Settings page for command management
@@ -286,14 +305,22 @@ my-kanban/
 - [x] Mermaid diagram rendering with click-to-zoom
 - [x] Find in page (`Cmd/Ctrl+F`) with overlay highlighting
 - [x] Font customization (editor, preview, UI fonts and sizes)
+- [x] Heading color customization (H1-H4)
 - [x] Desktop zoom controls (`Cmd+=/Cmd+-/Cmd+0`)
-- [ ] Drag-and-drop for kanban cards
-- [ ] Due date tracking
-- [ ] Google Calendar sync
-- [ ] Advanced filtering UI
+- [x] Hierarchical sub-pages with parent-child relationships
+- [x] Sidebar expand/collapse for nested pages
+- [x] Column color customization with stable color assignment
+- [x] Board density settings (normal/compact)
+- [x] List view with sortable columns
+- [ ] Drag-and-drop for kanban cards (between columns)
+- [ ] Due date tracking and reminders
+- [ ] Calendar integration
+- [ ] Advanced filtering UI (multiple filters, date ranges)
 - [ ] Rich text editor mode
 - [ ] Export to PDF
 - [ ] Mobile responsive design
+- [ ] Batch operations (multi-select pages)
+- [ ] Page templates
 
 ## Contributing
 

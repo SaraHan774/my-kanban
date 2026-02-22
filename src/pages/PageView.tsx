@@ -2,18 +2,24 @@ import { useEffect, useState, useRef, useCallback } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { useStore } from '@/store/useStore';
 import { pageService, markdownService, resolveImagesInHtml, clearImageCache } from '@/services';
-import { Page } from '@/types';
+import { Page, Highlight, Memo } from '@/types';
 import { PageEditor } from '@/components/PageEditor';
 import { FindBar } from '@/components/FindBar';
+import { ConfirmModal } from '@/components/ConfirmModal';
+import { HighlightPalette } from '@/components/HighlightPalette';
+import { HighlightHoverMenu } from '@/components/HighlightHoverMenu';
+import { MemoPanel } from '@/components/MemoPanel';
+import { Terminal } from '@/components/Terminal';
 import { useMermaid } from '@/hooks/useMermaid';
 import { convertWikiLinksToMarkdown } from '@/utils/wikiLinks';
 import { openExternalUrl } from '@/lib/openExternal';
+import { getHighlightColor, getUnderlineColor } from '@/utils/colorAdjust';
 import './PageView.css';
 
 export function PageView() {
   const { pageId } = useParams<{ pageId: string }>();
   const navigate = useNavigate();
-  const { pages, removePage, updatePageInStore, columnColors } = useStore();
+  const { pages, removePage, updatePageInStore, columnColors, showToast, highlightColors, config } = useStore();
   const [page, setPage] = useState<Page | null>(null);
   const [htmlContent, setHtmlContent] = useState<string>('');
   const [loading, setLoading] = useState(true);
@@ -22,6 +28,26 @@ export function PageView() {
   const [showFindBar, setShowFindBar] = useState(false);
   const [zoomedDiagram, setZoomedDiagram] = useState<string | null>(null);
   const [showScrollTop, setShowScrollTop] = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [showHighlightPalette, setShowHighlightPalette] = useState(false);
+  const [palettePosition, setPalettePosition] = useState({ top: 0, left: 0 });
+  const [highlightsVisible, setHighlightsVisible] = useState(true);
+  const selectedRangeRef = useRef<Range | null>(null);
+  const [showHoverMenu, setShowHoverMenu] = useState(false);
+  const [hoverMenuPosition, setHoverMenuPosition] = useState({ top: 0, left: 0 });
+  const [hoveredHighlightId, setHoveredHighlightId] = useState<string | null>(null);
+  const isMouseOverMenuRef = useRef(false);
+  const closeMenuTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const mousePositionRef = useRef({ x: 0, y: 0 });
+  const [showTerminal, setShowTerminal] = useState(false);
+  const [showPageMenu, setShowPageMenu] = useState(false);
+  const pageMenuRef = useRef<HTMLDivElement>(null);
+  const [memoMode, setMemoMode] = useState(false);
+  const [memoPanelWidth, setMemoPanelWidth] = useState(500); // Default 500px
+  const isResizingRef = useRef(false);
+  const resizeStartXRef = useRef(0);
+  const resizeStartWidthRef = useRef(0);
+  const [themeVersion, setThemeVersion] = useState(0); // Track theme changes for highlight re-rendering
 
   // Render mermaid diagrams after HTML content updates
   useMermaid(contentRef, htmlContent);
@@ -35,6 +61,8 @@ export function PageView() {
     if (pageId) {
       loadPage(pageId);
       setEditing(false);
+      // Reset scroll position to top when navigating to a new page
+      window.scrollTo(0, 0);
     }
   }, [pageId]);
 
@@ -56,6 +84,8 @@ export function PageView() {
         const contentWithLinks = convertWikiLinksToMarkdown(fullPage.content, pages);
         let html = await markdownService.toHtml(contentWithLinks);
         html = await resolveImagesInHtml(html, fullPage.path);
+        // Apply highlights
+        html = applyHighlightsToHtml(html, fullPage.highlights || []);
         setHtmlContent(html);
       }
     } catch (error) {
@@ -85,6 +115,7 @@ export function PageView() {
     const contentWithLinks = convertWikiLinksToMarkdown(newContent, pages);
     let html = await markdownService.toHtml(contentWithLinks);
     html = await resolveImagesInHtml(html, page.path);
+    html = applyHighlightsToHtml(html, page.highlights || []);
     setHtmlContent(html);
 
     try {
@@ -92,7 +123,7 @@ export function PageView() {
     } catch (err) {
       console.error('Failed to save checkbox state:', err);
     }
-  }, [page, updatePageInStore]);
+  }, [page, updatePageInStore, pages]);
 
   // Attach click handlers to internal links for SPA navigation
   useEffect(() => {
@@ -202,15 +233,412 @@ export function PageView() {
     };
   }, [htmlContent]);
 
-  const handleDelete = async () => {
+  const handleDelete = () => {
+    setShowDeleteConfirm(true);
+  };
+
+  const confirmDelete = async () => {
     if (!page) return;
-    if (!window.confirm(`Delete "${page.title}"? This will also delete all sub-pages.`)) return;
+    const pageTitle = page.title;
+    setShowDeleteConfirm(false);
+
     try {
       await pageService.deletePage(page.path);
       removePage(page.id);
-      navigate('/');
+
+      // Show success toast (will persist after navigation)
+      showToast(`"${pageTitle}" deleted successfully`, 'success');
+
+      // Navigate to home after a brief delay (replace history since page no longer exists)
+      setTimeout(() => {
+        navigate('/', { replace: true });
+      }, 300);
     } catch (error) {
       console.error('Failed to delete page:', error);
+      showToast('Failed to delete page. Please try again.', 'error');
+    }
+  };
+
+  // Highlight functionality uses colors from store
+
+  const handleTextSelection = useCallback(() => {
+    if (editing) return; // Don't show palette in edit mode
+
+    const selection = window.getSelection();
+    if (!selection || selection.isCollapsed || selection.rangeCount === 0) {
+      setShowHighlightPalette(false);
+      return;
+    }
+
+    const range = selection.getRangeAt(0);
+    const selectedText = selection.toString().trim();
+
+    // Ignore selections shorter than 2 characters
+    if (selectedText.length < 2) {
+      setShowHighlightPalette(false);
+      return;
+    }
+
+    // Check if selection is within the content area
+    const contentEl = contentRef.current;
+    if (!contentEl || !contentEl.contains(range.commonAncestorContainer)) {
+      setShowHighlightPalette(false);
+      return;
+    }
+
+    // Store the range for later use
+    selectedRangeRef.current = range.cloneRange();
+
+    // Calculate palette position based on selected text position
+    // Similar to hover menu positioning
+    const rect = range.getBoundingClientRect();
+    setPalettePosition({
+      top: rect.top + window.scrollY - 55, // 55px above the selection
+      left: rect.left + rect.width / 2 - 150, // Center palette horizontally on selection
+    });
+
+    setShowHighlightPalette(true);
+  }, [editing]);
+
+  const applyHighlight = useCallback(async (color: string, style: 'highlight' | 'underline') => {
+    if (!page || !selectedRangeRef.current) return;
+
+    const selection = window.getSelection();
+    const rawText = selection?.toString() || '';
+    if (!rawText) return;
+
+    const range = selectedRangeRef.current;
+
+    // Calculate text offset in the plain content
+    const contentEl = contentRef.current;
+    if (!contentEl) return;
+
+    const plainText = contentEl.textContent || '';
+    const beforeRange = document.createRange();
+    beforeRange.setStart(contentEl, 0);
+    beforeRange.setEnd(range.startContainer, range.startOffset);
+    const rawStartOffset = beforeRange.toString().length;
+
+    // Trim the text and adjust offsets accordingly
+    const trimmedText = rawText.trim();
+    const leadingSpaces = rawText.length - rawText.trimStart().length;
+    const startOffset = rawStartOffset + leadingSpaces;
+    const endOffset = startOffset + trimmedText.length;
+
+    // Get context
+    const contextBefore = plainText.substring(Math.max(0, startOffset - 20), startOffset);
+    const contextAfter = plainText.substring(endOffset, Math.min(plainText.length, endOffset + 20));
+
+    const highlight: Highlight = {
+      id: crypto.randomUUID(),
+      text: trimmedText,
+      color,
+      style,
+      startOffset,
+      endOffset,
+      contextBefore,
+      contextAfter,
+      createdAt: new Date().toISOString(),
+    };
+
+    const updatedHighlights = [...(page.highlights || []), highlight];
+
+    // If memo mode is active, create a linked memo
+    let updatedMemos = page.memos || [];
+    if (memoMode) {
+      const linkedMemo: Memo = {
+        id: crypto.randomUUID(),
+        type: 'linked',
+        note: '',
+        highlightId: highlight.id,
+        highlightText: trimmedText,
+        highlightColor: color,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+        order: updatedMemos.length,
+      };
+      updatedMemos = [...updatedMemos, linkedMemo];
+    }
+
+    const updatedPage = {
+      ...page,
+      highlights: updatedHighlights,
+      memos: updatedMemos,
+      updatedAt: new Date().toISOString(),
+    };
+
+    setPage(updatedPage);
+    updatePageInStore(updatedPage);
+
+    // Re-render with new highlights
+    const contentWithLinks = convertWikiLinksToMarkdown(page.content, pages);
+    let html = await markdownService.toHtml(contentWithLinks);
+    html = await resolveImagesInHtml(html, page.path);
+    html = applyHighlightsToHtml(html, updatedHighlights);
+    setHtmlContent(html);
+
+    try {
+      await pageService.updatePage(updatedPage);
+    } catch (err) {
+      console.error('Failed to save highlight:', err);
+      showToast('Failed to save highlight', 'error');
+    }
+
+    // Clear selection
+    selection?.removeAllRanges();
+    setShowHighlightPalette(false);
+  }, [page, pages, updatePageInStore, showToast, memoMode]);
+
+  const handleChangeHighlightColor = useCallback(async (highlightId: string, newColor: string) => {
+    if (!page) return;
+
+    const updatedHighlights = (page.highlights || []).map(h =>
+      h.id === highlightId ? { ...h, color: newColor } : h
+    );
+
+    const updatedPage = {
+      ...page,
+      highlights: updatedHighlights,
+      updatedAt: new Date().toISOString(),
+    };
+
+    setPage(updatedPage);
+    updatePageInStore(updatedPage);
+
+    // Re-render with updated highlights
+    const contentWithLinks = convertWikiLinksToMarkdown(page.content, pages);
+    let html = await markdownService.toHtml(contentWithLinks);
+    html = await resolveImagesInHtml(html, page.path);
+    html = applyHighlightsToHtml(html, updatedHighlights);
+    setHtmlContent(html);
+
+    try {
+      await pageService.updatePage(updatedPage);
+    } catch (err) {
+      console.error('Failed to update highlight:', err);
+      showToast('Failed to update highlight', 'error');
+    }
+
+    setShowHoverMenu(false);
+  }, [page, pages, updatePageInStore, showToast]);
+
+  const handleDeleteHighlight = useCallback(async (highlightId: string) => {
+    if (!page) return;
+
+    const updatedHighlights = (page.highlights || []).filter(h => h.id !== highlightId);
+    // Also delete any linked memos
+    const updatedMemos = (page.memos || []).filter(m => m.highlightId !== highlightId);
+
+    const updatedPage = {
+      ...page,
+      highlights: updatedHighlights,
+      memos: updatedMemos,
+      updatedAt: new Date().toISOString(),
+    };
+
+    setPage(updatedPage);
+    updatePageInStore(updatedPage);
+
+    // Re-render without deleted highlight
+    const contentWithLinks = convertWikiLinksToMarkdown(page.content, pages);
+    let html = await markdownService.toHtml(contentWithLinks);
+    html = await resolveImagesInHtml(html, page.path);
+    html = applyHighlightsToHtml(html, updatedHighlights);
+    setHtmlContent(html);
+
+    try {
+      await pageService.updatePage(updatedPage);
+    } catch (err) {
+      console.error('Failed to delete highlight:', err);
+      showToast('Failed to delete highlight', 'error');
+    }
+
+    setShowHoverMenu(false);
+  }, [page, pages, updatePageInStore, showToast]);
+
+  // Memo CRUD operations
+  const handleCreateMemo = useCallback(async () => {
+    if (!page) return;
+
+    const newMemo: Memo = {
+      id: crypto.randomUUID(),
+      type: 'independent',
+      note: '',
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+      order: (page.memos || []).length,
+    };
+
+    const updatedMemos = [...(page.memos || []), newMemo];
+    const updatedPage = {
+      ...page,
+      memos: updatedMemos,
+      updatedAt: new Date().toISOString(),
+    };
+
+    setPage(updatedPage);
+    updatePageInStore(updatedPage);
+
+    try {
+      await pageService.updatePage(updatedPage);
+    } catch (err) {
+      console.error('Failed to save memo:', err);
+      showToast('Failed to save memo', 'error');
+    }
+  }, [page, updatePageInStore, showToast]);
+
+  const handleUpdateMemo = useCallback(async (memoId: string, note: string) => {
+    if (!page) return;
+
+    const updatedMemos = (page.memos || []).map(m =>
+      m.id === memoId ? { ...m, note, updatedAt: new Date().toISOString() } : m
+    );
+
+    const updatedPage = {
+      ...page,
+      memos: updatedMemos,
+      updatedAt: new Date().toISOString(),
+    };
+
+    setPage(updatedPage);
+    updatePageInStore(updatedPage);
+
+    try {
+      await pageService.updatePage(updatedPage);
+    } catch (err) {
+      console.error('Failed to update memo:', err);
+      showToast('Failed to update memo', 'error');
+    }
+  }, [page, updatePageInStore, showToast]);
+
+  const handleDeleteMemo = useCallback(async (memoId: string) => {
+    if (!page) return;
+
+    const updatedMemos = (page.memos || []).filter(m => m.id !== memoId);
+
+    const updatedPage = {
+      ...page,
+      memos: updatedMemos,
+      updatedAt: new Date().toISOString(),
+    };
+
+    setPage(updatedPage);
+    updatePageInStore(updatedPage);
+
+    try {
+      await pageService.updatePage(updatedPage);
+    } catch (err) {
+      console.error('Failed to delete memo:', err);
+      showToast('Failed to delete memo', 'error');
+    }
+  }, [page, updatePageInStore, showToast]);
+
+  const handleScrollToHighlight = useCallback((highlightId: string) => {
+    const contentEl = contentRef.current;
+    if (!contentEl) return;
+
+    const mark = contentEl.querySelector(`mark[data-highlight-id="${highlightId}"]`);
+    if (mark) {
+      mark.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      // Flash animation
+      mark.classList.add('highlight-flash');
+      setTimeout(() => mark.classList.remove('highlight-flash'), 1000);
+    }
+  }, []);
+
+  const applyHighlightsToHtml = (html: string, highlights: Highlight[]): string => {
+    if (!highlights || highlights.length === 0 || !highlightsVisible) return html;
+
+    // Create a temporary div to parse HTML
+    const tempDiv = document.createElement('div');
+    tempDiv.innerHTML = html;
+
+    // Sort highlights by offset (reverse order to avoid offset shifting)
+    const sorted = [...highlights].sort((a, b) => b.startOffset - a.startOffset);
+
+    sorted.forEach(h => {
+      const walker = document.createTreeWalker(
+        tempDiv,
+        NodeFilter.SHOW_TEXT,
+        null
+      );
+
+      let textNode;
+      let currentOffset = 0;
+      const nodesToProcess: Array<{ node: Node; start: number; end: number }> = [];
+
+      // First pass: collect all text nodes that overlap with this highlight
+      while (textNode = walker.nextNode()) {
+        const textContent = textNode.textContent || '';
+        const nodeStart = currentOffset;
+        const nodeEnd = currentOffset + textContent.length;
+
+        // Check if this text node overlaps with the highlight range
+        if (nodeStart < h.endOffset && nodeEnd > h.startOffset) {
+          nodesToProcess.push({ node: textNode, start: nodeStart, end: nodeEnd });
+        }
+
+        currentOffset = nodeEnd;
+      }
+
+      // Second pass: apply highlights to collected nodes
+      nodesToProcess.forEach(({ node, start: nodeStart, end: _nodeEnd }) => {
+        const textContent = node.textContent || '';
+
+        // Calculate which part of this text node should be highlighted
+        const highlightStart = Math.max(0, h.startOffset - nodeStart);
+        const highlightEnd = Math.min(textContent.length, h.endOffset - nodeStart);
+
+        const before = textContent.substring(0, highlightStart);
+        const highlighted = textContent.substring(highlightStart, highlightEnd);
+        const after = textContent.substring(highlightEnd);
+
+        // Skip if highlighted portion is only whitespace
+        if (highlighted.trim().length === 0) {
+          return;
+        }
+
+        const mark = document.createElement('mark');
+        mark.className = `highlight highlight-${h.style}`;
+        // Apply dark mode adjusted colors
+        mark.style.backgroundColor = h.style === 'highlight' ? getHighlightColor(h.color) : 'transparent';
+        mark.style.borderBottom = h.style === 'underline' ? `3px solid ${getUnderlineColor(h.color)}` : 'none';
+        mark.setAttribute('data-highlight-id', h.id);
+        mark.textContent = highlighted;
+
+        const fragment = document.createDocumentFragment();
+        if (before) fragment.appendChild(document.createTextNode(before));
+        fragment.appendChild(mark);
+        if (after) fragment.appendChild(document.createTextNode(after));
+
+        node.parentNode?.replaceChild(fragment, node);
+      });
+    });
+
+    return tempDiv.innerHTML;
+  };
+
+  const handleCopyLink = async () => {
+    if (!page) return;
+
+    // Use ID-based link format: [[page-id|Page Title]]
+    // This is safe from file name changes since ID never changes
+    const linkText = `[[${page.id}|${page.title}]]`;
+
+    try {
+      await navigator.clipboard.writeText(linkText);
+      // Show a temporary toast/notification
+      const btn = document.querySelector('.copy-link-btn');
+      if (btn) {
+        const originalText = btn.textContent;
+        btn.textContent = '✓ Copied!';
+        setTimeout(() => {
+          btn.textContent = originalText;
+        }, 2000);
+      }
+    } catch (error) {
+      console.error('Failed to copy link:', error);
+      alert('Failed to copy link to clipboard');
     }
   };
 
@@ -228,6 +656,13 @@ export function PageView() {
       if ((e.metaKey || e.ctrlKey) && e.key === 'f' && !editing) {
         e.preventDefault();
         setShowFindBar(prev => !prev);
+        return;
+      }
+
+      // Cmd+M for memo mode toggle
+      if ((e.metaKey || e.ctrlKey) && e.key === 'm' && !editing) {
+        e.preventDefault();
+        setMemoMode(prev => !prev);
         return;
       }
 
@@ -254,7 +689,7 @@ export function PageView() {
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [editing]);
+  }, [editing, memoMode]);
 
   // Track scroll position to show/hide scroll to top button
   useEffect(() => {
@@ -266,6 +701,191 @@ export function PageView() {
     window.addEventListener('scroll', handleScroll);
     return () => window.removeEventListener('scroll', handleScroll);
   }, []);
+
+  // Close page menu on click outside
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (pageMenuRef.current && !pageMenuRef.current.contains(e.target as Node)) {
+        setShowPageMenu(false);
+      }
+    };
+
+    if (showPageMenu) {
+      document.addEventListener('mousedown', handleClickOutside);
+    }
+
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [showPageMenu]);
+
+  // Track mouse position for palette positioning
+  useEffect(() => {
+    const handleMouseMove = (e: MouseEvent) => {
+      mousePositionRef.current = { x: e.clientX, y: e.clientY };
+    };
+
+    document.addEventListener('mousemove', handleMouseMove);
+    return () => document.removeEventListener('mousemove', handleMouseMove);
+  }, []);
+
+  // Handle text selection for highlighting
+  useEffect(() => {
+    const handleMouseUp = () => {
+      // Small delay to allow selection to complete
+      setTimeout(handleTextSelection, 50);
+    };
+
+    document.addEventListener('mouseup', handleMouseUp);
+    return () => document.removeEventListener('mouseup', handleMouseUp);
+  }, [handleTextSelection]);
+
+  // Attach hover handlers to highlight marks
+  useEffect(() => {
+    const container = contentRef.current;
+    if (!container || editing || !highlightsVisible) return;
+
+    const marks = container.querySelectorAll<HTMLElement>('mark.highlight[data-highlight-id]');
+    const handlers: Array<{ enter: (e: MouseEvent) => void; leave: (e: MouseEvent) => void }> = [];
+
+    marks.forEach((mark) => {
+      const handleMouseEnter = (_e: MouseEvent) => {
+        // Clear any pending close timeout
+        if (closeMenuTimeoutRef.current) {
+          clearTimeout(closeMenuTimeoutRef.current);
+          closeMenuTimeoutRef.current = null;
+        }
+
+        const highlightId = mark.getAttribute('data-highlight-id');
+        if (!highlightId) return;
+
+        // Only reposition if this is a different highlight
+        // This prevents menu from jumping when hovering over different parts of a multi-line highlight
+        const isDifferentHighlight = hoveredHighlightId !== highlightId;
+
+        if (isDifferentHighlight) {
+          // For multi-line highlights, position based on the hovered mark element
+          // This ensures the menu appears close to the actual highlighted text
+          const rect = mark.getBoundingClientRect();
+
+          setHoverMenuPosition({
+            top: rect.top + window.scrollY - 45, // 45px above the hovered line
+            left: mousePositionRef.current.x - 100, // Horizontally centered on cursor
+          });
+        }
+
+        setHoveredHighlightId(highlightId);
+        setShowHoverMenu(true);
+      };
+
+      const handleMouseLeave = (_e: MouseEvent) => {
+        // Delay closing to allow mouse to move to menu
+        closeMenuTimeoutRef.current = setTimeout(() => {
+          if (!isMouseOverMenuRef.current) {
+            setShowHoverMenu(false);
+            setHoveredHighlightId(null);
+          }
+        }, 100);
+      };
+
+      mark.addEventListener('mouseenter', handleMouseEnter);
+      mark.addEventListener('mouseleave', handleMouseLeave);
+      handlers.push({ enter: handleMouseEnter, leave: handleMouseLeave });
+    });
+
+    return () => {
+      marks.forEach((mark, index) => {
+        mark.removeEventListener('mouseenter', handlers[index].enter);
+        mark.removeEventListener('mouseleave', handlers[index].leave);
+      });
+      // Clear timeout on cleanup
+      if (closeMenuTimeoutRef.current) {
+        clearTimeout(closeMenuTimeoutRef.current);
+      }
+    };
+  }, [htmlContent, editing, highlightsVisible]);
+
+  // Listen for theme changes to re-render highlights with adjusted colors
+  useEffect(() => {
+    const handleThemeChange = () => {
+      setThemeVersion(v => v + 1);
+    };
+
+    // Listen for data-theme attribute changes
+    const observer = new MutationObserver((mutations) => {
+      mutations.forEach((mutation) => {
+        if (mutation.type === 'attributes' && mutation.attributeName === 'data-theme') {
+          handleThemeChange();
+        }
+      });
+    });
+
+    observer.observe(document.documentElement, { attributes: true });
+
+    // Listen for system color scheme changes
+    const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
+    const mediaQueryListener = () => handleThemeChange();
+    mediaQuery.addEventListener('change', mediaQueryListener);
+
+    return () => {
+      observer.disconnect();
+      mediaQuery.removeEventListener('change', mediaQueryListener);
+    };
+  }, []);
+
+  // Re-render when highlights visibility or theme changes
+  useEffect(() => {
+    if (!page) return;
+
+    const reRender = async () => {
+      const contentWithLinks = convertWikiLinksToMarkdown(page.content, pages);
+      let html = await markdownService.toHtml(contentWithLinks);
+      html = await resolveImagesInHtml(html, page.path);
+      html = applyHighlightsToHtml(html, page.highlights || []);
+      setHtmlContent(html);
+    };
+
+    reRender();
+  }, [highlightsVisible, page, pages, themeVersion]);
+
+  // Memo panel resize handlers
+  const handleResizeStart = useCallback((e: React.MouseEvent) => {
+    isResizingRef.current = true;
+    resizeStartXRef.current = e.clientX;
+    resizeStartWidthRef.current = memoPanelWidth;
+    e.preventDefault();
+  }, [memoPanelWidth]);
+
+  useEffect(() => {
+    const handleMouseMove = (e: MouseEvent) => {
+      if (!isResizingRef.current) return;
+
+      const deltaX = resizeStartXRef.current - e.clientX;
+      const newWidth = resizeStartWidthRef.current + deltaX;
+
+      // Get viewport width to calculate max width (50%)
+      const maxWidth = window.innerWidth * 0.5;
+      const minWidth = 500;
+
+      // Constrain width between min and max
+      const constrainedWidth = Math.min(Math.max(newWidth, minWidth), maxWidth);
+      setMemoPanelWidth(constrainedWidth);
+    };
+
+    const handleMouseUp = () => {
+      isResizingRef.current = false;
+    };
+
+    if (memoMode) {
+      document.addEventListener('mousemove', handleMouseMove);
+      document.addEventListener('mouseup', handleMouseUp);
+    }
+
+    return () => {
+      document.removeEventListener('mousemove', handleMouseMove);
+      document.removeEventListener('mouseup', handleMouseUp);
+    };
+  }, [memoMode]);
 
   const scrollToTop = () => {
     window.scrollTo({
@@ -304,7 +924,8 @@ export function PageView() {
 
   return (
     <>
-      <div className="page-view">
+      <div className={`page-view-container ${showTerminal ? 'with-terminal' : ''}`}>
+        <div className="page-view">
         <div className="page-header">
         <div className="page-header-top">
           <button className="btn-icon" onClick={() => navigate(-1)} title="Go back">
@@ -313,11 +934,77 @@ export function PageView() {
           <h1>{page.title}</h1>
           <div className="page-actions">
             <button className="btn btn-secondary" onClick={() => setEditing(true)}>
+              <span className="material-symbols-outlined">edit</span>
               Edit
             </button>
-            <button className="btn btn-danger" onClick={handleDelete}>
-              Delete
-            </button>
+            <div className="page-menu-container" ref={pageMenuRef}>
+              <button
+                className="btn btn-secondary btn-icon"
+                onClick={() => setShowPageMenu(!showPageMenu)}
+                title="More options"
+              >
+                <span className="material-symbols-outlined">more_vert</span>
+              </button>
+              {showPageMenu && (
+                <div className="page-menu-dropdown">
+                  <button
+                    className="page-menu-item"
+                    onClick={() => {
+                      handleCopyLink();
+                      setShowPageMenu(false);
+                    }}
+                  >
+                    <span className="material-symbols-outlined">link</span>
+                    Copy Link
+                  </button>
+                  <button
+                    className="page-menu-item"
+                    onClick={() => {
+                      setMemoMode(!memoMode);
+                      setShowPageMenu(false);
+                    }}
+                  >
+                    <span className="material-symbols-outlined">
+                      {memoMode ? 'close' : 'sticky_note_2'}
+                    </span>
+                    {memoMode ? 'Exit Memo Mode' : 'Memo Mode'}
+                  </button>
+                  <button
+                    className="page-menu-item"
+                    onClick={() => {
+                      setHighlightsVisible(!highlightsVisible);
+                      setShowPageMenu(false);
+                    }}
+                  >
+                    <span className="material-symbols-outlined">
+                      {highlightsVisible ? 'visibility_off' : 'visibility'}
+                    </span>
+                    {highlightsVisible ? 'Hide Highlights' : 'Show Highlights'}
+                  </button>
+                  <button
+                    className="page-menu-item"
+                    onClick={() => {
+                      setShowTerminal(!showTerminal);
+                      setShowPageMenu(false);
+                    }}
+                  >
+                    <span className="material-symbols-outlined">terminal</span>
+                    {showTerminal ? 'Hide Terminal' : 'Show Terminal'}
+                  </button>
+                  <div className="page-menu-divider"></div>
+                  <button
+                    className="page-menu-item page-menu-item-danger"
+                    onClick={() => {
+                      setShowPageMenu(false);
+                      handleDelete();
+                    }}
+                  >
+                    <span className="material-symbols-outlined">delete</span>
+                    Delete Page
+                  </button>
+                </div>
+              )}
+            </div>
           </div>
         </div>
         <div className="page-meta">
@@ -343,40 +1030,65 @@ export function PageView() {
         </div>
       </div>
 
-      <div className="document-view">
-        {showFindBar && (
-          <FindBar
-            content={page.content}
-            contentRef={contentRef}
-            onClose={() => setShowFindBar(false)}
+      <div className={`page-content-layout ${memoMode ? 'memo-mode-active' : ''}`}>
+        <div className="document-view">
+          {showFindBar && (
+            <FindBar
+              content={page.content}
+              contentRef={contentRef}
+              onClose={() => setShowFindBar(false)}
+            />
+          )}
+          <div
+            ref={contentRef}
+            className="markdown-content"
+            dangerouslySetInnerHTML={{ __html: htmlContent }}
           />
-        )}
-        <div
-          ref={contentRef}
-          className="markdown-content"
-          dangerouslySetInnerHTML={{ __html: htmlContent }}
-        />
-      </div>
 
-        {page.children && page.children.length > 0 && (
-          <div className="sub-pages">
-            <h2>Sub-pages</h2>
-            <div className="sub-pages-list">
-              {page.children.map(child => (
-                <Link key={child.id} to={`/page/${child.id}`} className="sub-page-card">
-                  <h3>{child.title}</h3>
-                  {child.tags.length > 0 && (
-                    <div className="tags">
-                      {child.tags.map(tag => (
-                        <span key={tag} className="tag-small">{tag}</span>
-                      ))}
-                    </div>
-                  )}
-                </Link>
-              ))}
+          {page.children && page.children.length > 0 && (
+            <div className="sub-pages">
+              <h2>Sub-pages</h2>
+              <div className="sub-pages-list">
+                {page.children.map(child => (
+                  <Link key={child.id} to={`/page/${child.id}`} className="sub-page-card">
+                    <h3>{child.title}</h3>
+                    {child.tags.length > 0 && (
+                      <div className="tags">
+                        {child.tags.map(tag => (
+                          <span key={tag} className="tag-small">{tag}</span>
+                        ))}
+                      </div>
+                    )}
+                  </Link>
+                ))}
+              </div>
             </div>
-          </div>
+          )}
+        </div>
+
+        {memoMode && (
+          <>
+            <div
+              className="memo-resize-handle"
+              onMouseDown={handleResizeStart}
+            />
+            <div
+              className="memo-panel-wrapper"
+              style={{ width: `${memoPanelWidth}px` }}
+            >
+              <MemoPanel
+                memos={page.memos || []}
+                onCreateMemo={handleCreateMemo}
+                onUpdateMemo={handleUpdateMemo}
+                onDeleteMemo={handleDeleteMemo}
+                onScrollToHighlight={handleScrollToHighlight}
+              />
+            </div>
+          </>
         )}
+      </div>
+      </div>
+      {showTerminal && <Terminal workspacePath={config.workspacePath} />}
       </div>
 
       {/* Mermaid diagram zoom modal */}
@@ -402,6 +1114,61 @@ export function PageView() {
           <span className="material-symbols-outlined">arrow_upward</span>
         </button>
       )}
+
+      {/* Highlight palette */}
+      {showHighlightPalette && (
+        <HighlightPalette
+          position={palettePosition}
+          colors={highlightColors}
+          onHighlight={applyHighlight}
+          onClose={() => setShowHighlightPalette(false)}
+        />
+      )}
+
+      {/* Highlight hover menu */}
+      {showHoverMenu && hoveredHighlightId && page && (
+        <div
+          onMouseEnter={() => {
+            isMouseOverMenuRef.current = true;
+            if (closeMenuTimeoutRef.current) {
+              clearTimeout(closeMenuTimeoutRef.current);
+              closeMenuTimeoutRef.current = null;
+            }
+          }}
+          onMouseLeave={() => {
+            isMouseOverMenuRef.current = false;
+            closeMenuTimeoutRef.current = setTimeout(() => {
+              setShowHoverMenu(false);
+              setHoveredHighlightId(null);
+            }, 100);
+          }}
+        >
+          <HighlightHoverMenu
+            highlightId={hoveredHighlightId}
+            currentColor={page.highlights?.find(h => h.id === hoveredHighlightId)?.color || highlightColors[0]}
+            colors={highlightColors}
+            position={hoverMenuPosition}
+            onChangeColor={handleChangeHighlightColor}
+            onDelete={handleDeleteHighlight}
+            onClose={() => {
+              setShowHoverMenu(false);
+              setHoveredHighlightId(null);
+            }}
+          />
+        </div>
+      )}
+
+      {/* Delete confirmation modal */}
+      <ConfirmModal
+        isOpen={showDeleteConfirm}
+        title="Delete Page"
+        message={`Are you sure you want to delete "${page?.title}"? This will also delete all sub-pages. This action cannot be undone.`}
+        confirmLabel="Delete"
+        cancelLabel="Cancel"
+        onConfirm={confirmDelete}
+        onCancel={() => setShowDeleteConfirm(false)}
+        danger={true}
+      />
     </>
   );
 }

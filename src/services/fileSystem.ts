@@ -345,6 +345,7 @@ export class FileSystemService implements IFileSystemService {
 
   /**
    * Recursively scan a directory and return all page paths
+   * NEW: Scans for .md files instead of directories with index.md
    * @param path - Directory path to scan
    */
   async scanPages(path: string = 'workspace'): Promise<string[]> {
@@ -356,13 +357,12 @@ export class FileSystemService implements IFileSystemService {
       for (const entry of entries) {
         const fullPath = dirPath ? `${dirPath}/${entry.name}` : entry.name;
 
-        if (entry.kind === 'directory') {
+        if (entry.kind === 'file' && entry.name.endsWith('.md')) {
+          // Add markdown files as pages
+          pagePaths.push(fullPath);
+        } else if (entry.kind === 'directory') {
+          // Skip .images directory
           if (entry.name === '.images') continue;
-          // Check if this directory has an index.md
-          const indexPath = `${fullPath}/index.md`;
-          if (await service.exists(indexPath)) {
-            pagePaths.push(fullPath);
-          }
           // Recursively scan subdirectories
           await scanDir(fullPath, service);
         }
@@ -371,6 +371,25 @@ export class FileSystemService implements IFileSystemService {
 
     await scanDir(path, this);
     return pagePaths;
+  }
+
+  /**
+   * Generate a unique file name if the target already exists
+   * e.g., "Page.md" → "Page 2.md" → "Page 3.md"
+   * @param basePath - Directory path (e.g., "workspace")
+   * @param fileName - Desired file name (e.g., "My Page.md")
+   */
+  async getUniqueFileName(basePath: string, fileName: string): Promise<string> {
+    const nameWithoutExt = fileName.replace(/\.md$/, '');
+    let counter = 1;
+    let candidateName = fileName;
+
+    while (await this.exists(`${basePath}/${candidateName}`)) {
+      counter++;
+      candidateName = `${nameWithoutExt} ${counter}.md`;
+    }
+
+    return candidateName;
   }
 }
 

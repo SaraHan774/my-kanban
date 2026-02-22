@@ -6,16 +6,15 @@
 import { Page, PageFrontmatter, FilterCriteria, SortOptions } from '@/types';
 import { fileSystemService } from './fileSystemFactory';
 import { markdownService } from './markdown';
-import { copyImagesDir } from './imageService';
 
 export class PageService {
   /**
    * Load a page from the file system
-   * @param path - Page path (e.g., "workspace/Project A")
+   * NEW: Path is now directly to .md file (e.g., "workspace/Project A.md")
+   * @param path - Page file path (e.g., "workspace/Project A.md")
    */
   async loadPage(path: string): Promise<Page> {
-    const indexPath = `${path}/index.md`;
-    const content = await fileSystemService.readFile(indexPath);
+    const content = await fileSystemService.readFile(path);
     const rawData = markdownService.parse(content, path);
 
     return {
@@ -27,39 +26,30 @@ export class PageService {
 
   /**
    * Load a page with its children
-   * @param path - Page path
+   * NEW: Children loaded by parentId instead of file path
+   * @param path - Page file path (e.g., "workspace/My Page.md")
    * @param recursive - Whether to load children recursively
    */
   async loadPageWithChildren(path: string, recursive: boolean = false): Promise<Page> {
     const page = await this.loadPage(path);
-    page.children = await this.loadChildren(path, recursive);
+    page.children = await this.loadChildren(page.id, recursive);
     return page;
   }
 
   /**
    * Load all children of a page
-   * @param parentPath - Parent page path
+   * NEW: Children are determined by parentId field, not file system structure
+   * @param parentId - Parent page ID
    * @param recursive - Whether to load children recursively
    */
-  async loadChildren(parentPath: string, recursive: boolean = false): Promise<Page[]> {
-    const entries = await fileSystemService.listDirectory(parentPath);
-    const children: Page[] = [];
+  async loadChildren(parentId: string, recursive: boolean = false): Promise<Page[]> {
+    const allPages = await this.getAllPages();
+    const children = allPages.filter(page => page.parentId === parentId);
 
-    for (const entry of entries) {
-      if (entry.kind === 'directory') {
-        if (entry.name === '.images') continue;
-        const childPath = `${parentPath}/${entry.name}`;
-        const indexPath = `${childPath}/index.md`;
-
-        if (await fileSystemService.exists(indexPath)) {
-          if (recursive) {
-            const child = await this.loadPageWithChildren(childPath, true);
-            children.push(child);
-          } else {
-            const child = await this.loadPage(childPath);
-            children.push(child);
-          }
-        }
+    if (recursive) {
+      // Load grandchildren for each child
+      for (const child of children) {
+        child.children = await this.loadChildren(child.id, true);
       }
     }
 
@@ -68,7 +58,8 @@ export class PageService {
 
   /**
    * Create a new page
-   * @param parentPath - Parent page path (or workspace root)
+   * NEW: Creates a single .md file instead of a directory with index.md
+   * @param parentPath - Parent directory path (e.g., "workspace")
    * @param title - Page title
    * @param options - Additional page options
    */
@@ -78,11 +69,12 @@ export class PageService {
     options: Partial<PageFrontmatter> = {}
   ): Promise<Page> {
     const now = new Date().toISOString();
-    const pageFolderName = this.sanitizeFolderName(title);
-    const pagePath = `${parentPath}/${pageFolderName}`;
+    const sanitizedFileName = this.sanitizeFileName(title);
+    const fileName = `${sanitizedFileName}.md`;
 
-    // Create the page directory
-    await fileSystemService.createDirectory(pagePath);
+    // Get unique file name to avoid conflicts
+    const uniqueFileName = await fileSystemService.getUniqueFileName(parentPath, fileName);
+    const pagePath = `${parentPath}/${uniqueFileName}`;
 
     // Create frontmatter
     const frontmatter: PageFrontmatter = {
@@ -95,11 +87,11 @@ export class PageService {
       ...options
     };
 
-    // Create the index.md file with empty content
+    // Create the .md file with empty content
     const content = '';
 
     const markdown = markdownService.serialize(frontmatter, content);
-    await fileSystemService.writeFile(`${pagePath}/index.md`, markdown);
+    await fileSystemService.writeFile(pagePath, markdown);
 
     return {
       ...frontmatter,
@@ -110,6 +102,7 @@ export class PageService {
 
   /**
    * Update a page
+   * NEW: Path is directly to .md file, no /index.md suffix needed
    * @param page - Page to update
    */
   async updatePage(page: Page): Promise<void> {
@@ -120,15 +113,18 @@ export class PageService {
       createdAt: page.createdAt,
       updatedAt: new Date().toISOString(),
       viewType: page.viewType,
+      ...(page.parentId && { parentId: page.parentId }),
       ...(page.dueDate && { dueDate: page.dueDate }),
       ...(page.kanbanColumn && { kanbanColumn: page.kanbanColumn }),
       ...(page.googleCalendarEventId && { googleCalendarEventId: page.googleCalendarEventId }),
       ...(page.pinned !== undefined && { pinned: page.pinned }),
-      ...(page.pinnedAt && { pinnedAt: page.pinnedAt })
+      ...(page.pinnedAt && { pinnedAt: page.pinnedAt }),
+      highlights: page.highlights || [],
+      memos: page.memos || []
     };
 
     const markdown = markdownService.serialize(frontmatter, page.content);
-    await fileSystemService.writeFile(`${page.path}/index.md`, markdown);
+    await fileSystemService.writeFile(page.path, markdown);
   }
 
   /**
@@ -140,23 +136,45 @@ export class PageService {
   }
 
   /**
-   * Move a page to a different parent
-   * @param sourcePath - Current page path
-   * @param targetParentPath - New parent path
+   * Move a page to a different directory
+   * NEW: Much simpler - just read, write to new location, and delete old
+   * @param sourcePath - Current page file path (e.g., "workspace/Old.md")
+   * @param targetParentPath - New parent directory (e.g., "workspace/subfolder")
    */
   async movePage(sourcePath: string, targetParentPath: string): Promise<string> {
-    // Load the page
-    const page = await this.loadPageWithChildren(sourcePath, true);
+    // Load the page content
+    const page = await this.loadPage(sourcePath);
 
-    // Create in new location
+    // Extract file name from source path
     const pathParts = sourcePath.split('/');
-    const folderName = pathParts[pathParts.length - 1];
-    const newPath = `${targetParentPath}/${folderName}`;
+    const fileName = pathParts[pathParts.length - 1];
 
-    // Recreate the page structure recursively
-    await this.recreatePage(page, newPath);
+    // Get unique file name in target directory
+    const uniqueFileName = await fileSystemService.getUniqueFileName(targetParentPath, fileName);
+    const newPath = `${targetParentPath}/${uniqueFileName}`;
 
-    // Delete the old location
+    // Write to new location
+    const frontmatter: PageFrontmatter = {
+      id: page.id,
+      title: page.title,
+      tags: page.tags,
+      createdAt: page.createdAt,
+      updatedAt: new Date().toISOString(),
+      viewType: page.viewType,
+      ...(page.parentId && { parentId: page.parentId }),
+      ...(page.dueDate && { dueDate: page.dueDate }),
+      ...(page.kanbanColumn && { kanbanColumn: page.kanbanColumn }),
+      ...(page.googleCalendarEventId && { googleCalendarEventId: page.googleCalendarEventId }),
+      ...(page.pinned !== undefined && { pinned: page.pinned }),
+      ...(page.pinnedAt && { pinnedAt: page.pinnedAt }),
+      highlights: page.highlights || [],
+      memos: page.memos || []
+    };
+
+    const markdown = markdownService.serialize(frontmatter, page.content);
+    await fileSystemService.writeFile(newPath, markdown);
+
+    // Delete the old file
     await this.deletePage(sourcePath);
 
     return newPath;
@@ -234,52 +252,16 @@ export class PageService {
   }
 
   /**
-   * Sanitize folder name (remove invalid characters)
+   * Sanitize file name (remove invalid characters)
    * @private
    */
-  private sanitizeFolderName(name: string): string {
+  private sanitizeFileName(name: string): string {
     return name
       .replace(/[<>:"/\\|?*]/g, '-')
       .replace(/\s+/g, ' ')
       .trim();
   }
 
-  /**
-   * Recursively recreate a page structure at a new location
-   * @private
-   */
-  private async recreatePage(page: Page, newPath: string): Promise<void> {
-    // Create directory
-    await fileSystemService.createDirectory(newPath);
-
-    // Write the page
-    const frontmatter: PageFrontmatter = {
-      id: page.id,
-      title: page.title,
-      tags: page.tags,
-      createdAt: page.createdAt,
-      updatedAt: page.updatedAt,
-      viewType: page.viewType,
-      ...(page.dueDate && { dueDate: page.dueDate }),
-      ...(page.kanbanColumn && { kanbanColumn: page.kanbanColumn }),
-      ...(page.googleCalendarEventId && { googleCalendarEventId: page.googleCalendarEventId })
-    };
-
-    const markdown = markdownService.serialize(frontmatter, page.content);
-    await fileSystemService.writeFile(`${newPath}/index.md`, markdown);
-
-    // Copy .images directory if it exists
-    await copyImagesDir(page.path, newPath);
-
-    // Recursively recreate children
-    if (page.children) {
-      for (const child of page.children) {
-        const childPathParts = child.path.split('/');
-        const childFolderName = childPathParts[childPathParts.length - 1];
-        await this.recreatePage(child, `${newPath}/${childFolderName}`);
-      }
-    }
-  }
 }
 
 // Singleton instance

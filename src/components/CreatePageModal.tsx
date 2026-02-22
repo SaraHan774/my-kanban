@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { useNavigate } from 'react-router-dom';
 import { useStore } from '@/store/useStore';
 import { pageService } from '@/services';
@@ -6,12 +7,16 @@ import './CreatePageModal.css';
 
 interface CreatePageModalProps {
   onClose: () => void;
-  parentPath?: string;
+  parentId?: string; // Parent page ID for creating subpages
 }
 
-export function CreatePageModal({ onClose, parentPath }: CreatePageModalProps) {
+export function CreatePageModal({ onClose, parentId }: CreatePageModalProps) {
   const navigate = useNavigate();
   const { addPage, pages, config, columnColors } = useStore();
+
+  // Find parent page to show context and inherit column
+  const parentPage = parentId ? pages.find(p => p.id === parentId) : null;
+
   const [title, setTitle] = useState(() => {
     const now = new Date();
     const y = now.getFullYear();
@@ -21,14 +26,16 @@ export function CreatePageModal({ onClose, parentPath }: CreatePageModalProps) {
     const min = String(now.getMinutes()).padStart(2, '0');
     return `${y}-${m}-${d} ${h}:${min}`;
   });
-  const [selectedColumn, setSelectedColumn] = useState('');
+
+  // Inherit parent's column if creating a subpage
+  const [selectedColumn, setSelectedColumn] = useState(
+    parentPage?.kanbanColumn || ''
+  );
   const [newColumnInput, setNewColumnInput] = useState('');
   const [showDropdown, setShowDropdown] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
   const dropdownRef = useRef<HTMLDivElement>(null);
-
-  const effectiveParentPath = parentPath || config.workspacePath;
 
   // Derive existing columns from all pages' kanbanColumn values (case-insensitive dedup)
   const existingColumns = Array.from(
@@ -78,15 +85,17 @@ export function CreatePageModal({ onClose, parentPath }: CreatePageModalProps) {
     setError('');
 
     try {
-      const page = await pageService.createPage(effectiveParentPath, title.trim(), {
+      // Always create pages at workspace root (single-file structure)
+      const page = await pageService.createPage(config.workspacePath, title.trim(), {
         viewType: 'document',
         kanbanColumn: selectedColumn || undefined,
         tags: selectedColumn ? [selectedColumn] : [],
+        parentId: parentId || undefined, // Set parent-child relationship via parentId
       });
 
       addPage(page);
       onClose();
-      navigate(`/page/${page.id}`);
+      navigate(`/page/${page.id}`, { replace: true });
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to create page');
     } finally {
@@ -94,11 +103,11 @@ export function CreatePageModal({ onClose, parentPath }: CreatePageModalProps) {
     }
   };
 
-  return (
+  return createPortal(
     <div className="modal-overlay" onClick={onClose}>
       <div className="modal" onClick={e => e.stopPropagation()}>
         <div className="modal-header">
-          <h2>New Page</h2>
+          <h2>{parentPage ? `New Sub-page under "${parentPage.title}"` : 'New Page'}</h2>
           <button className="btn-icon" onClick={onClose}>✕</button>
         </div>
 
@@ -190,7 +199,11 @@ export function CreatePageModal({ onClose, parentPath }: CreatePageModalProps) {
               )}
             </div>
             <span className="form-hint">
-              Select an existing column or create a new one. This determines where the page appears on the board.
+              {parentPage && parentPage.kanbanColumn ? (
+                <>Inherited from parent page: <strong>{parentPage.kanbanColumn}</strong>. You can change it if needed.</>
+              ) : (
+                <>Select an existing column or create a new one. This determines where the page appears on the board.</>
+              )}
             </span>
           </div>
 
@@ -206,6 +219,7 @@ export function CreatePageModal({ onClose, parentPath }: CreatePageModalProps) {
           </div>
         </form>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }

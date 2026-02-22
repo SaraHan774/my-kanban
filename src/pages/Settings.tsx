@@ -1,7 +1,8 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useStore } from '@/store/useStore';
 import { DEFAULT_FONT_SETTINGS, FontSettings } from '@/services/configService';
 import { AppSlashCommand } from '@/data/defaultSlashCommands';
+import { migrationService } from '@/services';
 import './Settings.css';
 
 const SANS_FONT_OPTIONS = [
@@ -44,6 +45,7 @@ export function Settings() {
     pages, columnColors, setColumnColor, removeColumnColor,
     fontSettings, setFontSettings,
     boardDensity, setBoardDensity,
+    highlightColors, setHighlightColors,
   } = useStore();
   const [editingId, setEditingId] = useState<string | null>(null);
   const [isAdding, setIsAdding] = useState(false);
@@ -55,6 +57,60 @@ export function Settings() {
   const [formInsert, setFormInsert] = useState('');
   const [formCursorOffset, setFormCursorOffset] = useState('');
   const [formError, setFormError] = useState('');
+
+  // Migration state
+  const [needsMigration, setNeedsMigration] = useState(false);
+  const [isMigrating, setIsMigrating] = useState(false);
+  const [migrationResult, setMigrationResult] = useState<string | null>(null);
+
+  // Check if migration is needed on mount
+  useEffect(() => {
+    const checkMigration = async () => {
+      const needs = await migrationService.needsMigration();
+      setNeedsMigration(needs);
+    };
+    checkMigration();
+  }, []);
+
+  const handleMigrate = async () => {
+    if (!window.confirm(
+      'This will convert your workspace from folder-based to file-based structure.\n\n' +
+      'Before proceeding:\n' +
+      '1. Make sure you have a backup of your workspace\n' +
+      '2. Close all open pages\n' +
+      '3. This action cannot be undone\n\n' +
+      'Continue with migration?'
+    )) {
+      return;
+    }
+
+    setIsMigrating(true);
+    setMigrationResult(null);
+
+    try {
+      const result = await migrationService.migrate();
+
+      if (result.success) {
+        setMigrationResult(
+          `✅ Migration successful!\n\n` +
+          `Migrated ${result.migratedPages} pages\n` +
+          `Moved ${result.migratedImages} images to centralized storage\n\n` +
+          `Please refresh the page to see the changes.`
+        );
+        setNeedsMigration(false);
+      } else {
+        setMigrationResult(
+          `⚠️ Migration completed with errors:\n\n` +
+          `Migrated: ${result.migratedPages} pages, ${result.migratedImages} images\n\n` +
+          `Errors:\n${result.errors.join('\n')}`
+        );
+      }
+    } catch (error) {
+      setMigrationResult(`❌ Migration failed: ${error}`);
+    } finally {
+      setIsMigrating(false);
+    }
+  };
 
   const startEdit = (cmd: AppSlashCommand) => {
     setEditingId(cmd.id);
@@ -227,8 +283,14 @@ export function Settings() {
     }, new Map<string, string>()).values()
   );
 
-  const getColumnColor = (col: string, idx: number) => {
-    return columnColors[col.toLowerCase()] || DEFAULT_PALETTE[idx % DEFAULT_PALETTE.length];
+  // Sort columns alphabetically for stable color assignment
+  const sortedColumnNames = [...existingColumns].sort((a, b) => a.toLowerCase().localeCompare(b.toLowerCase()));
+
+  const getColumnColor = (col: string) => {
+    const customColor = columnColors[col.toLowerCase()];
+    if (customColor) return customColor;
+    const stableIndex = sortedColumnNames.findIndex(c => c.toLowerCase() === col.toLowerCase());
+    return DEFAULT_PALETTE[stableIndex % DEFAULT_PALETTE.length];
   };
 
   const updateFont = (patch: Partial<FontSettings>) => {
@@ -254,12 +316,16 @@ export function Settings() {
         </div>
 
         <div className="settings-typography-grid">
+          <h3 style={{ gridColumn: '1 / -1', marginBottom: '0.5rem', fontSize: '1rem', color: 'var(--text-secondary)' }}>
+            📖 Content Font (Reading Area)
+          </h3>
+
           <div className="settings-typography-row">
             <div className="settings-typography-field">
               <label>Font Family</label>
               <select
-                value={fontSettings.fontFamily}
-                onChange={(e) => updateFont({ fontFamily: e.target.value })}
+                value={fontSettings.contentFontFamily}
+                onChange={(e) => updateFont({ contentFontFamily: e.target.value })}
                 className="settings-select"
               >
                 {SANS_FONT_OPTIONS.map((opt) => (
@@ -269,7 +335,43 @@ export function Settings() {
             </div>
 
             <div className="settings-typography-field">
-              <label>Monospace Font</label>
+              <label>Font Size: {fontSettings.contentFontSize}px</label>
+              <input
+                type="range"
+                min={14}
+                max={22}
+                step={1}
+                value={fontSettings.contentFontSize}
+                onChange={(e) => updateFont({ contentFontSize: Number(e.target.value) })}
+                className="settings-range"
+              />
+              <div className="settings-range-labels">
+                <span>14px</span>
+                <span>22px</span>
+              </div>
+            </div>
+          </div>
+
+          <div className="settings-typography-row">
+            <div className="settings-typography-field">
+              <label>Line Height: {fontSettings.contentLineHeight.toFixed(1)}</label>
+              <input
+                type="range"
+                min={1.4}
+                max={2.2}
+                step={0.1}
+                value={fontSettings.contentLineHeight}
+                onChange={(e) => updateFont({ contentLineHeight: Number(e.target.value) })}
+                className="settings-range"
+              />
+              <div className="settings-range-labels">
+                <span>1.4</span>
+                <span>2.2</span>
+              </div>
+            </div>
+
+            <div className="settings-typography-field">
+              <label>Monospace Font (Code Blocks)</label>
               <select
                 value={fontSettings.monoFontFamily}
                 onChange={(e) => updateFont({ monoFontFamily: e.target.value })}
@@ -282,66 +384,183 @@ export function Settings() {
             </div>
           </div>
 
+          <h3 style={{ gridColumn: '1 / -1', marginTop: '1.5rem', marginBottom: '0.5rem', fontSize: '1rem', color: 'var(--text-secondary)' }}>
+            🎨 UI Font (Controls & Sidebar)
+          </h3>
+
           <div className="settings-typography-row">
             <div className="settings-typography-field">
-              <label>Font Size: {fontSettings.fontSize}px</label>
+              <label>Font Family</label>
+              <select
+                value={fontSettings.uiFontFamily}
+                onChange={(e) => updateFont({ uiFontFamily: e.target.value })}
+                className="settings-select"
+              >
+                {SANS_FONT_OPTIONS.map((opt) => (
+                  <option key={opt.value} value={opt.value}>{opt.label}</option>
+                ))}
+              </select>
+            </div>
+
+            <div className="settings-typography-field">
+              <label>Font Size: {fontSettings.uiFontSize}px</label>
               <input
                 type="range"
                 min={12}
-                max={20}
+                max={18}
                 step={1}
-                value={fontSettings.fontSize}
-                onChange={(e) => updateFont({ fontSize: Number(e.target.value) })}
+                value={fontSettings.uiFontSize}
+                onChange={(e) => updateFont({ uiFontSize: Number(e.target.value) })}
                 className="settings-range"
               />
               <div className="settings-range-labels">
                 <span>12px</span>
-                <span>20px</span>
+                <span>18px</span>
+              </div>
+            </div>
+          </div>
+
+          <div className="settings-typography-row">
+            <h3 style={{ gridColumn: '1 / -1', marginTop: '1rem', marginBottom: '0.5rem' }}>Heading Colors</h3>
+
+            <div className="settings-typography-field">
+              <label>H1 Color</label>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                <input
+                  type="color"
+                  value={fontSettings.headingColors.h1 === 'inherit' ? '#1a1a1a' : fontSettings.headingColors.h1}
+                  onChange={(e) => updateFont({ headingColors: { ...fontSettings.headingColors, h1: e.target.value } })}
+                  className="settings-color-input"
+                />
+                <button
+                  className="btn btn-secondary"
+                  onClick={() => updateFont({ headingColors: { ...fontSettings.headingColors, h1: 'inherit' } })}
+                  style={{ padding: '0.25rem 0.5rem', fontSize: '0.75rem' }}
+                >
+                  Reset
+                </button>
               </div>
             </div>
 
             <div className="settings-typography-field">
-              <label>Line Height: {fontSettings.lineHeight.toFixed(1)}</label>
-              <input
-                type="range"
-                min={1.2}
-                max={2.0}
-                step={0.1}
-                value={fontSettings.lineHeight}
-                onChange={(e) => updateFont({ lineHeight: Number(e.target.value) })}
-                className="settings-range"
-              />
-              <div className="settings-range-labels">
-                <span>1.2</span>
-                <span>2.0</span>
+              <label>H2 Color</label>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                <input
+                  type="color"
+                  value={fontSettings.headingColors.h2 === 'inherit' ? '#1a1a1a' : fontSettings.headingColors.h2}
+                  onChange={(e) => updateFont({ headingColors: { ...fontSettings.headingColors, h2: e.target.value } })}
+                  className="settings-color-input"
+                />
+                <button
+                  className="btn btn-secondary"
+                  onClick={() => updateFont({ headingColors: { ...fontSettings.headingColors, h2: 'inherit' } })}
+                  style={{ padding: '0.25rem 0.5rem', fontSize: '0.75rem' }}
+                >
+                  Reset
+                </button>
+              </div>
+            </div>
+
+            <div className="settings-typography-field">
+              <label>H3 Color</label>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                <input
+                  type="color"
+                  value={fontSettings.headingColors.h3 === 'inherit' ? '#1a1a1a' : fontSettings.headingColors.h3}
+                  onChange={(e) => updateFont({ headingColors: { ...fontSettings.headingColors, h3: e.target.value } })}
+                  className="settings-color-input"
+                />
+                <button
+                  className="btn btn-secondary"
+                  onClick={() => updateFont({ headingColors: { ...fontSettings.headingColors, h3: 'inherit' } })}
+                  style={{ padding: '0.25rem 0.5rem', fontSize: '0.75rem' }}
+                >
+                  Reset
+                </button>
+              </div>
+            </div>
+
+            <div className="settings-typography-field">
+              <label>H4 Color</label>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                <input
+                  type="color"
+                  value={fontSettings.headingColors.h4 === 'inherit' ? '#1a1a1a' : fontSettings.headingColors.h4}
+                  onChange={(e) => updateFont({ headingColors: { ...fontSettings.headingColors, h4: e.target.value } })}
+                  className="settings-color-input"
+                />
+                <button
+                  className="btn btn-secondary"
+                  onClick={() => updateFont({ headingColors: { ...fontSettings.headingColors, h4: 'inherit' } })}
+                  style={{ padding: '0.25rem 0.5rem', fontSize: '0.75rem' }}
+                >
+                  Reset
+                </button>
               </div>
             </div>
           </div>
 
           <div className="settings-typography-preview">
             <p className="settings-typography-preview-label">Preview</p>
-            <p
-              className="settings-typography-preview-text"
-              style={{
-                fontFamily: fontSettings.fontFamily === 'System Default'
+
+            <div style={{ marginBottom: '1rem', padding: '1rem', backgroundColor: 'var(--bg-secondary)', borderRadius: '6px' }}>
+              <p style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginBottom: '0.5rem' }}>Content Font (Reading)</p>
+              <h1 style={{
+                color: fontSettings.headingColors.h1,
+                marginBottom: '0.5rem',
+                fontFamily: fontSettings.contentFontFamily === 'System Default'
                   ? '-apple-system, BlinkMacSystemFont, system-ui, sans-serif'
-                  : `'${fontSettings.fontFamily}', sans-serif`,
-                fontSize: `${fontSettings.fontSize}px`,
-                lineHeight: fontSettings.lineHeight,
-              }}
-            >
-              The quick brown fox jumps over the lazy dog. 0123456789
-            </p>
-            <p
-              className="settings-typography-preview-text"
-              style={{
-                fontFamily: `'${fontSettings.monoFontFamily}', monospace`,
-                fontSize: `${fontSettings.fontSize}px`,
-                lineHeight: fontSettings.lineHeight,
-              }}
-            >
-              {'const hello = "world"; // monospace preview'}
-            </p>
+                  : `'${fontSettings.contentFontFamily}', sans-serif`,
+                fontSize: `${fontSettings.contentFontSize * 1.75}px`,
+              }}>
+                Heading 1 Preview
+              </h1>
+              <h2 style={{
+                color: fontSettings.headingColors.h2,
+                marginBottom: '0.5rem',
+                fontFamily: fontSettings.contentFontFamily === 'System Default'
+                  ? '-apple-system, BlinkMacSystemFont, system-ui, sans-serif'
+                  : `'${fontSettings.contentFontFamily}', sans-serif`,
+                fontSize: `${fontSettings.contentFontSize * 1.5}px`,
+              }}>
+                Heading 2 Preview
+              </h2>
+              <p
+                style={{
+                  fontFamily: fontSettings.contentFontFamily === 'System Default'
+                    ? '-apple-system, BlinkMacSystemFont, system-ui, sans-serif'
+                    : `'${fontSettings.contentFontFamily}', sans-serif`,
+                  fontSize: `${fontSettings.contentFontSize}px`,
+                  lineHeight: fontSettings.contentLineHeight,
+                  marginBottom: '0.5rem',
+                }}
+              >
+                The quick brown fox jumps over the lazy dog. 빠른 갈색 여우가 게으른 개를 뛰어넘습니다. 0123456789
+              </p>
+              <p
+                style={{
+                  fontFamily: `'${fontSettings.monoFontFamily}', monospace`,
+                  fontSize: `${fontSettings.contentFontSize * 0.9}px`,
+                  lineHeight: fontSettings.contentLineHeight,
+                }}
+              >
+                {'const hello = "world"; // monospace code'}
+              </p>
+            </div>
+
+            <div style={{ padding: '1rem', backgroundColor: 'var(--bg-secondary)', borderRadius: '6px' }}>
+              <p style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginBottom: '0.5rem' }}>UI Font (Controls)</p>
+              <p
+                style={{
+                  fontFamily: fontSettings.uiFontFamily === 'System Default'
+                    ? '-apple-system, BlinkMacSystemFont, system-ui, sans-serif'
+                    : `'${fontSettings.uiFontFamily}', sans-serif`,
+                  fontSize: `${fontSettings.uiFontSize}px`,
+                }}
+              >
+                Sidebar, buttons, and control elements use this font. 사이드바 및 컨트롤 요소.
+              </p>
+            </div>
           </div>
         </div>
       </section>
@@ -372,6 +591,64 @@ export function Settings() {
 
       <section className="settings-section">
         <div className="settings-section-header">
+          <h2>Highlight Colors</h2>
+        </div>
+        <p className="settings-section-description">
+          Customize the colors available in the text highlighter palette (up to 10 colors).
+          Colors are automatically adjusted for optimal visibility in dark mode.
+        </p>
+        <div className="settings-highlight-colors">
+          {highlightColors.map((color, index) => (
+            <div key={index} className="settings-highlight-color-item">
+              <input
+                type="color"
+                value={color}
+                onChange={(e) => {
+                  const newColors = [...highlightColors];
+                  newColors[index] = e.target.value;
+                  setHighlightColors(newColors);
+                }}
+                className="settings-highlight-color-input"
+              />
+              <button
+                className="btn-icon-small"
+                onClick={() => {
+                  if (highlightColors.length > 1) {
+                    const newColors = highlightColors.filter((_, i) => i !== index);
+                    setHighlightColors(newColors);
+                  }
+                }}
+                disabled={highlightColors.length <= 1}
+                title="Remove color"
+              >
+                ✕
+              </button>
+            </div>
+          ))}
+          {highlightColors.length < 10 && (
+            <button
+              className="btn-add-highlight-color"
+              onClick={() => {
+                setHighlightColors([...highlightColors, '#FFEB3B']);
+              }}
+              title="Add color"
+            >
+              + Add Color
+            </button>
+          )}
+        </div>
+        <button
+          className="btn-reset-highlight-colors"
+          onClick={() => {
+            setHighlightColors(['#FFEB3B', '#C5E1A5', '#90CAF9', '#FFCC80', '#F48FB1']);
+          }}
+        >
+          Reset to Defaults
+        </button>
+      </section>
+
+      <section className="settings-section">
+        <div className="settings-section-header">
           <h2>Column Colors</h2>
         </div>
 
@@ -379,8 +656,8 @@ export function Settings() {
           <p className="settings-empty-hint">No columns yet. Assign a column to a page to see it here.</p>
         ) : (
           <div className="settings-color-list">
-            {existingColumns.map((col, idx) => {
-              const color = getColumnColor(col, idx);
+            {existingColumns.map((col) => {
+              const color = getColumnColor(col);
               const isCustom = !!columnColors[col.toLowerCase()];
               return (
                 <div key={col} className="settings-color-row">
@@ -409,6 +686,38 @@ export function Settings() {
           </div>
         )}
       </section>
+
+      {needsMigration && (
+        <section className="settings-section">
+          <div className="settings-section-header">
+            <h2>⚠️ Migration Required</h2>
+          </div>
+          <p className="settings-description">
+            Your workspace uses the old folder-based structure.
+            Migrate to the new file-based structure to use the latest features like page links and improved performance.
+          </p>
+          <div className="settings-migration-info">
+            <h4>What will happen:</h4>
+            <ul>
+              <li>Each <code>workspace/Page/index.md</code> → <code>workspace/Page.md</code></li>
+              <li>All images moved to <code>workspace/.images/</code></li>
+              <li>Nested pages will get <code>parentId</code> field set</li>
+              <li>Old folders will be deleted</li>
+            </ul>
+            <p><strong>⚠️ Important: Create a backup before proceeding!</strong></p>
+          </div>
+          <button
+            className="btn btn-primary"
+            onClick={handleMigrate}
+            disabled={isMigrating}
+          >
+            {isMigrating ? 'Migrating...' : 'Start Migration'}
+          </button>
+          {migrationResult && (
+            <pre className="settings-migration-result">{migrationResult}</pre>
+          )}
+        </section>
+      )}
 
       <section className="settings-section">
         <div className="settings-section-header">

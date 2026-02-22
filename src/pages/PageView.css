@@ -1,8 +1,35 @@
+/* Container for terminal split view */
+.page-view-container {
+  display: flex;
+  width: 100%;
+  height: 100vh;
+  overflow: hidden;
+}
+
+.page-view-container.with-terminal {
+  display: flex;
+  flex-direction: row;
+}
+
+.page-view-container.with-terminal .page-view {
+  width: 50%;
+  overflow-y: auto;
+  height: 100vh;
+  order: 1;
+}
+
+.page-view-container.with-terminal .terminal-container {
+  width: 50%;
+  flex-shrink: 0;
+  order: 2;
+}
+
 .page-view {
   width: 100%;
   margin: 0;
   padding: 2rem;
   transition: width 0.3s ease-out;
+  overflow-y: auto;
 }
 
 /* When side browser is open, shrink page view */
@@ -13,6 +40,14 @@
 @media (max-width: 768px) {
   .page-view.with-browser {
     display: none; /* On mobile, hide the page and show only browser */
+  }
+
+  .page-view-container.with-terminal .terminal-container {
+    width: 100%;
+  }
+
+  .page-view-container.with-terminal .page-view {
+    display: none;
   }
 }
 
@@ -25,26 +60,28 @@
 
 /* Header */
 .page-header {
-  margin: 0 2rem 2rem 2rem;
-  padding-bottom: 1rem;
+  margin: 0 2rem 1rem 2rem;
+  padding-bottom: 0.5rem;
   border-bottom: 1px solid var(--border-color);
 }
 
 .page-header-top {
   display: flex;
   align-items: center;
-  gap: 1rem;
-  margin-bottom: 1rem;
+  gap: 0.75rem;
+  margin-bottom: 0.5rem;
 }
 
 .page-header-top h1 {
   flex: 1;
   margin: 0;
+  font-size: 1.75rem;
+  font-weight: 600;
 }
 
 .page-actions {
   display: flex;
-  gap: 0.5rem;
+  gap: 0.375rem;
   flex-shrink: 0;
 }
 
@@ -64,17 +101,18 @@
 
 .page-meta {
   display: flex;
-  gap: 1rem;
+  gap: 0.75rem;
   align-items: center;
   flex-wrap: wrap;
+  font-size: 0.875rem;
 }
 
 .page-column-badge {
   background-color: var(--accent-primary);
   color: white;
-  padding: 0.2rem 0.75rem;
-  border-radius: 12px;
-  font-size: 0.8rem;
+  padding: 0.15rem 0.625rem;
+  border-radius: 10px;
+  font-size: 0.75rem;
   font-weight: 500;
 }
 
@@ -103,24 +141,26 @@
 
 .due-date {
   color: var(--text-secondary);
-  font-size: 0.875rem;
+  font-size: 0.8125rem;
 }
 
 .page-dates {
   display: flex;
-  gap: 1rem;
-  font-size: 0.8rem;
+  gap: 0.75rem;
+  font-size: 0.75rem;
   color: var(--text-secondary);
 }
 
 /* Document view */
 .document-view {
+  font-family: var(--font-content);
+  font-size: var(--font-content-size);
   line-height: var(--line-height-content);
-  padding: 0rem 2rem 2rem 2rem;
+  padding: 0 2rem 2rem 2rem;
 }
 
 .markdown-content {
-  font-size: 1rem;
+  font-size: inherit;
 }
 
 .markdown-content h1,
@@ -129,6 +169,22 @@
 .markdown-content h4 {
   margin-top: 2rem;
   margin-bottom: 1rem;
+}
+
+.markdown-content h1 {
+  color: var(--heading-h1-color, inherit);
+}
+
+.markdown-content h2 {
+  color: var(--heading-h2-color, inherit);
+}
+
+.markdown-content h3 {
+  color: var(--heading-h3-color, inherit);
+}
+
+.markdown-content h4 {
+  color: var(--heading-h4-color, inherit);
 }
 
 .markdown-content p {
@@ -158,7 +214,21 @@
   color: var(--text-secondary);
 }
 
-.markdown-content a {
+/* Page links (wiki-style [[Page Title]] links) */
+.markdown-content .page-link {
+  color: var(--accent-primary, #007acc);
+  text-decoration: none;
+  border-bottom: none;
+  cursor: pointer;
+  font-weight: 500;
+}
+
+.markdown-content .page-link:hover {
+  text-decoration: underline;
+}
+
+/* Regular external/markdown links */
+.markdown-content a:not(.page-link):not(.wiki-link-broken) {
   color: var(--accent-primary, #007acc);
   text-decoration: none;
   border-bottom: 1px solid transparent;
@@ -166,7 +236,7 @@
   cursor: pointer;
 }
 
-.markdown-content a:hover {
+.markdown-content a:not(.page-link):not(.wiki-link-broken):hover {
   border-bottom-color: var(--accent-primary, #007acc);
 }
 
@@ -181,6 +251,10 @@
 .markdown-content img {
   max-width: 100%;
   border-radius: 8px;
+  /* Performance optimization: hint browser to decode images async */
+  decoding: async;
+  /* Improve rendering performance */
+  content-visibility: auto;
 }
 
 .markdown-content table {
@@ -377,5 +451,242 @@
 
   .scroll-to-top .material-symbols-outlined {
     font-size: 22px;
+  }
+}
+
+/* Copy Link Button */
+.copy-link-btn {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+}
+
+.copy-link-btn .material-symbols-outlined {
+  font-size: 1.125rem;
+}
+
+/* Highlight styles */
+mark.highlight {
+  border-radius: 2px;
+  padding: 0 2px;
+  cursor: pointer;
+  transition: opacity 0.2s;
+  color: inherit; /* 텍스트 색상 유지 */
+}
+
+mark.highlight-highlight {
+  /* Background color set inline */
+}
+
+mark.highlight-underline {
+  background-color: transparent !important;
+  /* Border bottom set inline */
+  padding-bottom: 2px;
+}
+
+/* Dark mode adjustments - colors are now auto-adjusted via colorAdjust utility */
+[data-theme="dark"] mark.highlight {
+  color: var(--text-primary); /* 다크모드에서 텍스트 색상 명시 */
+}
+
+[data-theme="dark"] mark.highlight-underline {
+  color: var(--text-primary); /* 밑줄 스타일도 텍스트 색상 보장 */
+}
+
+/* Active button state */
+.page-actions .btn.active {
+  background-color: var(--accent-primary);
+  color: white;
+  border-color: var(--accent-primary);
+}
+
+.page-actions .btn.active:hover {
+  opacity: 0.9;
+}
+
+/* Page menu dropdown */
+.page-menu-container {
+  position: relative;
+}
+
+.page-actions .btn .material-symbols-outlined {
+  font-size: 1.125rem;
+}
+
+.btn-icon {
+  padding: 0.375rem;
+  min-width: auto;
+}
+
+.btn-icon .material-symbols-outlined {
+  font-size: 1.125rem;
+}
+
+.page-actions .btn {
+  padding: 0.375rem 0.75rem;
+  font-size: 0.875rem;
+}
+
+.page-actions .btn .material-symbols-outlined {
+  font-size: 1rem;
+}
+
+.page-menu-dropdown {
+  position: absolute;
+  top: calc(100% + 0.5rem);
+  right: 0;
+  background-color: var(--bg-primary);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  min-width: 200px;
+  z-index: 1000;
+  overflow: hidden;
+  animation: dropdownFadeIn 0.15s ease-out;
+}
+
+@keyframes dropdownFadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(-8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.page-menu-item {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.75rem 1rem;
+  background: none;
+  border: none;
+  color: var(--text-primary);
+  font-size: 0.9rem;
+  cursor: pointer;
+  transition: background-color 0.15s;
+  text-align: left;
+}
+
+.page-menu-item:hover {
+  background-color: var(--bg-secondary);
+}
+
+.page-menu-item .material-symbols-outlined {
+  font-size: 1.25rem;
+  color: var(--text-secondary);
+}
+
+.page-menu-item-danger {
+  color: #ef4444;
+}
+
+.page-menu-item-danger .material-symbols-outlined {
+  color: #ef4444;
+}
+
+.page-menu-item-danger:hover {
+  background-color: #fee;
+}
+
+[data-theme="dark"] .page-menu-item-danger:hover {
+  background-color: #422;
+}
+
+.page-menu-divider {
+  height: 1px;
+  background-color: var(--border-color);
+  margin: 0.25rem 0;
+}
+
+/* Memo Mode Split Layout */
+.page-content-layout {
+  display: flex;
+  width: 100%;
+  min-height: calc(100vh - 200px);
+  position: relative;
+}
+
+.page-content-layout.memo-mode-active {
+  gap: 0;
+}
+
+.page-content-layout.memo-mode-active .document-view {
+  flex: 1;
+  min-width: 0; /* Allow flex item to shrink below content size */
+}
+
+.page-content-layout:not(.memo-mode-active) .document-view {
+  width: 100%;
+}
+
+/* Memo panel wrapper */
+.memo-panel-wrapper {
+  min-width: 500px;
+  max-width: 50vw;
+  flex-shrink: 0;
+  position: sticky;
+  top: 0;
+  height: 100vh;
+  overflow: hidden;
+}
+
+/* Resize handle */
+.memo-resize-handle {
+  width: 1px;
+  background-color: transparent;
+  cursor: col-resize;
+  position: relative;
+  flex-shrink: 0;
+  transition: background-color 0.2s;
+}
+
+.memo-resize-handle:hover {
+  background-color: var(--accent-primary);
+}
+
+.memo-resize-handle:active {
+  background-color: var(--accent-primary);
+}
+
+/* Add a visible grab area */
+.memo-resize-handle::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -4px;
+  right: -4px;
+  bottom: 0;
+  cursor: col-resize;
+}
+
+/* Highlight flash animation for scroll-to */
+@keyframes highlight-flash {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.3;
+    transform: scale(1.02);
+  }
+}
+
+mark.highlight.highlight-flash {
+  animation: highlight-flash 1s ease-in-out;
+}
+
+/* Responsive memo mode */
+@media (max-width: 1024px) {
+  .page-content-layout.memo-mode-active {
+    flex-direction: column;
+  }
+
+  .page-content-layout.memo-mode-active .document-view {
+    width: 100%;
+    border-right: none;
+    border-bottom: 1px solid var(--border-color);
   }
 }

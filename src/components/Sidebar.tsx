@@ -5,13 +5,16 @@ import { pageService } from '@/services';
 import { CreatePageModal } from './CreatePageModal';
 import './Sidebar.css';
 
+const DEFAULT_PALETTE = ['#3b82f6', '#f59e0b', '#22c55e', '#ef4444', '#8b5cf6', '#ec4899', '#14b8a6', '#f97316'];
+
 export function Sidebar() {
-  const { pages, setPages, hasFileSystemAccess, setSidebarOpen, activeFilters, setActiveFilters, sortOptions, setSortOptions, loadSettingsFromFile } = useStore();
+  const { pages, setPages, hasFileSystemAccess, setSidebarOpen, activeFilters, setActiveFilters, sortOptions, setSortOptions, loadSettingsFromFile, columnColors, sidebarWidth, setSidebarWidth } = useStore();
   const [loading, setLoading] = useState(false);
   const [showCreateModal, setShowCreateModal] = useState(false);
-  const [createParentPath, setCreateParentPath] = useState<string | undefined>();
+  const [createParentId, setCreateParentId] = useState<string | undefined>();
   const [collapsedPages, setCollapsedPages] = useState<Set<string>>(new Set());
   const [searchText, setSearchText] = useState(activeFilters.searchText);
+  const [isResizing, setIsResizing] = useState(false);
 
   useEffect(() => {
     if (hasFileSystemAccess) {
@@ -37,19 +40,57 @@ export function Sidebar() {
     setActiveFilters({ ...activeFilters, searchText: value });
   };
 
-  const toggleCollapse = (path: string) => {
+  const toggleCollapse = (pageId: string) => {
     setCollapsedPages(prev => {
       const next = new Set(prev);
-      if (next.has(path)) next.delete(path);
-      else next.add(path);
+      if (next.has(pageId)) next.delete(pageId);
+      else next.add(pageId);
       return next;
     });
   };
 
-  const handleCreateSubPage = (parentPath: string, e: React.MouseEvent) => {
+  // Sidebar resize handlers
+  const MIN_WIDTH = 200;
+  const MAX_WIDTH = 600;
+
+  const handleResizeStart = () => {
+    setIsResizing(true);
+  };
+
+  useEffect(() => {
+    if (!isResizing) return;
+
+    const handleMouseMove = (e: MouseEvent) => {
+      const newWidth = Math.min(Math.max(e.clientX, MIN_WIDTH), MAX_WIDTH);
+      setSidebarWidth(newWidth);
+    };
+
+    const handleMouseUp = () => {
+      setIsResizing(false);
+    };
+
+    document.addEventListener('mousemove', handleMouseMove);
+    document.addEventListener('mouseup', handleMouseUp);
+
+    return () => {
+      document.removeEventListener('mousemove', handleMouseMove);
+      document.removeEventListener('mouseup', handleMouseUp);
+    };
+  }, [isResizing, setSidebarWidth]);
+
+  const collapseAll = () => {
+    const allPageIds = pages.map(p => p.id);
+    setCollapsedPages(new Set(allPageIds));
+  };
+
+  const expandAll = () => {
+    setCollapsedPages(new Set());
+  };
+
+  const handleCreateSubPage = (parentId: string, e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
-    setCreateParentPath(parentPath);
+    setCreateParentId(parentId); // Store parent page ID for subpage creation
     setShowCreateModal(true);
   };
 
@@ -93,16 +134,22 @@ export function Sidebar() {
     setActiveFilters({ ...activeFilters, tags: newTags });
   };
 
-  const renderPageTree = (pagePath: string, level: number = 0) => {
-    const page = filteredPages.find(p => p.path === pagePath);
+  // Use stable color assignment based on alphabetically sorted tags
+  const getColColor = (col: string) => {
+    const customColor = columnColors[col.toLowerCase()];
+    if (customColor) return customColor;
+    const stableIndex = allTags.findIndex(t => t.toLowerCase() === col.toLowerCase());
+    return DEFAULT_PALETTE[stableIndex % DEFAULT_PALETTE.length];
+  };
+
+  const renderPageTree = (pageId: string, level: number = 0) => {
+    const page = filteredPages.find(p => p.id === pageId);
     if (!page) return null;
 
-    const children = filteredPages.filter(p => {
-      const parentPath = p.path.split('/').slice(0, -1).join('/');
-      return parentPath === pagePath;
-    });
+    // Find children by parentId (not by file path)
+    const children = filteredPages.filter(p => p.parentId === pageId);
 
-    const isCollapsed = collapsedPages.has(pagePath);
+    const isCollapsed = collapsedPages.has(pageId);
 
     return (
       <div key={page.id} style={{ marginLeft: `${level * 0.75}rem` }}>
@@ -110,7 +157,7 @@ export function Sidebar() {
           {children.length > 0 ? (
             <button
               className="collapse-btn"
-              onClick={() => toggleCollapse(pagePath)}
+              onClick={() => toggleCollapse(page.id)}
               title={isCollapsed ? 'Expand' : 'Collapse'}
             >
               {isCollapsed ? '▸' : '▾'}
@@ -118,8 +165,7 @@ export function Sidebar() {
           ) : (
             <span className="collapse-btn-placeholder" />
           )}
-          <Link to={`/page/${page.id}`} className="page-link">
-            <span className="page-icon">📄</span>
+          <Link to={`/page/${page.id}`} className="sidebar-page-link" replace>
             <span className="page-title">{page.title}</span>
             {page.tags.length > 0 && (
               <span className="page-tags">
@@ -129,7 +175,7 @@ export function Sidebar() {
           </Link>
           <button
             className="btn-icon btn-add-child"
-            onClick={(e) => handleCreateSubPage(page.path, e)}
+            onClick={(e) => handleCreateSubPage(page.id, e)}
             title="Add sub-page"
           >
             +
@@ -137,31 +183,40 @@ export function Sidebar() {
         </div>
         {!isCollapsed && children.length > 0 && (
           <div className="page-children">
-            {children.map(child => renderPageTree(child.path, level + 1))}
+            {children.map(child => renderPageTree(child.id, level + 1))}
           </div>
         )}
       </div>
     );
   };
 
-  const rootPages = filteredPages.filter(p => p.path.split('/').length === 2);
+  // Root pages are pages without a parentId
+  const rootPages = filteredPages.filter(p => !p.parentId);
 
   return (
-    <aside className="sidebar">
+    <aside className="sidebar" style={{ width: `${sidebarWidth}px` }}>
       <div className="sidebar-header">
-        <Link to="/" className="sidebar-title">
+        <Link to="/" className="sidebar-title" replace>
           <h2>My Kanban</h2>
         </Link>
         <div className="sidebar-header-actions">
           <button
             className="btn-icon"
             onClick={() => {
-              setCreateParentPath(undefined);
+              setCreateParentId(undefined); // No parent = root-level page
               setShowCreateModal(true);
             }}
             title="New page"
           >
             <span className="material-symbols-outlined">add</span>
+          </button>
+          <button
+            className="btn-icon"
+            onClick={loadPages}
+            disabled={loading}
+            title="Refresh pages"
+          >
+            <span className="material-symbols-outlined">refresh</span>
           </button>
           <button
             onClick={() => setSidebarOpen(false)}
@@ -185,15 +240,22 @@ export function Sidebar() {
 
       {allTags.length > 0 && (
         <div className="sidebar-tags">
-          {allTags.map(tag => (
-            <button
-              key={tag}
-              className={`filter-tag ${activeFilters.tags.includes(tag) ? 'active' : ''}`}
-              onClick={() => toggleTag(tag)}
-            >
-              {tag}
-            </button>
-          ))}
+          {allTags.map((tag) => {
+            const isActive = activeFilters.tags.includes(tag);
+            const color = getColColor(tag);
+            return (
+              <button
+                key={tag}
+                className={`filter-tag ${isActive ? 'active' : ''}`}
+                onClick={() => toggleTag(tag)}
+                style={isActive
+                  ? { backgroundColor: color, color: 'white', borderColor: 'transparent' }
+                  : { borderColor: color, color: color }}
+              >
+                {tag}
+              </button>
+            );
+          })}
           {activeFilters.tags.length > 0 && (
             <button
               className="filter-tag clear-tag"
@@ -241,12 +303,29 @@ export function Sidebar() {
         )}
       </div>
 
+      <div className="sidebar-collapse-controls">
+        <button
+          className="collapse-control-btn"
+          onClick={expandAll}
+          title="Expand all"
+        >
+          Expand all
+        </button>
+        <button
+          className="collapse-control-btn"
+          onClick={collapseAll}
+          title="Collapse all"
+        >
+          Collapse all
+        </button>
+      </div>
+
       <div className="sidebar-content">
         {loading ? (
           <div className="loading">Loading pages...</div>
         ) : rootPages.length > 0 ? (
           <div className="pages-tree">
-            {rootPages.map(page => renderPageTree(page.path))}
+            {rootPages.map(page => renderPageTree(page.id))}
           </div>
         ) : (
           <div className="empty-state">
@@ -256,18 +335,21 @@ export function Sidebar() {
         )}
       </div>
 
-      <div className="sidebar-footer">
-        <button onClick={loadPages} className="btn btn-secondary" disabled={loading}>
-          {loading ? 'Refreshing...' : 'Refresh'}
-        </button>
-      </div>
 
       {showCreateModal && (
         <CreatePageModal
-          parentPath={createParentPath}
+          parentId={createParentId}
           onClose={() => setShowCreateModal(false)}
         />
       )}
+
+      {/* Resize handle */}
+      <div
+        className={`sidebar-resize-handle ${isResizing ? 'resizing' : ''}`}
+        onMouseDown={handleResizeStart}
+        onDoubleClick={() => setSidebarWidth(280)}
+        title="Drag to resize, double-click to reset"
+      />
     </aside>
   );
 }

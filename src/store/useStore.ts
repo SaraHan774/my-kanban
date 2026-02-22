@@ -19,6 +19,9 @@ const persistSettings = (state: {
   zoomLevel: number;
   fontSettings: FontSettings;
   boardDensity: 'normal' | 'compact';
+  boardView: 'kanban' | 'list';
+  sidebarWidth: number;
+  highlightColors: string[];
 }) => {
   configService.save({
     columnColors: state.columnColors,
@@ -28,6 +31,9 @@ const persistSettings = (state: {
     zoomLevel: state.zoomLevel,
     fontSettings: state.fontSettings,
     boardDensity: state.boardDensity,
+    boardView: state.boardView,
+    sidebarWidth: state.sidebarWidth,
+    highlightColors: state.highlightColors,
   });
 };
 
@@ -97,6 +103,23 @@ interface AppState {
   // Board density (persisted)
   boardDensity: 'normal' | 'compact';
   setBoardDensity: (density: 'normal' | 'compact') => void;
+
+  // Board view (persisted)
+  boardView: 'kanban' | 'list';
+  setBoardView: (view: 'kanban' | 'list') => void;
+
+  // Sidebar width (persisted)
+  sidebarWidth: number;
+  setSidebarWidth: (width: number) => void;
+
+  // Highlight colors (persisted)
+  highlightColors: string[];
+  setHighlightColors: (colors: string[]) => void;
+
+  // Toast notification (not persisted)
+  toast: { message: string; type: 'success' | 'error' | 'info' } | null;
+  showToast: (message: string, type?: 'success' | 'error' | 'info') => void;
+  hideToast: () => void;
 
   // Settings persistence
   loadSettingsFromFile: () => Promise<void>;
@@ -228,6 +251,41 @@ export const useStore = create<AppState>((set, get) => ({
     persistSettings({ ...state, boardDensity: density });
   },
 
+  // Board view
+  boardView: initialSettings.boardView || 'kanban',
+  setBoardView: (view) => {
+    set({ boardView: view });
+    const state = get();
+    persistSettings({ ...state, boardView: view });
+  },
+
+  // Sidebar width
+  sidebarWidth: initialSettings.sidebarWidth || 280,
+  setSidebarWidth: (width) => {
+    set({ sidebarWidth: width });
+    const state = get();
+    persistSettings({ ...state, sidebarWidth: width });
+  },
+
+  // Highlight colors
+  highlightColors: initialSettings.highlightColors || ['#FFEB3B', '#C5E1A5', '#90CAF9', '#FFCC80', '#F48FB1'],
+  setHighlightColors: (colors) => {
+    set({ highlightColors: colors });
+    const state = get();
+    persistSettings({ ...state, highlightColors: colors });
+  },
+
+  // Toast notification
+  toast: null,
+  showToast: (message, type = 'success') => {
+    set({ toast: { message, type } });
+    // Auto-hide after 3 seconds
+    setTimeout(() => {
+      set({ toast: null });
+    }, 3000);
+  },
+  hideToast: () => set({ toast: null }),
+
   // Load settings from .kanban-config.json (called when FS access is granted)
   loadSettingsFromFile: async () => {
     const fileSettings = await configService.loadFromFile();
@@ -241,6 +299,9 @@ export const useStore = create<AppState>((set, get) => ({
         zoomLevel: fileSettings.zoomLevel,
         fontSettings: fileSettings.fontSettings,
         boardDensity: fileSettings.boardDensity,
+        boardView: fileSettings.boardView || 'kanban',
+        sidebarWidth: fileSettings.sidebarWidth || 280,
+        highlightColors: fileSettings.highlightColors || ['#FFEB3B', '#C5E1A5', '#90CAF9', '#FFCC80', '#F48FB1'],
       });
       // Sync localStorage cache
       configService.saveToLocalStorage(fileSettings);
@@ -255,6 +316,9 @@ export const useStore = create<AppState>((set, get) => ({
         zoomLevel: state.zoomLevel,
         fontSettings: state.fontSettings,
         boardDensity: state.boardDensity,
+        boardView: state.boardView,
+        sidebarWidth: state.sidebarWidth,
+        highlightColors: state.highlightColors,
       });
     }
   },

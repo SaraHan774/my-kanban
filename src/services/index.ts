@@ -6,3 +6,5 @@ export * from './markdown';
 export * from './pageService';
 export * from './configService';
 export * from './imageService';
+export * from './migration';
+export * from './graphService';
