@@ -37,8 +37,8 @@
   overflow-y: auto;
   display: flex;
   flex-direction: column;
-  /* Performance hint: this element will resize */
-  contain: layout style paint;
+  /* Performance hint: paint and style containment only (layout would break position:fixed) */
+  contain: style paint;
 }
 
 .top-bar {

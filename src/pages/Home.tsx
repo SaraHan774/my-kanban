@@ -16,6 +16,7 @@ export function Home() {
     columnOrder, setColumnOrder,
     boardDensity,
     boardView, setBoardView,
+    sidebarWidth,
   } = useStore();
   const [listSortField, setListSortField] = useState<'title' | 'createdAt' | 'dueDate' | 'kanbanColumn'>('title');
   const [listSortDir, setListSortDir] = useState<'asc' | 'desc'>('asc');
@@ -305,12 +306,15 @@ export function Home() {
   };
 
   // Hover preview handlers
-  const handleCardMouseEnter = (card: { id: string; content: string }, e: React.MouseEvent) => {
+  const handleCardMouseEnter = (card: { id: string; content: string; title?: string }, e: React.MouseEvent) => {
     if (hoverTimerRef.current) clearTimeout(hoverTimerRef.current);
     if (!card.content.trim()) return;
     const target = e.currentTarget as HTMLElement;
+
+    // Capture position immediately (not after timeout)
+    const rect = target.getBoundingClientRect();
+
     hoverTimerRef.current = setTimeout(async () => {
-      const rect = target.getBoundingClientRect();
       const html = await markdownService.toHtml(card.content);
       setPreviewCard({ id: card.id, html, rect });
     }, 350);
@@ -621,9 +625,27 @@ export function Home() {
         const { rect, html } = previewCard;
         const previewWidth = 320;
         const previewMaxHeight = 420;
-        const left = rect.right + 12 + previewWidth > window.innerWidth
-          ? rect.left - previewWidth - 12
-          : rect.right + 12;
+        const gap = 4; // Reduced gap for closer positioning
+
+        // Calculate available space
+        const spaceOnRight = window.innerWidth - rect.right - gap;
+        const spaceOnLeft = rect.left - gap;
+
+        let left;
+
+        // Prefer LEFT side (shows preview between columns)
+        if (spaceOnLeft >= previewWidth) {
+          left = rect.left - previewWidth - gap;
+        }
+        // Otherwise try right side
+        else if (spaceOnRight >= previewWidth) {
+          left = rect.right + gap;
+        }
+        // If neither fits, clamp to visible area
+        else {
+          left = Math.max(gap, Math.min(rect.left, window.innerWidth - previewWidth - gap));
+        }
+
         const cardMidY = rect.top + rect.height / 2;
         // Clamp so the preview doesn't clip at viewport edges (accounting for transform: translateY(-50%))
         const top = Math.max(previewMaxHeight / 2 + 8, Math.min(cardMidY, window.innerHeight - previewMaxHeight / 2 - 8));
