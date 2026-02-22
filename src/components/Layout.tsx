@@ -18,7 +18,7 @@ const ZOOM_MAX = 200;
 const ZOOM_STEP = 10;
 
 export function Layout() {
-  const { sidebarOpen, setSidebarOpen, hasFileSystemAccess, setHasFileSystemAccess, theme, setTheme, zoomLevel, setZoomLevel, fontSettings, sidebarWidth } = useStore();
+  const { sidebarOpen, setSidebarOpen, hasFileSystemAccess, setHasFileSystemAccess, theme, setTheme, zoomLevel, setZoomLevel, fontSettings, sidebarWidth, isImmerseMode } = useStore();
   const [zoomToast, setZoomToast] = useState<string | null>(null);
   const toastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -153,13 +153,16 @@ export function Layout() {
 
   return (
     <div className="layout">
+      {!isImmerseMode && (
       <div
         className={`sidebar-container ${sidebarOpen ? 'open' : 'closed'}`}
         style={{ width: sidebarOpen ? `${sidebarWidth}px` : '0' }}
       >
         <Sidebar />
       </div>
+      )}
       <main className="main-content">
+        {!isImmerseMode && (
         <div className="top-bar">
           {!sidebarOpen && (
             <button className="btn-icon" onClick={() => setSidebarOpen(true)} title="Open sidebar">
@@ -181,6 +184,7 @@ export function Layout() {
             <span className="theme-label">{themeLabel}</span>
           </button>
         </div>
+        )}
         <Outlet />
       </main>
       {zoomToast && (

@@ -3,11 +3,6 @@
   border-radius: 8px;
   padding: 12px;
   transition: all 0.15s;
-  border: 1px solid var(--border-color);
-}
-
-.memo-card-independent {
-  border-left: 3px solid var(--accent-primary, #007acc);
 }
 
 .memo-card-linked {

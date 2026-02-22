@@ -29,7 +29,22 @@
   margin: 0;
   padding: 2rem;
   transition: width 0.3s ease-out;
-  overflow-y: auto;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+}
+
+/* Immerse mode - full focus on content */
+.page-view.immerse-mode {
+  padding: 3rem 4rem;
+  max-width: none;
+}
+
+.page-view.immerse-mode .document-view {
+  padding: 0;
+  max-width: 900px;
+  margin: 0 auto;
 }
 
 /* When side browser is open, shrink page view */
@@ -62,7 +77,7 @@
 .page-header {
   margin: 0 2rem 1rem 2rem;
   padding-bottom: 0.5rem;
-  border-bottom: 1px solid var(--border-color);
+  flex-shrink: 0;
 }
 
 .page-header-top {
@@ -157,6 +172,9 @@
   font-size: var(--font-content-size);
   line-height: var(--line-height-content);
   padding: 0 2rem 2rem 2rem;
+  overflow-y: auto;
+  flex: 1;
+  min-height: 0;
 }
 
 .markdown-content {
@@ -250,11 +268,9 @@
 
 .markdown-content img {
   max-width: 100%;
+  height: auto;
   border-radius: 8px;
-  /* Performance optimization: hint browser to decode images async */
   decoding: async;
-  /* Improve rendering performance */
-  content-visibility: auto;
 }
 
 .markdown-content table {
@@ -606,8 +622,10 @@ mark.highlight-underline {
 .page-content-layout {
   display: flex;
   width: 100%;
-  min-height: calc(100vh - 200px);
+  flex: 1;
+  min-height: 0;
   position: relative;
+  overflow: hidden;
 }
 
 .page-content-layout.memo-mode-active {
@@ -621,6 +639,7 @@ mark.highlight-underline {
 
 .page-content-layout:not(.memo-mode-active) .document-view {
   width: 100%;
+  flex: 1;
 }
 
 /* Memo panel wrapper */
@@ -628,9 +647,7 @@ mark.highlight-underline {
   min-width: 500px;
   max-width: 50vw;
   flex-shrink: 0;
-  position: sticky;
-  top: 0;
-  height: 100vh;
+  height: 100%;
   overflow: hidden;
 }
 

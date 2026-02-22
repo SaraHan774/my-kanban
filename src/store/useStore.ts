@@ -121,6 +121,10 @@ interface AppState {
   showToast: (message: string, type?: 'success' | 'error' | 'info') => void;
   hideToast: () => void;
 
+  // Immerse mode (not persisted)
+  isImmerseMode: boolean;
+  setIsImmerseMode: (isImmerse: boolean) => void;
+
   // Settings persistence
   loadSettingsFromFile: () => Promise<void>;
 }
@@ -285,6 +289,10 @@ export const useStore = create<AppState>((set, get) => ({
     }, 3000);
   },
   hideToast: () => set({ toast: null }),
+
+  // Immerse mode
+  isImmerseMode: false,
+  setIsImmerseMode: (isImmerse) => set({ isImmerseMode: isImmerse }),
 
   // Load settings from .kanban-config.json (called when FS access is granted)
   loadSettingsFromFile: async () => {

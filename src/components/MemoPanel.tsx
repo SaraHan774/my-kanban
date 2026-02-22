@@ -1,3 +1,4 @@
+import { useEffect, useRef } from 'react';
 import { Memo } from '@/types';
 import { MemoCard } from './MemoCard';
 import './MemoPanel.css';
@@ -8,6 +9,7 @@ interface MemoPanelProps {
   onUpdateMemo: (memoId: string, note: string) => void;
   onDeleteMemo: (memoId: string) => void;
   onScrollToHighlight?: (highlightId: string) => void;
+  lastCreatedMemoId?: string | null;
 }
 
 export function MemoPanel({
@@ -15,10 +17,40 @@ export function MemoPanel({
   onCreateMemo,
   onUpdateMemo,
   onDeleteMemo,
-  onScrollToHighlight
+  onScrollToHighlight,
+  lastCreatedMemoId
 }: MemoPanelProps) {
   // Sort memos: pinned first (if we add pinning later), then by order
   const sortedMemos = [...memos].sort((a, b) => a.order - b.order);
+  const memoRefs = useRef<Map<string, HTMLDivElement>>(new Map());
+  const panelContentRef = useRef<HTMLDivElement>(null);
+
+  // Scroll to newly created memo within panel only (no page scroll)
+  useEffect(() => {
+    if (lastCreatedMemoId && panelContentRef.current) {
+      const memoElement = memoRefs.current.get(lastCreatedMemoId);
+      if (memoElement) {
+        // Calculate position relative to panel content
+        const panelRect = panelContentRef.current.getBoundingClientRect();
+        const memoRect = memoElement.getBoundingClientRect();
+        const scrollOffset = memoRect.top - panelRect.top + panelContentRef.current.scrollTop;
+
+        // Smooth scroll within panel only
+        panelContentRef.current.scrollTo({
+          top: scrollOffset,
+          behavior: 'smooth'
+        });
+      }
+    }
+  }, [lastCreatedMemoId]);
+
+  const setMemoRef = (id: string, element: HTMLDivElement | null) => {
+    if (element) {
+      memoRefs.current.set(id, element);
+    } else {
+      memoRefs.current.delete(id);
+    }
+  };
 
   return (
     <div className="memo-panel">
@@ -40,7 +72,7 @@ export function MemoPanel({
       </div>
 
       {/* Memos List */}
-      <div className="memo-panel-content">
+      <div className="memo-panel-content" ref={panelContentRef}>
         {sortedMemos.length === 0 ? (
           <div className="memo-panel-empty">
             <div className="memo-panel-empty-icon">📋</div>
@@ -52,14 +84,17 @@ export function MemoPanel({
         ) : (
           <div className="memo-panel-list">
             {sortedMemos.map((memo) => (
-              <MemoCard
-                key={memo.id}
-                memo={memo}
-                onUpdate={onUpdateMemo}
-                onDelete={onDeleteMemo}
-                onScrollToHighlight={onScrollToHighlight}
-              />
+              <div key={memo.id} ref={(el) => setMemoRef(memo.id, el)}>
+                <MemoCard
+                  memo={memo}
+                  onUpdate={onUpdateMemo}
+                  onDelete={onDeleteMemo}
+                  onScrollToHighlight={onScrollToHighlight}
+                />
+              </div>
             ))}
+            {/* Bottom padding to allow last memo to scroll to top */}
+            <div style={{ height: '60vh' }} />
           </div>
         )}
       </div>

@@ -19,7 +19,7 @@ import './PageView.css';
 export function PageView() {
   const { pageId } = useParams<{ pageId: string }>();
   const navigate = useNavigate();
-  const { pages, removePage, updatePageInStore, columnColors, showToast, highlightColors, config } = useStore();
+  const { pages, removePage, updatePageInStore, columnColors, showToast, highlightColors, config, isImmerseMode, setIsImmerseMode } = useStore();
   const [page, setPage] = useState<Page | null>(null);
   const [htmlContent, setHtmlContent] = useState<string>('');
   const [loading, setLoading] = useState(true);
@@ -48,9 +48,20 @@ export function PageView() {
   const resizeStartXRef = useRef(0);
   const resizeStartWidthRef = useRef(0);
   const [themeVersion, setThemeVersion] = useState(0); // Track theme changes for highlight re-rendering
+  const [lastCreatedMemoId, setLastCreatedMemoId] = useState<string | null>(null);
 
   // Render mermaid diagrams after HTML content updates
   useMermaid(contentRef, htmlContent);
+
+  // Auto-clear lastCreatedMemoId after scroll completes
+  useEffect(() => {
+    if (lastCreatedMemoId) {
+      const timer = setTimeout(() => {
+        setLastCreatedMemoId(null);
+      }, 1000);
+      return () => clearTimeout(timer);
+    }
+  }, [lastCreatedMemoId]);
 
   // Clean up blob URLs on unmount or page change
   useEffect(() => {
@@ -61,6 +72,7 @@ export function PageView() {
     if (pageId) {
       loadPage(pageId);
       setEditing(false);
+      setLastCreatedMemoId(null);
       // Reset scroll position to top when navigating to a new page
       window.scrollTo(0, 0);
     }
@@ -346,8 +358,9 @@ export function PageView() {
     // If memo mode is active, create a linked memo
     let updatedMemos = page.memos || [];
     if (memoMode) {
+      const newMemoId = crypto.randomUUID();
       const linkedMemo: Memo = {
-        id: crypto.randomUUID(),
+        id: newMemoId,
         type: 'linked',
         note: '',
         highlightId: highlight.id,
@@ -358,6 +371,7 @@ export function PageView() {
         order: updatedMemos.length,
       };
       updatedMemos = [...updatedMemos, linkedMemo];
+      setLastCreatedMemoId(newMemoId);
     }
 
     const updatedPage = {
@@ -460,8 +474,9 @@ export function PageView() {
   const handleCreateMemo = useCallback(async () => {
     if (!page) return;
 
+    const newMemoId = crypto.randomUUID();
     const newMemo: Memo = {
-      id: crypto.randomUUID(),
+      id: newMemoId,
       type: 'independent',
       note: '',
       createdAt: new Date().toISOString(),
@@ -478,6 +493,7 @@ export function PageView() {
 
     setPage(updatedPage);
     updatePageInStore(updatedPage);
+    setLastCreatedMemoId(newMemoId);
 
     try {
       await pageService.updatePage(updatedPage);
@@ -652,6 +668,25 @@ export function PageView() {
   // Keyboard shortcuts for edit mode and find
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
+      // Esc to exit immerse mode
+      if (e.key === 'Escape' && isImmerseMode) {
+        e.preventDefault();
+        setIsImmerseMode(false);
+        showToast('Immerse mode deactivated', 'info');
+        return;
+      }
+
+      // Cmd+Shift+I for immerse mode
+      if ((e.metaKey || e.ctrlKey) && e.shiftKey && e.key === 'i' && !editing) {
+        e.preventDefault();
+        setIsImmerseMode(!isImmerseMode);
+        showToast(isImmerseMode ? 'Immerse mode deactivated' : 'Immerse mode activated', 'info');
+        return;
+      }
+
+      // Don't process other shortcuts in immerse mode
+      if (isImmerseMode) return;
+
       // Cmd+F for find
       if ((e.metaKey || e.ctrlKey) && e.key === 'f' && !editing) {
         e.preventDefault();
@@ -689,7 +724,7 @@ export function PageView() {
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [editing, memoMode]);
+  }, [editing, memoMode, isImmerseMode, setIsImmerseMode, showToast]);
 
   // Track scroll position to show/hide scroll to top button
   useEffect(() => {
@@ -925,7 +960,8 @@ export function PageView() {
   return (
     <>
       <div className={`page-view-container ${showTerminal ? 'with-terminal' : ''}`}>
-        <div className="page-view">
+        <div className={`page-view ${isImmerseMode ? 'immerse-mode' : ''}`}>
+        {!isImmerseMode && (
         <div className="page-header">
         <div className="page-header-top">
           <button className="btn-icon" onClick={() => navigate(-1)} title="Go back">
@@ -1029,6 +1065,7 @@ export function PageView() {
           </div>
         </div>
       </div>
+        )}
 
       <div className={`page-content-layout ${memoMode ? 'memo-mode-active' : ''}`}>
         <div className="document-view">
@@ -1082,6 +1119,7 @@ export function PageView() {
                 onUpdateMemo={handleUpdateMemo}
                 onDeleteMemo={handleDeleteMemo}
                 onScrollToHighlight={handleScrollToHighlight}
+                lastCreatedMemoId={lastCreatedMemoId}
               />
             </div>
           </>
@@ -1105,7 +1143,7 @@ export function PageView() {
       )}
 
       {/* Scroll to top button */}
-      {showScrollTop && !editing && (
+      {showScrollTop && !editing && !isImmerseMode && (
         <button
           className="scroll-to-top"
           onClick={scrollToTop}
