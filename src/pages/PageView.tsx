@@ -2,16 +2,18 @@ import { useEffect, useState, useRef, useCallback } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { useStore } from '@/store/useStore';
 import { pageService, markdownService, resolveImagesInHtml, clearImageCache } from '@/services';
-import { Page, Highlight } from '@/types';
+import { Page, Highlight, Memo } from '@/types';
 import { PageEditor } from '@/components/PageEditor';
 import { FindBar } from '@/components/FindBar';
 import { ConfirmModal } from '@/components/ConfirmModal';
 import { HighlightPalette } from '@/components/HighlightPalette';
 import { HighlightHoverMenu } from '@/components/HighlightHoverMenu';
+import { MemoPanel } from '@/components/MemoPanel';
 import { Terminal } from '@/components/Terminal';
 import { useMermaid } from '@/hooks/useMermaid';
 import { convertWikiLinksToMarkdown } from '@/utils/wikiLinks';
 import { openExternalUrl } from '@/lib/openExternal';
+import { getHighlightColor, getUnderlineColor } from '@/utils/colorAdjust';
 import './PageView.css';
 
 export function PageView() {
@@ -40,6 +42,12 @@ export function PageView() {
   const [showTerminal, setShowTerminal] = useState(false);
   const [showPageMenu, setShowPageMenu] = useState(false);
   const pageMenuRef = useRef<HTMLDivElement>(null);
+  const [memoMode, setMemoMode] = useState(false);
+  const [memoPanelWidth, setMemoPanelWidth] = useState(500); // Default 500px
+  const isResizingRef = useRef(false);
+  const resizeStartXRef = useRef(0);
+  const resizeStartWidthRef = useRef(0);
+  const [themeVersion, setThemeVersion] = useState(0); // Track theme changes for highlight re-rendering
 
   // Render mermaid diagrams after HTML content updates
   useMermaid(contentRef, htmlContent);
@@ -281,11 +289,12 @@ export function PageView() {
     // Store the range for later use
     selectedRangeRef.current = range.cloneRange();
 
-    // Calculate palette position based on mouse cursor position
-    // Position palette 80px above and centered on cursor
+    // Calculate palette position based on selected text position
+    // Similar to hover menu positioning
+    const rect = range.getBoundingClientRect();
     setPalettePosition({
-      top: mousePositionRef.current.y + window.scrollY - 80,
-      left: mousePositionRef.current.x - 150, // Center palette (approx 300px wide)
+      top: rect.top + window.scrollY - 55, // 55px above the selection
+      left: rect.left + rect.width / 2 - 150, // Center palette horizontally on selection
     });
 
     setShowHighlightPalette(true);
@@ -295,8 +304,8 @@ export function PageView() {
     if (!page || !selectedRangeRef.current) return;
 
     const selection = window.getSelection();
-    const text = selection?.toString().trim() || '';
-    if (!text) return;
+    const rawText = selection?.toString() || '';
+    if (!rawText) return;
 
     const range = selectedRangeRef.current;
 
@@ -308,8 +317,13 @@ export function PageView() {
     const beforeRange = document.createRange();
     beforeRange.setStart(contentEl, 0);
     beforeRange.setEnd(range.startContainer, range.startOffset);
-    const startOffset = beforeRange.toString().length;
-    const endOffset = startOffset + text.length;
+    const rawStartOffset = beforeRange.toString().length;
+
+    // Trim the text and adjust offsets accordingly
+    const trimmedText = rawText.trim();
+    const leadingSpaces = rawText.length - rawText.trimStart().length;
+    const startOffset = rawStartOffset + leadingSpaces;
+    const endOffset = startOffset + trimmedText.length;
 
     // Get context
     const contextBefore = plainText.substring(Math.max(0, startOffset - 20), startOffset);
@@ -317,7 +331,7 @@ export function PageView() {
 
     const highlight: Highlight = {
       id: crypto.randomUUID(),
-      text,
+      text: trimmedText,
       color,
       style,
       startOffset,
@@ -328,9 +342,28 @@ export function PageView() {
     };
 
     const updatedHighlights = [...(page.highlights || []), highlight];
+
+    // If memo mode is active, create a linked memo
+    let updatedMemos = page.memos || [];
+    if (memoMode) {
+      const linkedMemo: Memo = {
+        id: crypto.randomUUID(),
+        type: 'linked',
+        note: '',
+        highlightId: highlight.id,
+        highlightText: trimmedText,
+        highlightColor: color,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+        order: updatedMemos.length,
+      };
+      updatedMemos = [...updatedMemos, linkedMemo];
+    }
+
     const updatedPage = {
       ...page,
       highlights: updatedHighlights,
+      memos: updatedMemos,
       updatedAt: new Date().toISOString(),
     };
 
@@ -354,7 +387,7 @@ export function PageView() {
     // Clear selection
     selection?.removeAllRanges();
     setShowHighlightPalette(false);
-  }, [page, pages, updatePageInStore, showToast]);
+  }, [page, pages, updatePageInStore, showToast, memoMode]);
 
   const handleChangeHighlightColor = useCallback(async (highlightId: string, newColor: string) => {
     if (!page) return;
@@ -393,10 +426,13 @@ export function PageView() {
     if (!page) return;
 
     const updatedHighlights = (page.highlights || []).filter(h => h.id !== highlightId);
+    // Also delete any linked memos
+    const updatedMemos = (page.memos || []).filter(m => m.highlightId !== highlightId);
 
     const updatedPage = {
       ...page,
       highlights: updatedHighlights,
+      memos: updatedMemos,
       updatedAt: new Date().toISOString(),
     };
 
@@ -419,6 +455,96 @@ export function PageView() {
 
     setShowHoverMenu(false);
   }, [page, pages, updatePageInStore, showToast]);
+
+  // Memo CRUD operations
+  const handleCreateMemo = useCallback(async () => {
+    if (!page) return;
+
+    const newMemo: Memo = {
+      id: crypto.randomUUID(),
+      type: 'independent',
+      note: '',
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+      order: (page.memos || []).length,
+    };
+
+    const updatedMemos = [...(page.memos || []), newMemo];
+    const updatedPage = {
+      ...page,
+      memos: updatedMemos,
+      updatedAt: new Date().toISOString(),
+    };
+
+    setPage(updatedPage);
+    updatePageInStore(updatedPage);
+
+    try {
+      await pageService.updatePage(updatedPage);
+    } catch (err) {
+      console.error('Failed to save memo:', err);
+      showToast('Failed to save memo', 'error');
+    }
+  }, [page, updatePageInStore, showToast]);
+
+  const handleUpdateMemo = useCallback(async (memoId: string, note: string) => {
+    if (!page) return;
+
+    const updatedMemos = (page.memos || []).map(m =>
+      m.id === memoId ? { ...m, note, updatedAt: new Date().toISOString() } : m
+    );
+
+    const updatedPage = {
+      ...page,
+      memos: updatedMemos,
+      updatedAt: new Date().toISOString(),
+    };
+
+    setPage(updatedPage);
+    updatePageInStore(updatedPage);
+
+    try {
+      await pageService.updatePage(updatedPage);
+    } catch (err) {
+      console.error('Failed to update memo:', err);
+      showToast('Failed to update memo', 'error');
+    }
+  }, [page, updatePageInStore, showToast]);
+
+  const handleDeleteMemo = useCallback(async (memoId: string) => {
+    if (!page) return;
+
+    const updatedMemos = (page.memos || []).filter(m => m.id !== memoId);
+
+    const updatedPage = {
+      ...page,
+      memos: updatedMemos,
+      updatedAt: new Date().toISOString(),
+    };
+
+    setPage(updatedPage);
+    updatePageInStore(updatedPage);
+
+    try {
+      await pageService.updatePage(updatedPage);
+    } catch (err) {
+      console.error('Failed to delete memo:', err);
+      showToast('Failed to delete memo', 'error');
+    }
+  }, [page, updatePageInStore, showToast]);
+
+  const handleScrollToHighlight = useCallback((highlightId: string) => {
+    const contentEl = contentRef.current;
+    if (!contentEl) return;
+
+    const mark = contentEl.querySelector(`mark[data-highlight-id="${highlightId}"]`);
+    if (mark) {
+      mark.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      // Flash animation
+      mark.classList.add('highlight-flash');
+      setTimeout(() => mark.classList.remove('highlight-flash'), 1000);
+    }
+  }, []);
 
   const applyHighlightsToHtml = (html: string, highlights: Highlight[]): string => {
     if (!highlights || highlights.length === 0 || !highlightsVisible) return html;
@@ -467,10 +593,16 @@ export function PageView() {
         const highlighted = textContent.substring(highlightStart, highlightEnd);
         const after = textContent.substring(highlightEnd);
 
+        // Skip if highlighted portion is only whitespace
+        if (highlighted.trim().length === 0) {
+          return;
+        }
+
         const mark = document.createElement('mark');
         mark.className = `highlight highlight-${h.style}`;
-        mark.style.backgroundColor = h.style === 'highlight' ? h.color : 'transparent';
-        mark.style.borderBottom = h.style === 'underline' ? `3px solid ${h.color}` : 'none';
+        // Apply dark mode adjusted colors
+        mark.style.backgroundColor = h.style === 'highlight' ? getHighlightColor(h.color) : 'transparent';
+        mark.style.borderBottom = h.style === 'underline' ? `3px solid ${getUnderlineColor(h.color)}` : 'none';
         mark.setAttribute('data-highlight-id', h.id);
         mark.textContent = highlighted;
 
@@ -527,6 +659,13 @@ export function PageView() {
         return;
       }
 
+      // Cmd+M for memo mode toggle
+      if ((e.metaKey || e.ctrlKey) && e.key === 'm' && !editing) {
+        e.preventDefault();
+        setMemoMode(prev => !prev);
+        return;
+      }
+
       // Prevent Cmd+S when not editing
       if ((e.metaKey || e.ctrlKey) && e.key === 's' && !editing) {
         e.preventDefault();
@@ -550,7 +689,7 @@ export function PageView() {
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [editing]);
+  }, [editing, memoMode]);
 
   // Track scroll position to show/hide scroll to top button
   useEffect(() => {
@@ -666,7 +805,35 @@ export function PageView() {
     };
   }, [htmlContent, editing, highlightsVisible]);
 
-  // Re-render when highlights visibility changes
+  // Listen for theme changes to re-render highlights with adjusted colors
+  useEffect(() => {
+    const handleThemeChange = () => {
+      setThemeVersion(v => v + 1);
+    };
+
+    // Listen for data-theme attribute changes
+    const observer = new MutationObserver((mutations) => {
+      mutations.forEach((mutation) => {
+        if (mutation.type === 'attributes' && mutation.attributeName === 'data-theme') {
+          handleThemeChange();
+        }
+      });
+    });
+
+    observer.observe(document.documentElement, { attributes: true });
+
+    // Listen for system color scheme changes
+    const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
+    const mediaQueryListener = () => handleThemeChange();
+    mediaQuery.addEventListener('change', mediaQueryListener);
+
+    return () => {
+      observer.disconnect();
+      mediaQuery.removeEventListener('change', mediaQueryListener);
+    };
+  }, []);
+
+  // Re-render when highlights visibility or theme changes
   useEffect(() => {
     if (!page) return;
 
@@ -679,7 +846,46 @@ export function PageView() {
     };
 
     reRender();
-  }, [highlightsVisible, page, pages]);
+  }, [highlightsVisible, page, pages, themeVersion]);
+
+  // Memo panel resize handlers
+  const handleResizeStart = useCallback((e: React.MouseEvent) => {
+    isResizingRef.current = true;
+    resizeStartXRef.current = e.clientX;
+    resizeStartWidthRef.current = memoPanelWidth;
+    e.preventDefault();
+  }, [memoPanelWidth]);
+
+  useEffect(() => {
+    const handleMouseMove = (e: MouseEvent) => {
+      if (!isResizingRef.current) return;
+
+      const deltaX = resizeStartXRef.current - e.clientX;
+      const newWidth = resizeStartWidthRef.current + deltaX;
+
+      // Get viewport width to calculate max width (50%)
+      const maxWidth = window.innerWidth * 0.5;
+      const minWidth = 500;
+
+      // Constrain width between min and max
+      const constrainedWidth = Math.min(Math.max(newWidth, minWidth), maxWidth);
+      setMemoPanelWidth(constrainedWidth);
+    };
+
+    const handleMouseUp = () => {
+      isResizingRef.current = false;
+    };
+
+    if (memoMode) {
+      document.addEventListener('mousemove', handleMouseMove);
+      document.addEventListener('mouseup', handleMouseUp);
+    }
+
+    return () => {
+      document.removeEventListener('mousemove', handleMouseMove);
+      document.removeEventListener('mouseup', handleMouseUp);
+    };
+  }, [memoMode]);
 
   const scrollToTop = () => {
     window.scrollTo({
@@ -754,6 +960,18 @@ export function PageView() {
                   <button
                     className="page-menu-item"
                     onClick={() => {
+                      setMemoMode(!memoMode);
+                      setShowPageMenu(false);
+                    }}
+                  >
+                    <span className="material-symbols-outlined">
+                      {memoMode ? 'close' : 'sticky_note_2'}
+                    </span>
+                    {memoMode ? 'Exit Memo Mode' : 'Memo Mode'}
+                  </button>
+                  <button
+                    className="page-menu-item"
+                    onClick={() => {
                       setHighlightsVisible(!highlightsVisible);
                       setShowPageMenu(false);
                     }}
@@ -812,40 +1030,63 @@ export function PageView() {
         </div>
       </div>
 
-      <div className="document-view">
-        {showFindBar && (
-          <FindBar
-            content={page.content}
-            contentRef={contentRef}
-            onClose={() => setShowFindBar(false)}
+      <div className={`page-content-layout ${memoMode ? 'memo-mode-active' : ''}`}>
+        <div className="document-view">
+          {showFindBar && (
+            <FindBar
+              content={page.content}
+              contentRef={contentRef}
+              onClose={() => setShowFindBar(false)}
+            />
+          )}
+          <div
+            ref={contentRef}
+            className="markdown-content"
+            dangerouslySetInnerHTML={{ __html: htmlContent }}
           />
-        )}
-        <div
-          ref={contentRef}
-          className="markdown-content"
-          dangerouslySetInnerHTML={{ __html: htmlContent }}
-        />
-      </div>
 
-        {page.children && page.children.length > 0 && (
-          <div className="sub-pages">
-            <h2>Sub-pages</h2>
-            <div className="sub-pages-list">
-              {page.children.map(child => (
-                <Link key={child.id} to={`/page/${child.id}`} className="sub-page-card">
-                  <h3>{child.title}</h3>
-                  {child.tags.length > 0 && (
-                    <div className="tags">
-                      {child.tags.map(tag => (
-                        <span key={tag} className="tag-small">{tag}</span>
-                      ))}
-                    </div>
-                  )}
-                </Link>
-              ))}
+          {page.children && page.children.length > 0 && (
+            <div className="sub-pages">
+              <h2>Sub-pages</h2>
+              <div className="sub-pages-list">
+                {page.children.map(child => (
+                  <Link key={child.id} to={`/page/${child.id}`} className="sub-page-card">
+                    <h3>{child.title}</h3>
+                    {child.tags.length > 0 && (
+                      <div className="tags">
+                        {child.tags.map(tag => (
+                          <span key={tag} className="tag-small">{tag}</span>
+                        ))}
+                      </div>
+                    )}
+                  </Link>
+                ))}
+              </div>
             </div>
-          </div>
+          )}
+        </div>
+
+        {memoMode && (
+          <>
+            <div
+              className="memo-resize-handle"
+              onMouseDown={handleResizeStart}
+            />
+            <div
+              className="memo-panel-wrapper"
+              style={{ width: `${memoPanelWidth}px` }}
+            >
+              <MemoPanel
+                memos={page.memos || []}
+                onCreateMemo={handleCreateMemo}
+                onUpdateMemo={handleUpdateMemo}
+                onDeleteMemo={handleDeleteMemo}
+                onScrollToHighlight={handleScrollToHighlight}
+              />
+            </div>
+          </>
         )}
+      </div>
       </div>
       {showTerminal && <Terminal workspacePath={config.workspacePath} />}
       </div>
