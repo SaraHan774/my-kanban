@@ -22,6 +22,7 @@ const persistSettings = (state: {
   boardView: 'kanban' | 'list';
   sidebarWidth: number;
   highlightColors: string[];
+  pageWidth: 'narrow' | 'wide';
 }) => {
   configService.save({
     columnColors: state.columnColors,
@@ -34,6 +35,7 @@ const persistSettings = (state: {
     boardView: state.boardView,
     sidebarWidth: state.sidebarWidth,
     highlightColors: state.highlightColors,
+    pageWidth: state.pageWidth,
   });
 };
 
@@ -115,6 +117,10 @@ interface AppState {
   // Highlight colors (persisted)
   highlightColors: string[];
   setHighlightColors: (colors: string[]) => void;
+
+  // Page width (persisted)
+  pageWidth: 'narrow' | 'wide';
+  setPageWidth: (width: 'narrow' | 'wide') => void;
 
   // Toast notification (not persisted)
   toast: { message: string; type: 'success' | 'error' | 'info' } | null;
@@ -279,6 +285,14 @@ export const useStore = create<AppState>((set, get) => ({
     persistSettings({ ...state, highlightColors: colors });
   },
 
+  // Page width
+  pageWidth: initialSettings.pageWidth || 'narrow',
+  setPageWidth: (width) => {
+    set({ pageWidth: width });
+    const state = get();
+    persistSettings({ ...state, pageWidth: width });
+  },
+
   // Toast notification
   toast: null,
   showToast: (message, type = 'success') => {
@@ -310,6 +324,7 @@ export const useStore = create<AppState>((set, get) => ({
         boardView: fileSettings.boardView || 'kanban',
         sidebarWidth: fileSettings.sidebarWidth || 280,
         highlightColors: fileSettings.highlightColors || ['#FFEB3B', '#C5E1A5', '#90CAF9', '#FFCC80', '#F48FB1'],
+        pageWidth: fileSettings.pageWidth || 'narrow',
       });
       // Sync localStorage cache
       configService.saveToLocalStorage(fileSettings);
@@ -327,6 +342,7 @@ export const useStore = create<AppState>((set, get) => ({
         boardView: state.boardView,
         sidebarWidth: state.sidebarWidth,
         highlightColors: state.highlightColors,
+        pageWidth: state.pageWidth,
       });
     }
   },

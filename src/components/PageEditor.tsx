@@ -28,13 +28,25 @@ function insertImageMarkdown(
   });
 }
 
+export interface PageEditorHandle {
+  save: () => void;
+  togglePreview: () => void;
+  openImagePicker: () => void;
+  preview: boolean;
+  saving: boolean;
+}
+
 interface PageEditorProps {
   page: Page;
   onSave: (updatedPage: Page) => void;
   onCancel: () => void;
+  hideMeta?: boolean;
+  hideToolbar?: boolean;
+  metaOverrides?: { title: string; kanbanColumn: string; tags: string; dueDate: string };
+  editorRef?: React.MutableRefObject<PageEditorHandle | null>;
 }
 
-export function PageEditor({ page, onSave, onCancel }: PageEditorProps) {
+export function PageEditor({ page, onSave, onCancel, hideMeta, hideToolbar, metaOverrides, editorRef }: PageEditorProps) {
   const navigate = useNavigate();
   const { updatePageInStore, pages, slashCommands, columnColors } = useStore();
   const [title, setTitle] = useState(page.title);
@@ -267,6 +279,26 @@ export function PageEditor({ page, onSave, onCancel }: PageEditorProps) {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
+  const openImagePicker = useCallback(() => {
+    fileInputRef.current?.click();
+  }, []);
+
+  // Expose methods to parent via editorRef
+  useEffect(() => {
+    if (editorRef) {
+      editorRef.current = {
+        save: () => handleSave(),
+        togglePreview: () => handlePreview(),
+        openImagePicker,
+        preview,
+        saving,
+      };
+    }
+    return () => {
+      if (editorRef) editorRef.current = null;
+    };
+  });
+
   const handlePreview = useCallback(async () => {
     if (!preview) {
       // Convert wiki-style links before rendering markdown
@@ -305,10 +337,10 @@ export function PageEditor({ page, onSave, onCancel }: PageEditorProps) {
     // Handle markdown shortcuts (Cmd+B, Cmd+I, Cmd+E) first
     if (markdown.handleMarkdownShortcut(e)) return;
 
-    // Handle Escape key (only when slash palette is not open)
+    // Handle Escape key (only when slash palette is not open) - save before exiting
     if (e.key === 'Escape' && !slash.isOpen) {
       e.preventDefault();
-      onCancel();
+      handleSave();
       return;
     }
 
@@ -322,19 +354,20 @@ export function PageEditor({ page, onSave, onCancel }: PageEditorProps) {
       const lineStart = beforeCursor.lastIndexOf('\n') + 1;
       const currentLine = beforeCursor.substring(lineStart);
 
-      // Match list item: optional whitespace (2 spaces per level) + bullet + space
-      const listMatch = currentLine.match(/^(\s*)([-*+]|\d+\.)\s/);
+      // Match list item: optional whitespace + bullet + optional checkbox + space
+      const listMatch = currentLine.match(/^(\s*)([-*+]|\d+\.)\s(\[[ x]\]\s)?/);
       if (listMatch) {
         e.preventDefault();
         const indent = listMatch[1];
         const bullet = listMatch[2];
+        const checkbox = listMatch[3]; // e.g. "[ ] " or "[x] " or undefined
         const lineContent = currentLine.substring(listMatch[0].length);
 
         if (lineContent.trim() === '') {
           if (indent.length >= 2) {
             // Sublist: go up one level (remove 2 spaces of indent)
             const newIndent = indent.substring(2);
-            const newLine = `${newIndent}${bullet} `;
+            const newLine = checkbox ? `${newIndent}${bullet} [ ] ` : `${newIndent}${bullet} `;
             const newContent = content.substring(0, lineStart) + newLine + content.substring(start);
             setContent(newContent);
             const newPos = lineStart + newLine.length;
@@ -357,7 +390,8 @@ export function PageEditor({ page, onSave, onCancel }: PageEditorProps) {
           if (/^\d+\.$/.test(bullet)) {
             nextBullet = `${parseInt(bullet) + 1}.`;
           }
-          const insertion = `\n${indent}${nextBullet} `;
+          const checkboxPart = checkbox ? '[ ] ' : '';
+          const insertion = `\n${indent}${nextBullet} ${checkboxPart}`;
           const newContent = content.substring(0, start) + insertion + content.substring(start);
           setContent(newContent);
           const newPos = start + insertion.length;
@@ -502,14 +536,18 @@ export function PageEditor({ page, onSave, onCancel }: PageEditorProps) {
   const handleSave = async () => {
     setSaving(true);
     try {
-      const tagList = tags.split(',').map(t => t.trim()).filter(Boolean);
+      const meta = metaOverrides;
+      const finalTitle = meta ? meta.title.trim() || page.title : title.trim() || page.title;
+      const finalTags = meta ? meta.tags.split(',').map(t => t.trim()).filter(Boolean) : tags.split(',').map(t => t.trim()).filter(Boolean);
+      const finalDueDate = meta ? meta.dueDate : dueDate;
+      const finalColumn = meta ? meta.kanbanColumn : selectedColumn;
       const updatedPage: Page = {
         ...page,
-        title: title.trim() || page.title,
+        title: finalTitle,
         content,
-        tags: tagList,
-        dueDate: dueDate ? new Date(dueDate).toISOString() : undefined,
-        kanbanColumn: selectedColumn || undefined,
+        tags: finalTags,
+        dueDate: finalDueDate ? new Date(finalDueDate).toISOString() : undefined,
+        kanbanColumn: finalColumn || undefined,
       };
 
       await pageService.updatePage(updatedPage);
@@ -540,6 +578,14 @@ export function PageEditor({ page, onSave, onCancel }: PageEditorProps) {
         </div>
       )}
       <div className="page-editor">
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept="image/*"
+          style={{ display: 'none' }}
+          onChange={handleImageFileSelect}
+        />
+        {!hideToolbar && (
         <div className="editor-toolbar">
         <div className="editor-toolbar-left">
           <button
@@ -554,16 +600,9 @@ export function PageEditor({ page, onSave, onCancel }: PageEditorProps) {
           >
             Preview
           </button>
-          <button className="toolbar-btn" onClick={() => fileInputRef.current?.click()} title="Insert image">
+          <button className="toolbar-btn" onClick={openImagePicker} title="Insert image">
             <span className="material-symbols-outlined" style={{fontSize: '1.1rem'}}>image</span>
           </button>
-          <input
-            ref={fileInputRef}
-            type="file"
-            accept="image/*"
-            style={{ display: 'none' }}
-            onChange={handleImageFileSelect}
-          />
         </div>
         <div className="editor-toolbar-right">
           <button className="btn btn-secondary" onClick={onCancel}>
@@ -574,8 +613,9 @@ export function PageEditor({ page, onSave, onCancel }: PageEditorProps) {
           </button>
         </div>
       </div>
+        )}
 
-      <div className="editor-meta">
+      {!hideMeta && <div className="editor-meta">
         <div className="editor-field">
           <input
             type="text"
@@ -585,100 +625,115 @@ export function PageEditor({ page, onSave, onCancel }: PageEditorProps) {
             placeholder="Untitled"
           />
         </div>
-        <div className="editor-field-row">
-          <div className="editor-field">
-            <label>Column</label>
-            <div className="column-selector" ref={dropdownRef}>
-              <div
-                className="column-selector-display"
-                onClick={() => setShowDropdown(!showDropdown)}
-              >
-                {selectedColumn ? (
-                  <span
-                    className="selected-column-chip"
-                    style={getColColor(selectedColumn) ? { backgroundColor: getColColor(selectedColumn) } : undefined}
-                  >
-                    {selectedColumn}
-                    <button
-                      type="button"
-                      className="chip-remove"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setSelectedColumn('');
-                      }}
+        <div className="editor-props">
+          <div className="editor-prop-row">
+            <span className="editor-prop-label">
+              <span className="material-symbols-outlined">view_column</span>
+              Column
+            </span>
+            <div className="editor-prop-value">
+              <div className="column-selector" ref={dropdownRef}>
+                <div
+                  className="column-selector-display"
+                  onClick={() => setShowDropdown(!showDropdown)}
+                >
+                  {selectedColumn ? (
+                    <span
+                      className="selected-column-chip"
+                      style={getColColor(selectedColumn) ? { backgroundColor: getColColor(selectedColumn) } : undefined}
                     >
-                      ✕
-                    </button>
-                  </span>
-                ) : (
-                  <span className="column-placeholder">Column...</span>
+                      {selectedColumn}
+                      <button
+                        type="button"
+                        className="chip-remove"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setSelectedColumn('');
+                        }}
+                      >
+                        ✕
+                      </button>
+                    </span>
+                  ) : (
+                    <span className="column-placeholder">Empty</span>
+                  )}
+                </div>
+
+                {showDropdown && (
+                  <div className="column-dropdown">
+                    {existingColumns.length > 0 && (
+                      <div className="column-chips">
+                        {existingColumns.map(col => (
+                          <button
+                            key={col}
+                            type="button"
+                            className={`column-chip ${selectedColumn === col ? 'active' : ''}`}
+                            style={getColColor(col)
+                              ? selectedColumn === col
+                                ? { backgroundColor: getColColor(col), color: 'white', borderColor: 'transparent' }
+                                : { borderColor: getColColor(col), color: getColColor(col) }
+                              : undefined}
+                            onClick={() => {
+                              setSelectedColumn(col);
+                              setShowDropdown(false);
+                            }}
+                          >
+                            {col}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                    <div className="column-new-input">
+                      <input
+                        type="text"
+                        value={newColumnInput}
+                        onChange={e => setNewColumnInput(e.target.value)}
+                        onKeyDown={handleNewColumnKeyDown}
+                        placeholder="New column..."
+                      />
+                      <button
+                        type="button"
+                        className="btn btn-sm"
+                        onClick={handleAddNewColumn}
+                        disabled={!newColumnInput.trim()}
+                      >
+                        Add
+                      </button>
+                    </div>
+                  </div>
                 )}
               </div>
-
-              {showDropdown && (
-                <div className="column-dropdown">
-                  {existingColumns.length > 0 && (
-                    <div className="column-chips">
-                      {existingColumns.map(col => (
-                        <button
-                          key={col}
-                          type="button"
-                          className={`column-chip ${selectedColumn === col ? 'active' : ''}`}
-                          style={getColColor(col)
-                            ? selectedColumn === col
-                              ? { backgroundColor: getColColor(col), color: 'white', borderColor: 'transparent' }
-                              : { borderColor: getColColor(col), color: getColColor(col) }
-                            : undefined}
-                          onClick={() => {
-                            setSelectedColumn(col);
-                            setShowDropdown(false);
-                          }}
-                        >
-                          {col}
-                        </button>
-                      ))}
-                    </div>
-                  )}
-                  <div className="column-new-input">
-                    <input
-                      type="text"
-                      value={newColumnInput}
-                      onChange={e => setNewColumnInput(e.target.value)}
-                      onKeyDown={handleNewColumnKeyDown}
-                      placeholder="New column..."
-                    />
-                    <button
-                      type="button"
-                      className="btn btn-sm"
-                      onClick={handleAddNewColumn}
-                      disabled={!newColumnInput.trim()}
-                    >
-                      Add
-                    </button>
-                  </div>
-                </div>
-              )}
             </div>
           </div>
-          <div className="editor-field">
-            <label>Tags</label>
-            <input
-              type="text"
-              value={tags}
-              onChange={e => setTags(e.target.value)}
-              placeholder="comma-separated"
-            />
+          <div className="editor-prop-row">
+            <span className="editor-prop-label">
+              <span className="material-symbols-outlined">sell</span>
+              Tags
+            </span>
+            <div className="editor-prop-value">
+              <input
+                type="text"
+                value={tags}
+                onChange={e => setTags(e.target.value)}
+                placeholder="Empty"
+              />
+            </div>
           </div>
-          <div className="editor-field">
-            <label>Due Date</label>
-            <input
-              type="date"
-              value={dueDate}
-              onChange={e => setDueDate(e.target.value)}
-            />
+          <div className="editor-prop-row">
+            <span className="editor-prop-label">
+              <span className="material-symbols-outlined">calendar_today</span>
+              Due Date
+            </span>
+            <div className="editor-prop-value">
+              <input
+                type="date"
+                value={dueDate}
+                onChange={e => setDueDate(e.target.value)}
+              />
+            </div>
           </div>
         </div>
-      </div>
+      </div>}
 
       {preview ? (
         <div ref={editorPreviewRef}>

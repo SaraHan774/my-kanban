@@ -46,6 +46,7 @@ export function Settings() {
     fontSettings, setFontSettings,
     boardDensity, setBoardDensity,
     highlightColors, setHighlightColors,
+    pageWidth, setPageWidth,
   } = useStore();
   const [editingId, setEditingId] = useState<string | null>(null);
   const [isAdding, setIsAdding] = useState(false);
@@ -584,6 +585,26 @@ export function Settings() {
             >
               <span className="density-btn-title">Compact</span>
               <span className="density-btn-desc">Title only, narrower columns (200px)</span>
+            </button>
+          </div>
+        </div>
+        <div className="settings-density-container">
+          <label>Page Width</label>
+          <p className="settings-density-description">Control the content width on page views</p>
+          <div className="settings-density-toggle">
+            <button
+              className={`density-btn ${pageWidth === 'narrow' ? 'active' : ''}`}
+              onClick={() => setPageWidth('narrow')}
+            >
+              <span className="density-btn-title">Narrow</span>
+              <span className="density-btn-desc">Centered content, max 720px</span>
+            </button>
+            <button
+              className={`density-btn ${pageWidth === 'wide' ? 'active' : ''}`}
+              onClick={() => setPageWidth('wide')}
+            >
+              <span className="density-btn-title">Wide</span>
+              <span className="density-btn-desc">Full width content</span>
             </button>
           </div>
         </div>

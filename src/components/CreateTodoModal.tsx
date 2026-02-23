@@ -66,7 +66,7 @@ export function CreateTodoModal({ onClose }: CreateTodoModalProps) {
       const page = await pageService.createPage(config.workspacePath, title.trim(), {
         viewType: 'document',
         kanbanColumn: todoColumn,
-        tags: [todoColumn],
+        tags: [],
         dueDate: dueDate ? new Date(dueDate).toISOString() : undefined,
       });
 

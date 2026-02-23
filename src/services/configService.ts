@@ -20,6 +20,7 @@ const LS_BOARD_DENSITY = 'kanban-board-density';
 const LS_BOARD_VIEW = 'kanban-board-view';
 const LS_SIDEBAR_WIDTH = 'kanban-sidebar-width';
 const LS_HIGHLIGHT_COLORS = 'kanban-highlight-colors';
+const LS_PAGE_WIDTH = 'kanban-page-width';
 
 export interface FontSettings {
   // Content fonts (page view - reading area)
@@ -67,6 +68,7 @@ export interface KanbanSettings {
   boardView: 'kanban' | 'list';
   sidebarWidth: number;
   highlightColors: string[];
+  pageWidth: 'narrow' | 'wide';
 }
 
 const DEFAULT_SETTINGS: KanbanSettings = {
@@ -80,6 +82,7 @@ const DEFAULT_SETTINGS: KanbanSettings = {
   boardView: 'kanban',
   sidebarWidth: 280,
   highlightColors: ['#FFEB3B', '#C5E1A5', '#90CAF9', '#FFCC80', '#F48FB1'],
+  pageWidth: 'narrow',
 };
 
 class ConfigService {
@@ -120,6 +123,7 @@ class ConfigService {
         boardView: parsed.boardView ?? DEFAULT_SETTINGS.boardView,
         sidebarWidth: parsed.sidebarWidth ?? DEFAULT_SETTINGS.sidebarWidth,
         highlightColors: parsed.highlightColors ?? DEFAULT_SETTINGS.highlightColors,
+        pageWidth: parsed.pageWidth ?? DEFAULT_SETTINGS.pageWidth,
       };
     } catch {
       return null;
@@ -202,6 +206,9 @@ class ConfigService {
       if (highlightColors) settings.highlightColors = JSON.parse(highlightColors);
     } catch { /* ignore */ }
 
+    const pageWidth = localStorage.getItem(LS_PAGE_WIDTH) as KanbanSettings['pageWidth'] | null;
+    if (pageWidth) settings.pageWidth = pageWidth;
+
     return settings;
   }
 
@@ -219,6 +226,7 @@ class ConfigService {
     localStorage.setItem(LS_BOARD_VIEW, settings.boardView);
     localStorage.setItem(LS_SIDEBAR_WIDTH, JSON.stringify(settings.sidebarWidth));
     localStorage.setItem(LS_HIGHLIGHT_COLORS, JSON.stringify(settings.highlightColors));
+    localStorage.setItem(LS_PAGE_WIDTH, settings.pageWidth);
   }
 
   /**

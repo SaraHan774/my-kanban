@@ -372,30 +372,29 @@ export function Home() {
   return (
     <div className="home-board">
       <div className="board-header">
-        <div className="board-actions">
-          <div className="board-view-toggle">
-            <div className={`toggle-slider ${boardView === 'list' ? 'slider-right' : ''}`}></div>
-            <button
-              className={`toggle-btn ${boardView === 'kanban' ? 'active' : ''}`}
-              onClick={() => setBoardView('kanban')}
-            >
-              <span className="material-symbols-outlined">view_kanban</span>
-              Board
-            </button>
-            <button
-              className={`toggle-btn ${boardView === 'list' ? 'active' : ''}`}
-              onClick={() => setBoardView('list')}
-            >
-              <span className="material-symbols-outlined">list</span>
-              List
-            </button>
-          </div>
-          <button className="btn btn-primary new-page-btn" onClick={() => setShowTodoModal(true)}>
-            <span className="material-symbols-outlined">check_circle</span>
+        <div className="board-view-tabs">
+          <button
+            className={`view-tab ${boardView === 'kanban' ? 'active' : ''}`}
+            onClick={() => setBoardView('kanban')}
+          >
+            <span className="material-symbols-outlined">view_kanban</span>
+            Board
+          </button>
+          <button
+            className={`view-tab ${boardView === 'list' ? 'active' : ''}`}
+            onClick={() => setBoardView('list')}
+          >
+            <span className="material-symbols-outlined">list</span>
+            List
+          </button>
+        </div>
+        <div className="board-actions-right">
+          <button className="board-action-btn" onClick={() => setShowTodoModal(true)}>
+            <span className="material-symbols-outlined">check_box</span>
             Todo
           </button>
-          <button className="btn btn-primary new-page-btn" onClick={() => setShowCreateModal(true)}>
-            <span className="material-symbols-outlined">add_circle</span>
+          <button className="board-action-btn" onClick={() => setShowCreateModal(true)}>
+            <span className="material-symbols-outlined">note_add</span>
             New Page
           </button>
         </div>
@@ -437,10 +436,16 @@ export function Home() {
                   <span className="card-count">{columnCards.length}</span>
                 </div>
                 <div className="column-content">
-                  {columnCards.map(card => (
+                  {columnCards.map(card => {
+                    const dueDateClass = card.dueDate ? (() => {
+                      const diff = Math.ceil((new Date(card.dueDate).getTime() - Date.now()) / 86400000);
+                      return diff < 0 ? 'overdue' : diff <= 3 ? 'due-soon' : '';
+                    })() : '';
+                    return (
                     <div
                       key={card.id}
                       className={`kanban-card ${draggedCardId === card.id ? 'dragging' : ''} ${card.pinned ? 'pinned' : ''}`}
+                      style={{ '--card-accent': color } as React.CSSProperties}
                       draggable
                       onDragStart={(e) => handleDragStart(card.id, e)}
                       onDragEnd={() => setDraggedCardId(null)}
@@ -461,8 +466,16 @@ export function Home() {
                       <Link to={`/page/${card.id}`} className="card-link">
                         <h4>{card.title}</h4>
                         {card.dueDate && (
-                          <div className="card-due">
-                            Due: {new Date(card.dueDate).toLocaleDateString()}
+                          <div className={`card-due ${dueDateClass}`}>
+                            <span className="material-symbols-outlined">schedule</span>
+                            {new Date(card.dueDate).toLocaleDateString()}
+                          </div>
+                        )}
+                        {card.tags && card.tags.length > 0 && (
+                          <div className="card-tags">
+                            {card.tags.slice(0, 3).map(tag => (
+                              <span key={tag} className="card-tag">{tag}</span>
+                            ))}
                           </div>
                         )}
                         <p className="card-excerpt">
@@ -470,7 +483,8 @@ export function Home() {
                         </p>
                       </Link>
                     </div>
-                  ))}
+                    );
+                  })}
                 </div>
               </div>
             );
@@ -502,10 +516,16 @@ export function Home() {
                     // Non-pinned cards sorted by creation date (newest first)
                     return b.createdAt.localeCompare(a.createdAt);
                   })
-                  .map(card => (
+                  .map(card => {
+                    const dueDateClass = card.dueDate ? (() => {
+                      const diff = Math.ceil((new Date(card.dueDate).getTime() - Date.now()) / 86400000);
+                      return diff < 0 ? 'overdue' : diff <= 3 ? 'due-soon' : '';
+                    })() : '';
+                    return (
                     <div
                       key={card.id}
                       className={`kanban-card ${draggedCardId === card.id ? 'dragging' : ''} ${card.pinned ? 'pinned' : ''}`}
+                      style={{ '--card-accent': '#6b7280' } as React.CSSProperties}
                       draggable
                       onDragStart={(e) => handleDragStart(card.id, e)}
                       onDragEnd={() => setDraggedCardId(null)}
@@ -526,8 +546,16 @@ export function Home() {
                       <Link to={`/page/${card.id}`} className="card-link">
                         <h4>{card.title}</h4>
                         {card.dueDate && (
-                          <div className="card-due">
-                            Due: {new Date(card.dueDate).toLocaleDateString()}
+                          <div className={`card-due ${dueDateClass}`}>
+                            <span className="material-symbols-outlined">schedule</span>
+                            {new Date(card.dueDate).toLocaleDateString()}
+                          </div>
+                        )}
+                        {card.tags && card.tags.length > 0 && (
+                          <div className="card-tags">
+                            {card.tags.slice(0, 3).map(tag => (
+                              <span key={tag} className="card-tag">{tag}</span>
+                            ))}
                           </div>
                         )}
                         <p className="card-excerpt">
@@ -535,7 +563,8 @@ export function Home() {
                         </p>
                       </Link>
                     </div>
-                  ))}
+                    );
+                  })}
               </div>
             </div>
           )}

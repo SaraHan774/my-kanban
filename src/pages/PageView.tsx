@@ -3,7 +3,7 @@ import { useParams, Link, useNavigate } from 'react-router-dom';
 import { useStore } from '@/store/useStore';
 import { pageService, markdownService, resolveImagesInHtml, clearImageCache } from '@/services';
 import { Page, Highlight, Memo } from '@/types';
-import { PageEditor } from '@/components/PageEditor';
+import { PageEditor, PageEditorHandle } from '@/components/PageEditor';
 import { FindBar } from '@/components/FindBar';
 import { ConfirmModal } from '@/components/ConfirmModal';
 import { HighlightPalette } from '@/components/HighlightPalette';
@@ -19,12 +19,15 @@ import './PageView.css';
 export function PageView() {
   const { pageId } = useParams<{ pageId: string }>();
   const navigate = useNavigate();
-  const { pages, removePage, updatePageInStore, columnColors, showToast, highlightColors, config, isImmerseMode, setIsImmerseMode } = useStore();
+  const { pages, removePage, updatePageInStore, columnColors, showToast, highlightColors, config, isImmerseMode, setIsImmerseMode, pageWidth, setPageWidth } = useStore();
   const [page, setPage] = useState<Page | null>(null);
   const [htmlContent, setHtmlContent] = useState<string>('');
   const [loading, setLoading] = useState(true);
   const [editing, setEditing] = useState(false);
   const contentRef = useRef<HTMLDivElement>(null);
+  const editorRef = useRef<PageEditorHandle | null>(null);
+  const [editorPreview, setEditorPreview] = useState(false);
+  const [editorSaving, setEditorSaving] = useState(false);
   const [showFindBar, setShowFindBar] = useState(false);
   const [zoomedDiagram, setZoomedDiagram] = useState<string | null>(null);
   const [showScrollTop, setShowScrollTop] = useState(false);
@@ -49,6 +52,86 @@ export function PageView() {
   const resizeStartWidthRef = useRef(0);
   const [themeVersion, setThemeVersion] = useState(0); // Track theme changes for highlight re-rendering
   const [lastCreatedMemoId, setLastCreatedMemoId] = useState<string | null>(null);
+
+  // Inline edit state for meta fields
+  const [editTitle, setEditTitle] = useState('');
+  const [editColumn, setEditColumn] = useState('');
+  const [editTags, setEditTags] = useState('');
+  const [editDueDate, setEditDueDate] = useState('');
+  const [showColumnDropdown, setShowColumnDropdown] = useState(false);
+  const columnDropdownRef = useRef<HTMLDivElement>(null);
+  const [tagInput, setTagInput] = useState('');
+  const [showTagSuggestions, setShowTagSuggestions] = useState(false);
+  const [newColumnInput, setNewColumnInput] = useState('');
+
+  const existingColumns = Array.from(new Set(pages.map(p => p.kanbanColumn).filter(Boolean) as string[]));
+
+  const startEditing = () => {
+    if (page) {
+      setEditTitle(page.title);
+      setEditColumn(page.kanbanColumn || '');
+      setEditTags(page.tags.join(', '));
+      setEditDueDate(page.dueDate ? page.dueDate.slice(0, 10) : '');
+    }
+    setEditorPreview(false);
+    setEditorSaving(false);
+    setEditing(true);
+  };
+
+  const getColColor = (col: string) => {
+    const customColor = columnColors[col.toLowerCase()];
+    return customColor || undefined;
+  };
+
+  // Compute all unique tags across pages for autocomplete
+  const allTags = Array.from(new Set(pages.flatMap(p => p.tags)));
+  const filteredSuggestions = allTags.filter(
+    tag => page ? !page.tags.includes(tag) && tag.toLowerCase().includes(tagInput.toLowerCase()) : false
+  ).slice(0, 8);
+
+  const handleAddTag = useCallback(async (tag: string) => {
+    if (!page || page.tags.includes(tag)) return;
+    const newTags = [...page.tags, tag];
+    const updatedPage = { ...page, tags: newTags, updatedAt: new Date().toISOString() };
+    setPage(updatedPage);
+    updatePageInStore(updatedPage);
+    setTagInput('');
+    setShowTagSuggestions(false);
+    try {
+      await pageService.updatePage(updatedPage);
+    } catch (err) {
+      console.error('Failed to save tag:', err);
+    }
+  }, [page, updatePageInStore]);
+
+  const handleRemoveTag = useCallback(async (tag: string) => {
+    if (!page) return;
+    const newTags = page.tags.filter(t => t !== tag);
+    const updatedPage = { ...page, tags: newTags, updatedAt: new Date().toISOString() };
+    setPage(updatedPage);
+    updatePageInStore(updatedPage);
+    try {
+      await pageService.updatePage(updatedPage);
+    } catch (err) {
+      console.error('Failed to save tag:', err);
+    }
+  }, [page, updatePageInStore]);
+
+  const handleTagInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setTagInput(e.target.value);
+    setShowTagSuggestions(true);
+  };
+
+  const handleTagKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter' && tagInput.trim()) {
+      e.preventDefault();
+      handleAddTag(tagInput.trim());
+    } else if (e.key === 'Escape') {
+      setTagInput('');
+      setShowTagSuggestions(false);
+      (e.target as HTMLInputElement).blur();
+    }
+  };
 
   // Render mermaid diagrams after HTML content updates
   useMermaid(contentRef, htmlContent);
@@ -714,17 +797,17 @@ export function PageView() {
       if (!editing && !isInputField) {
         if ((e.metaKey || e.ctrlKey) && e.key === 'e') {
           e.preventDefault();
-          setEditing(true);
+          startEditing();
         } else if (e.key === 'e' || e.key === 'E') {
           e.preventDefault();
-          setEditing(true);
+          startEditing();
         }
       }
     };
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [editing, memoMode, isImmerseMode, setIsImmerseMode, showToast]);
+  }, [editing, memoMode, isImmerseMode, setIsImmerseMode, showToast, page]);
 
   // Track scroll position to show/hide scroll to top button
   useEffect(() => {
@@ -945,130 +1028,343 @@ export function PageView() {
     );
   }
 
-  if (editing) {
-    return (
-      <div className="page-view">
-        <PageEditor
-          page={page}
-          onSave={handleEditorSave}
-          onCancel={() => setEditing(false)}
-        />
-      </div>
-    );
-  }
-
   return (
     <>
       <div className={`page-view-container ${showTerminal ? 'with-terminal' : ''}`}>
-        <div className={`page-view ${isImmerseMode ? 'immerse-mode' : ''}`}>
+        <div className={`page-view ${isImmerseMode ? 'immerse-mode' : ''} ${pageWidth === 'narrow' ? 'page-narrow' : ''}`}>
         {!isImmerseMode && (
         <div className="page-header">
-        <div className="page-header-top">
+        <div className="page-actions-bar">
           <button className="btn-icon" onClick={() => navigate(-1)} title="Go back">
             <span className="material-symbols-outlined">arrow_back</span>
           </button>
-          <h1>{page.title}</h1>
           <div className="page-actions">
-            <button className="btn btn-secondary" onClick={() => setEditing(true)}>
-              <span className="material-symbols-outlined">edit</span>
-              Edit
-            </button>
-            <div className="page-menu-container" ref={pageMenuRef}>
-              <button
-                className="btn btn-secondary btn-icon"
-                onClick={() => setShowPageMenu(!showPageMenu)}
-                title="More options"
-              >
-                <span className="material-symbols-outlined">more_vert</span>
-              </button>
-              {showPageMenu && (
-                <div className="page-menu-dropdown">
+            {editing ? (
+              <>
+                <div className="editor-mode-tabs">
                   <button
-                    className="page-menu-item"
-                    onClick={() => {
-                      handleCopyLink();
-                      setShowPageMenu(false);
-                    }}
+                    className={`mode-tab ${!editorPreview ? 'active' : ''}`}
+                    onClick={() => { if (editorPreview) { editorRef.current?.togglePreview(); setEditorPreview(false); } }}
                   >
-                    <span className="material-symbols-outlined">link</span>
-                    Copy Link
+                    Edit
                   </button>
                   <button
-                    className="page-menu-item"
-                    onClick={() => {
-                      setMemoMode(!memoMode);
-                      setShowPageMenu(false);
-                    }}
+                    className={`mode-tab ${editorPreview ? 'active' : ''}`}
+                    onClick={() => { if (!editorPreview) { editorRef.current?.togglePreview(); setEditorPreview(true); } }}
                   >
-                    <span className="material-symbols-outlined">
-                      {memoMode ? 'close' : 'sticky_note_2'}
-                    </span>
-                    {memoMode ? 'Exit Memo Mode' : 'Memo Mode'}
-                  </button>
-                  <button
-                    className="page-menu-item"
-                    onClick={() => {
-                      setHighlightsVisible(!highlightsVisible);
-                      setShowPageMenu(false);
-                    }}
-                  >
-                    <span className="material-symbols-outlined">
-                      {highlightsVisible ? 'visibility_off' : 'visibility'}
-                    </span>
-                    {highlightsVisible ? 'Hide Highlights' : 'Show Highlights'}
-                  </button>
-                  <button
-                    className="page-menu-item"
-                    onClick={() => {
-                      setShowTerminal(!showTerminal);
-                      setShowPageMenu(false);
-                    }}
-                  >
-                    <span className="material-symbols-outlined">terminal</span>
-                    {showTerminal ? 'Hide Terminal' : 'Show Terminal'}
-                  </button>
-                  <div className="page-menu-divider"></div>
-                  <button
-                    className="page-menu-item page-menu-item-danger"
-                    onClick={() => {
-                      setShowPageMenu(false);
-                      handleDelete();
-                    }}
-                  >
-                    <span className="material-symbols-outlined">delete</span>
-                    Delete Page
+                    Preview
                   </button>
                 </div>
-              )}
-            </div>
+                <button
+                  className="btn-icon"
+                  onClick={() => editorRef.current?.openImagePicker()}
+                  title="Insert image"
+                >
+                  <span className="material-symbols-outlined">image</span>
+                </button>
+                <div className="actions-divider" />
+                <button className="btn-icon" onClick={() => setEditing(false)} title="Cancel">
+                  <span className="material-symbols-outlined">close</span>
+                </button>
+                <button
+                  className="btn-icon"
+                  onClick={() => { editorRef.current?.save(); setEditorSaving(true); setTimeout(() => setEditorSaving(false), 2000); }}
+                  disabled={editorSaving}
+                  title="Save"
+                >
+                  <span className="material-symbols-outlined">{editorSaving ? 'hourglass_empty' : 'check'}</span>
+                </button>
+              </>
+            ) : (
+              <>
+                <button
+                  className="btn btn-secondary btn-icon"
+                  onClick={() => setPageWidth(pageWidth === 'narrow' ? 'wide' : 'narrow')}
+                  title={pageWidth === 'narrow' ? 'Switch to wide layout' : 'Switch to narrow layout'}
+                >
+                  <span className="material-symbols-outlined">
+                    {pageWidth === 'narrow' ? 'width_wide' : 'width_normal'}
+                  </span>
+                </button>
+                <button className="btn btn-secondary btn-icon" onClick={() => startEditing()} title="Edit">
+                  <span className="material-symbols-outlined">edit</span>
+                </button>
+                <div className="page-menu-container" ref={pageMenuRef}>
+                  <button
+                    className="btn btn-secondary btn-icon"
+                    onClick={() => setShowPageMenu(!showPageMenu)}
+                    title="More options"
+                  >
+                    <span className="material-symbols-outlined">more_vert</span>
+                  </button>
+                  {showPageMenu && (
+                    <div className="page-menu-dropdown">
+                      <button
+                        className="page-menu-item"
+                        onClick={() => {
+                          handleCopyLink();
+                          setShowPageMenu(false);
+                        }}
+                      >
+                        <span className="material-symbols-outlined">link</span>
+                        Copy Link
+                      </button>
+                      <button
+                        className="page-menu-item"
+                        onClick={() => {
+                          setMemoMode(!memoMode);
+                          setShowPageMenu(false);
+                        }}
+                      >
+                        <span className="material-symbols-outlined">
+                          {memoMode ? 'close' : 'sticky_note_2'}
+                        </span>
+                        {memoMode ? 'Exit Memo Mode' : 'Memo Mode'}
+                      </button>
+                      <button
+                        className="page-menu-item"
+                        onClick={() => {
+                          setHighlightsVisible(!highlightsVisible);
+                          setShowPageMenu(false);
+                        }}
+                      >
+                        <span className="material-symbols-outlined">
+                          {highlightsVisible ? 'visibility_off' : 'visibility'}
+                        </span>
+                        {highlightsVisible ? 'Hide Highlights' : 'Show Highlights'}
+                      </button>
+                      <button
+                        className="page-menu-item"
+                        onClick={() => {
+                          setShowTerminal(!showTerminal);
+                          setShowPageMenu(false);
+                        }}
+                      >
+                        <span className="material-symbols-outlined">terminal</span>
+                        {showTerminal ? 'Hide Terminal' : 'Show Terminal'}
+                      </button>
+                      <div className="page-menu-divider"></div>
+                      <button
+                        className="page-menu-item page-menu-item-danger"
+                        onClick={() => {
+                          setShowPageMenu(false);
+                          handleDelete();
+                        }}
+                      >
+                        <span className="material-symbols-outlined">delete</span>
+                        Delete Page
+                      </button>
+                    </div>
+                  )}
+                </div>
+              </>
+            )}
           </div>
         </div>
-        <div className="page-meta">
-          {page.kanbanColumn && (
-            <div
-              className="page-column-badge"
-              style={columnColors[page.kanbanColumn.toLowerCase()]
-                ? { backgroundColor: columnColors[page.kanbanColumn.toLowerCase()] }
-                : undefined}
-            >
-              {page.kanbanColumn}
+        <div className={`page-header-content ${pageWidth === 'narrow' ? 'width-narrow' : ''}`}>
+          <div className="editor-meta">
+            <div className="editor-field">
+              {editing ? (
+                <input
+                  type="text"
+                  value={editTitle}
+                  onChange={e => setEditTitle(e.target.value)}
+                  className="editor-title-input"
+                  placeholder="Untitled"
+                  autoFocus
+                />
+              ) : (
+                <h1 className="editor-title-input as-heading">{page.title}</h1>
+              )}
             </div>
-          )}
-          {page.dueDate && (
-            <div className="due-date">
-              Due: {new Date(page.dueDate).toLocaleDateString()}
+            <div className="editor-props">
+              {/* Column */}
+              <div className="editor-prop-row">
+                <span className="editor-prop-label">
+                  <span className="material-symbols-outlined">view_column</span>
+                  Column
+                </span>
+                <div className="editor-prop-value">
+                  {editing ? (
+                    <div className="column-selector" ref={columnDropdownRef}>
+                      <div
+                        className="column-selector-display"
+                        onClick={() => setShowColumnDropdown(!showColumnDropdown)}
+                      >
+                        {editColumn ? (
+                          <span
+                            className="selected-column-chip"
+                            style={getColColor(editColumn) ? { backgroundColor: getColColor(editColumn) } : undefined}
+                          >
+                            {editColumn}
+                            <button
+                              type="button"
+                              className="chip-remove"
+                              onClick={(e) => { e.stopPropagation(); setEditColumn(''); }}
+                            >✕</button>
+                          </span>
+                        ) : (
+                          <span className="column-placeholder">Empty</span>
+                        )}
+                      </div>
+                      {showColumnDropdown && (
+                        <div className="column-dropdown">
+                          {existingColumns.length > 0 && (
+                            <div className="column-chips">
+                              {existingColumns.map(col => (
+                                <button
+                                  key={col}
+                                  type="button"
+                                  className={`column-chip ${editColumn === col ? 'active' : ''}`}
+                                  style={getColColor(col)
+                                    ? editColumn === col
+                                      ? { backgroundColor: getColColor(col), color: 'white', borderColor: 'transparent' }
+                                      : { borderColor: getColColor(col), color: getColColor(col) }
+                                    : undefined}
+                                  onClick={() => { setEditColumn(col); setShowColumnDropdown(false); }}
+                                >
+                                  {col}
+                                </button>
+                              ))}
+                            </div>
+                          )}
+                          <div className="column-new-input">
+                            <input
+                              type="text"
+                              value={newColumnInput}
+                              onChange={e => setNewColumnInput(e.target.value)}
+                              onKeyDown={e => { if (e.key === 'Enter' && newColumnInput.trim()) { setEditColumn(newColumnInput.trim()); setNewColumnInput(''); setShowColumnDropdown(false); }}}
+                              placeholder="New column..."
+                            />
+                            <button
+                              type="button"
+                              className="btn btn-sm"
+                              onClick={() => { if (newColumnInput.trim()) { setEditColumn(newColumnInput.trim()); setNewColumnInput(''); setShowColumnDropdown(false); }}}
+                              disabled={!newColumnInput.trim()}
+                            >Add</button>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  ) : (
+                    <span className="editor-prop-static">
+                      {page.kanbanColumn ? (
+                        <span
+                          className="selected-column-chip"
+                          style={getColColor(page.kanbanColumn) ? { backgroundColor: getColColor(page.kanbanColumn) } : undefined}
+                        >{page.kanbanColumn}</span>
+                      ) : (
+                        <span className="column-placeholder">Empty</span>
+                      )}
+                    </span>
+                  )}
+                </div>
+              </div>
+              {/* Tags */}
+              <div className="editor-prop-row">
+                <span className="editor-prop-label">
+                  <span className="material-symbols-outlined">sell</span>
+                  Tags
+                </span>
+                <div className="editor-prop-value">
+                  {editing ? (
+                    <input
+                      type="text"
+                      value={editTags}
+                      onChange={e => setEditTags(e.target.value)}
+                      placeholder="Empty"
+                    />
+                  ) : (
+                    <div className="page-tags-section">
+                      {page.tags.map(tag => (
+                        <span key={tag} className="page-tag">
+                          {tag}
+                          <button className="tag-remove-btn" onClick={() => handleRemoveTag(tag)}>×</button>
+                        </span>
+                      ))}
+                      <div className="tag-input-wrapper">
+                        <input
+                          className="tag-inline-input"
+                          value={tagInput}
+                          onChange={handleTagInputChange}
+                          onKeyDown={handleTagKeyDown}
+                          onFocus={() => setShowTagSuggestions(true)}
+                          onBlur={() => setTimeout(() => setShowTagSuggestions(false), 150)}
+                          placeholder={page.tags.length === 0 ? "Add tag..." : "+"}
+                        />
+                        {showTagSuggestions && tagInput && filteredSuggestions.length > 0 && (
+                          <div className="tag-suggestions">
+                            {filteredSuggestions.map(tag => (
+                              <button key={tag} onMouseDown={() => handleAddTag(tag)}>{tag}</button>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+              {/* Due Date */}
+              <div className="editor-prop-row">
+                <span className="editor-prop-label">
+                  <span className="material-symbols-outlined">calendar_today</span>
+                  Due Date
+                </span>
+                <div className="editor-prop-value">
+                  {editing ? (
+                    <input
+                      type="date"
+                      value={editDueDate}
+                      onChange={e => setEditDueDate(e.target.value)}
+                    />
+                  ) : (
+                    <span className="editor-prop-static">
+                      {page.dueDate ? new Date(page.dueDate).toLocaleDateString() : <span className="column-placeholder">Empty</span>}
+                    </span>
+                  )}
+                </div>
+              </div>
+              {/* Created */}
+              <div className="editor-prop-row">
+                <span className="editor-prop-label">
+                  <span className="material-symbols-outlined">schedule</span>
+                  Created
+                </span>
+                <div className="editor-prop-value">
+                  <span className="editor-prop-static">{new Date(page.createdAt).toLocaleString()}</span>
+                </div>
+              </div>
+              {/* Updated */}
+              <div className="editor-prop-row">
+                <span className="editor-prop-label">
+                  <span className="material-symbols-outlined">update</span>
+                  Updated
+                </span>
+                <div className="editor-prop-value">
+                  <span className="editor-prop-static">{new Date(page.updatedAt).toLocaleString()}</span>
+                </div>
+              </div>
             </div>
-          )}
-          <div className="page-dates">
-            <span>Created: {new Date(page.createdAt).toLocaleDateString()}</span>
-            <span>Updated: {new Date(page.updatedAt).toLocaleDateString()}</span>
           </div>
         </div>
       </div>
         )}
 
+      {editing ? (
+        <div className={`page-content-layout`}>
+          <PageEditor
+            page={page}
+            onSave={handleEditorSave}
+            onCancel={() => setEditing(false)}
+            hideMeta
+            hideToolbar
+            editorRef={editorRef}
+            metaOverrides={{ title: editTitle, kanbanColumn: editColumn, tags: editTags, dueDate: editDueDate }}
+          />
+        </div>
+      ) : (
       <div className={`page-content-layout ${memoMode ? 'memo-mode-active' : ''}`}>
-        <div className="document-view">
+        <div className={`document-view ${pageWidth === 'narrow' ? 'width-narrow' : ''}`}>
           {showFindBar && (
             <FindBar
               content={page.content}
@@ -1125,6 +1421,7 @@ export function PageView() {
           </>
         )}
       </div>
+      )}
       </div>
       {showTerminal && <Terminal workspacePath={config.workspacePath} />}
       </div>
