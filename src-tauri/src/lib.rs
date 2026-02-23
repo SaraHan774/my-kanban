@@ -1,8 +1,12 @@
+#[cfg(not(any(target_os = "android", target_os = "ios")))]
 use tauri::{Manager, WebviewUrl, WebviewWindowBuilder, State};
 
+#[cfg(not(any(target_os = "android", target_os = "ios")))]
 mod terminal;
+#[cfg(not(any(target_os = "android", target_os = "ios")))]
 use terminal::TerminalManager;
 
+#[cfg(not(any(target_os = "android", target_os = "ios")))]
 #[derive(serde::Serialize, serde::Deserialize)]
 struct WindowBounds {
     x: f64,
@@ -11,24 +15,22 @@ struct WindowBounds {
     height: f64,
 }
 
+#[cfg(not(any(target_os = "android", target_os = "ios")))]
 #[tauri::command]
 async fn open_side_browser(
     app: tauri::AppHandle,
     url: String,
     main_bounds: WindowBounds,
 ) -> Result<(), String> {
-    // Close existing side browser if it exists
     if let Some(window) = app.get_webview_window("side-browser") {
         let _ = window.close();
     }
 
-    // Calculate position for right half of the screen
     let x = main_bounds.x + (main_bounds.width / 2.0);
     let y = main_bounds.y;
     let width = main_bounds.width / 2.0;
     let height = main_bounds.height;
 
-    // Create a new webview window for the browser
     WebviewWindowBuilder::new(
         &app,
         "side-browser",
@@ -46,6 +48,7 @@ async fn open_side_browser(
     Ok(())
 }
 
+#[cfg(not(any(target_os = "android", target_os = "ios")))]
 #[tauri::command]
 async fn close_side_browser(app: tauri::AppHandle) -> Result<(), String> {
     if let Some(window) = app.get_webview_window("side-browser") {
@@ -54,6 +57,7 @@ async fn close_side_browser(app: tauri::AppHandle) -> Result<(), String> {
     Ok(())
 }
 
+#[cfg(not(any(target_os = "android", target_os = "ios")))]
 #[tauri::command]
 async fn spawn_terminal(
     app: tauri::AppHandle,
@@ -63,6 +67,7 @@ async fn spawn_terminal(
     terminal_manager.spawn_terminal(app, working_dir)
 }
 
+#[cfg(not(any(target_os = "android", target_os = "ios")))]
 #[tauri::command]
 async fn write_terminal(
     terminal_manager: State<'_, TerminalManager>,
@@ -72,6 +77,7 @@ async fn write_terminal(
     terminal_manager.write_terminal(session_id, data)
 }
 
+#[cfg(not(any(target_os = "android", target_os = "ios")))]
 #[tauri::command]
 async fn resize_terminal(
     terminal_manager: State<'_, TerminalManager>,
@@ -82,6 +88,7 @@ async fn resize_terminal(
     terminal_manager.resize_terminal(session_id, cols, rows)
 }
 
+#[cfg(not(any(target_os = "android", target_os = "ios")))]
 #[tauri::command]
 async fn close_terminal(
     terminal_manager: State<'_, TerminalManager>,
@@ -92,10 +99,13 @@ async fn close_terminal(
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-    tauri::Builder::default()
+    let builder = tauri::Builder::default()
         .plugin(tauri_plugin_fs::init())
         .plugin(tauri_plugin_dialog::init())
-        .plugin(tauri_plugin_opener::init())
+        .plugin(tauri_plugin_opener::init());
+
+    #[cfg(not(any(target_os = "android", target_os = "ios")))]
+    let builder = builder
         .manage(TerminalManager::new())
         .invoke_handler(tauri::generate_handler![
             open_side_browser,
@@ -104,7 +114,12 @@ pub fn run() {
             write_terminal,
             resize_terminal,
             close_terminal
-        ])
+        ]);
+
+    #[cfg(any(target_os = "android", target_os = "ios"))]
+    let builder = builder.invoke_handler(tauri::generate_handler![]);
+
+    builder
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }
