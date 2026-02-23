@@ -167,11 +167,6 @@ export function Sidebar() {
           )}
           <Link to={`/page/${page.id}`} className="sidebar-page-link" replace>
             <span className="page-title">{page.title}</span>
-            {page.tags.length > 0 && (
-              <span className="page-tags">
-                {page.tags.slice(0, 2).join(', ')}
-              </span>
-            )}
           </Link>
           <button
             className="btn-icon btn-add-child"
@@ -267,7 +262,7 @@ export function Sidebar() {
         </div>
       )}
 
-      <div className="sidebar-sort">
+      <div className="sidebar-controls">
         <select
           className="sort-select"
           value={sortOptions?.field || ''}
@@ -301,22 +296,15 @@ export function Sidebar() {
             {sortOptions.direction === 'asc' ? '↑' : '↓'}
           </button>
         )}
-      </div>
-
-      <div className="sidebar-collapse-controls">
+        <div className="sidebar-controls-divider" />
         <button
-          className="collapse-control-btn"
-          onClick={expandAll}
-          title="Expand all"
+          className="btn-icon"
+          onClick={() => collapsedPages.size > 0 ? expandAll() : collapseAll()}
+          title={collapsedPages.size > 0 ? 'Expand all' : 'Collapse all'}
         >
-          Expand all
-        </button>
-        <button
-          className="collapse-control-btn"
-          onClick={collapseAll}
-          title="Collapse all"
-        >
-          Collapse all
+          <span className="material-symbols-outlined">
+            {collapsedPages.size > 0 ? 'unfold_more' : 'unfold_less'}
+          </span>
         </button>
       </div>
 

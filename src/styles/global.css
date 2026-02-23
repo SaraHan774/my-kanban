@@ -7,6 +7,7 @@
 @import url('https://fonts.googleapis.com/css2?family=Nanum+Gothic:wght@400;700;800&display=swap');
 @import url('https://fonts.googleapis.com/css2?family=Nanum+Myeongjo:wght@400;700;800&display=swap');
 @import url('https://fonts.googleapis.com/css2?family=Do+Hyeon&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Lobster&display=swap');
 @import url('https://cdn.jsdelivr.net/gh/spoqa/spoqa-han-sans@latest/css/SpoqaHanSansNeo.min.css');
 @import url('https://cdn.jsdelivr.net/npm/gmarket-sans@1.0.1/css/gmarket-sans.min.css');
 
@@ -44,6 +45,7 @@
   /* Legacy (for backward compatibility - uses UI font) */
   --font-sans: var(--font-ui);
   --font-size-base: var(--font-ui-size);
+  --caret-color: rgba(0, 0, 0, 0.15);
 }
 
 @media (prefers-color-scheme: dark) {
@@ -56,6 +58,7 @@
     --border-color: #404040;
     --accent-primary: #60a5fa;
     --accent-hover: #3b82f6;
+    --caret-color: rgba(255, 255, 255, 0.15);
   }
 }
 
@@ -68,6 +71,7 @@
   --border-color: #404040;
   --accent-primary: #60a5fa;
   --accent-hover: #3b82f6;
+  --caret-color: rgba(255, 255, 255, 0.15);
 }
 
 body {
@@ -77,6 +81,12 @@ body {
   color: var(--text-primary);
   line-height: 1.5;
   letter-spacing: -0.01em;
+  caret-color: var(--caret-color);
+}
+
+/* Subtle, thin caret for all inputs */
+input, textarea, [contenteditable] {
+  caret-color: var(--caret-color);
 }
 
 #root {

@@ -89,7 +89,7 @@ export function CreatePageModal({ onClose, parentId }: CreatePageModalProps) {
       const page = await pageService.createPage(config.workspacePath, title.trim(), {
         viewType: 'document',
         kanbanColumn: selectedColumn || undefined,
-        tags: selectedColumn ? [selectedColumn] : [],
+        tags: [],
         parentId: parentId || undefined, // Set parent-child relationship via parentId
       });
 
