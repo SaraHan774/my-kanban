@@ -351,6 +351,34 @@
   opacity: 0.5;
 }
 
+/* ── Page count ── */
+.sidebar-page-count {
+  font-size: 0.6875rem;
+  color: var(--text-secondary);
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+/* ── Show more button ── */
+.show-more-btn {
+  width: 100%;
+  padding: 6px 12px;
+  margin-top: 4px;
+  font-size: 0.75rem;
+  color: var(--text-secondary);
+  background: none;
+  border: 1px dashed var(--border-color);
+  border-radius: 5px;
+  cursor: pointer;
+  transition: all 0.12s;
+}
+
+.show-more-btn:hover {
+  background-color: var(--bg-tertiary);
+  color: var(--text-primary);
+  border-color: var(--text-secondary);
+}
+
 /* ── Empty / Loading states ── */
 .loading, .empty-state {
   padding: 2rem 1rem;

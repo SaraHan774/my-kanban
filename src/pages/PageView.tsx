@@ -1,4 +1,4 @@
-import { useEffect, useState, useRef, useCallback } from 'react';
+import { useEffect, useMemo, useState, useRef, useCallback } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { useStore } from '@/store/useStore';
 import { pageService, markdownService, resolveImagesInHtml, clearImageCache } from '@/services';
@@ -33,11 +33,11 @@ export function PageView() {
   const [showScrollTop, setShowScrollTop] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [showHighlightPalette, setShowHighlightPalette] = useState(false);
-  const [palettePosition, setPalettePosition] = useState({ top: 0, left: 0 });
+  const [paletteRect, setPaletteRect] = useState<DOMRect | null>(null);
   const [highlightsVisible, setHighlightsVisible] = useState(true);
   const selectedRangeRef = useRef<Range | null>(null);
   const [showHoverMenu, setShowHoverMenu] = useState(false);
-  const [hoverMenuPosition, setHoverMenuPosition] = useState({ top: 0, left: 0 });
+  const [hoverMenuRect, setHoverMenuRect] = useState<DOMRect | null>(null);
   const [hoveredHighlightId, setHoveredHighlightId] = useState<string | null>(null);
   const isMouseOverMenuRef = useRef(false);
   const closeMenuTimeoutRef = useRef<NodeJS.Timeout | null>(null);
@@ -61,7 +61,16 @@ export function PageView() {
   const [showTagSuggestions, setShowTagSuggestions] = useState(false);
   const [newColumnInput, setNewColumnInput] = useState('');
 
-  const existingColumns = Array.from(new Set(pages.map(p => p.kanbanColumn).filter(Boolean) as string[]));
+  // Refs to always access latest values without adding to callback deps
+  const pagesRef = useRef(pages);
+  pagesRef.current = pages;
+  const highlightsVisibleRef = useRef(highlightsVisible);
+  highlightsVisibleRef.current = highlightsVisible;
+
+  const existingColumns = useMemo(
+    () => Array.from(new Set(pages.map(p => p.kanbanColumn).filter(Boolean) as string[])),
+    [pages]
+  );
 
   const startEditing = () => {
     if (page) {
@@ -78,10 +87,13 @@ export function PageView() {
   };
 
   // Compute all unique tags across pages for autocomplete
-  const allTags = Array.from(new Set(pages.flatMap(p => p.tags)));
-  const filteredSuggestions = allTags.filter(
-    tag => page ? !page.tags.includes(tag) && tag.toLowerCase().includes(tagInput.toLowerCase()) : false
-  ).slice(0, 8);
+  const allTags = useMemo(() => Array.from(new Set(pages.flatMap(p => p.tags))), [pages]);
+  const filteredSuggestions = useMemo(
+    () => allTags.filter(
+      tag => page ? !page.tags.includes(tag) && tag.toLowerCase().includes(tagInput.toLowerCase()) : false
+    ).slice(0, 8),
+    [allTags, page?.tags, tagInput]
+  );
 
   const handleAddTag = useCallback(async (tag: string) => {
     if (!page || page.tags.includes(tag)) return;
@@ -151,6 +163,15 @@ export function PageView() {
     }
   };
 
+  // Centralized HTML rendering pipeline — avoids duplication across handlers
+  const renderHtml = useCallback(async (content: string, pagePath: string, highlights: Highlight[]) => {
+    const contentWithLinks = convertWikiLinksToMarkdown(content, pagesRef.current);
+    let html = await markdownService.toHtml(contentWithLinks);
+    html = await resolveImagesInHtml(html, pagePath);
+    html = applyHighlightsToHtml(html, highlights);
+    setHtmlContent(html);
+  }, [/* pagesRef is stable; applyHighlightsToHtml uses highlightsVisible via closure */]);
+
   // Render mermaid diagrams after HTML content updates
   useMermaid(contentRef, htmlContent);
 
@@ -193,13 +214,7 @@ export function PageView() {
       if (foundPage) {
         const fullPage = await pageService.loadPageWithChildren(foundPage.path);
         setPage(fullPage);
-        // Convert wiki-style links before rendering markdown
-        const contentWithLinks = convertWikiLinksToMarkdown(fullPage.content, pages);
-        let html = await markdownService.toHtml(contentWithLinks);
-        html = await resolveImagesInHtml(html, fullPage.path);
-        // Apply highlights
-        html = applyHighlightsToHtml(html, fullPage.highlights || []);
-        setHtmlContent(html);
+        await renderHtml(fullPage.content, fullPage.path, fullPage.highlights || []);
       }
     } catch (error) {
       console.error('Failed to load page:', error);
@@ -224,19 +239,14 @@ export function PageView() {
     setPage(updatedPage);
     updatePageInStore(updatedPage);
 
-    // Convert wiki-style links before rendering markdown
-    const contentWithLinks = convertWikiLinksToMarkdown(newContent, pages);
-    let html = await markdownService.toHtml(contentWithLinks);
-    html = await resolveImagesInHtml(html, page.path);
-    html = applyHighlightsToHtml(html, page.highlights || []);
-    setHtmlContent(html);
+    await renderHtml(newContent, page.path, page.highlights || []);
 
     try {
       await pageService.updatePage(updatedPage);
     } catch (err) {
       console.error('Failed to save checkbox state:', err);
     }
-  }, [page, updatePageInStore, pages]);
+  }, [page, updatePageInStore, renderHtml]);
 
   // Attach click handlers to internal links for SPA navigation
   useEffect(() => {
@@ -402,13 +412,8 @@ export function PageView() {
     // Store the range for later use
     selectedRangeRef.current = range.cloneRange();
 
-    // Calculate palette position based on selected text position
-    // Similar to hover menu positioning
-    const rect = range.getBoundingClientRect();
-    setPalettePosition({
-      top: rect.top + window.scrollY - 55, // 55px above the selection
-      left: rect.left + rect.width / 2 - 150, // Center palette horizontally on selection
-    });
+    // Pass the selection's DOMRect to TooltipWindow for positioning
+    setPaletteRect(range.getBoundingClientRect());
 
     setShowHighlightPalette(true);
   }, [editing]);
@@ -485,12 +490,7 @@ export function PageView() {
     setPage(updatedPage);
     updatePageInStore(updatedPage);
 
-    // Re-render with new highlights
-    const contentWithLinks = convertWikiLinksToMarkdown(page.content, pages);
-    let html = await markdownService.toHtml(contentWithLinks);
-    html = await resolveImagesInHtml(html, page.path);
-    html = applyHighlightsToHtml(html, updatedHighlights);
-    setHtmlContent(html);
+    await renderHtml(page.content, page.path, updatedHighlights);
 
     try {
       await pageService.updatePage(updatedPage);
@@ -502,7 +502,7 @@ export function PageView() {
     // Clear selection
     selection?.removeAllRanges();
     setShowHighlightPalette(false);
-  }, [page, pages, updatePageInStore, showToast, memoMode]);
+  }, [page, updatePageInStore, showToast, memoMode, renderHtml]);
 
   const handleChangeHighlightColor = useCallback(async (highlightId: string, newColor: string) => {
     if (!page) return;
@@ -520,12 +520,7 @@ export function PageView() {
     setPage(updatedPage);
     updatePageInStore(updatedPage);
 
-    // Re-render with updated highlights
-    const contentWithLinks = convertWikiLinksToMarkdown(page.content, pages);
-    let html = await markdownService.toHtml(contentWithLinks);
-    html = await resolveImagesInHtml(html, page.path);
-    html = applyHighlightsToHtml(html, updatedHighlights);
-    setHtmlContent(html);
+    await renderHtml(page.content, page.path, updatedHighlights);
 
     try {
       await pageService.updatePage(updatedPage);
@@ -535,7 +530,7 @@ export function PageView() {
     }
 
     setShowHoverMenu(false);
-  }, [page, pages, updatePageInStore, showToast]);
+  }, [page, updatePageInStore, showToast, renderHtml]);
 
   const handleDeleteHighlight = useCallback(async (highlightId: string) => {
     if (!page) return;
@@ -554,12 +549,7 @@ export function PageView() {
     setPage(updatedPage);
     updatePageInStore(updatedPage);
 
-    // Re-render without deleted highlight
-    const contentWithLinks = convertWikiLinksToMarkdown(page.content, pages);
-    let html = await markdownService.toHtml(contentWithLinks);
-    html = await resolveImagesInHtml(html, page.path);
-    html = applyHighlightsToHtml(html, updatedHighlights);
-    setHtmlContent(html);
+    await renderHtml(page.content, page.path, updatedHighlights);
 
     try {
       await pageService.updatePage(updatedPage);
@@ -569,7 +559,7 @@ export function PageView() {
     }
 
     setShowHoverMenu(false);
-  }, [page, pages, updatePageInStore, showToast]);
+  }, [page, updatePageInStore, showToast, renderHtml]);
 
   // Memo CRUD operations
   const handleCreateMemo = useCallback(async () => {
@@ -664,7 +654,7 @@ export function PageView() {
   }, []);
 
   const applyHighlightsToHtml = (html: string, highlights: Highlight[]): string => {
-    if (!highlights || highlights.length === 0 || !highlightsVisible) return html;
+    if (!highlights || highlights.length === 0 || !highlightsVisibleRef.current) return html;
 
     // Create a temporary div to parse HTML
     const tempDiv = document.createElement('div');
@@ -765,6 +755,32 @@ export function PageView() {
     // Reload the page to ensure mermaid diagrams render correctly
     await loadPage(updatedPage.id, true);
   };
+
+  // Track editing state in a ref so event handlers always see the latest value
+  const editingRef = useRef(editing);
+  editingRef.current = editing;
+
+  // Auto-save when leaving the page for ANY reason while editing
+  // 1) beforeunload — browser/tab close (Cmd+W, refresh, etc.)
+  useEffect(() => {
+    const handleBeforeUnload = () => {
+      if (editingRef.current && editorRef.current) {
+        editorRef.current.save();
+      }
+    };
+
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    return () => window.removeEventListener('beforeunload', handleBeforeUnload);
+  }, []);
+
+  // 2) Route change (pageId change) or component unmount while editing
+  useEffect(() => {
+    return () => {
+      if (editingRef.current && editorRef.current) {
+        editorRef.current.save();
+      }
+    };
+  }, [pageId]);
 
   // Keyboard shortcuts for edit mode and find
   useEffect(() => {
@@ -910,12 +926,7 @@ export function PageView() {
         if (isDifferentHighlight) {
           // For multi-line highlights, position based on the hovered mark element
           // This ensures the menu appears close to the actual highlighted text
-          const rect = mark.getBoundingClientRect();
-
-          setHoverMenuPosition({
-            top: rect.top + window.scrollY - 45, // 45px above the hovered line
-            left: mousePositionRef.current.x - 100, // Horizontally centered on cursor
-          });
+          setHoverMenuRect(mark.getBoundingClientRect());
         }
 
         setHoveredHighlightId(highlightId);
@@ -977,20 +988,22 @@ export function PageView() {
     };
   }, []);
 
-  // Re-render when highlights visibility or theme changes
+  // Ref to access latest page without adding to effect deps
+  const pageRef = useRef(page);
+  pageRef.current = page;
+
+  // Re-render ONLY when highlights visibility or theme changes (not on every page/pages change)
+  // Individual handlers already call renderHtml after their own mutations.
   useEffect(() => {
-    if (!page) return;
+    const currentPage = pageRef.current;
+    if (!currentPage) return;
 
     const reRender = async () => {
-      const contentWithLinks = convertWikiLinksToMarkdown(page.content, pages);
-      let html = await markdownService.toHtml(contentWithLinks);
-      html = await resolveImagesInHtml(html, page.path);
-      html = applyHighlightsToHtml(html, page.highlights || []);
-      setHtmlContent(html);
+      await renderHtml(currentPage.content, currentPage.path, currentPage.highlights || []);
     };
 
     reRender();
-  }, [highlightsVisible, page, pages, themeVersion]);
+  }, [highlightsVisible, themeVersion, renderHtml]);
 
   // Memo panel resize handlers
   const handleResizeStart = useCallback((e: React.MouseEvent) => {
@@ -1089,7 +1102,7 @@ export function PageView() {
                   <span className="material-symbols-outlined">image</span>
                 </button>
                 <div className="actions-divider" />
-                <button className="btn-icon" onClick={() => setEditing(false)} title="Cancel">
+                <button className="btn-icon" onClick={() => { editorRef.current?.save(); }} title="Close (auto-saves)">
                   <span className="material-symbols-outlined">close</span>
                 </button>
                 <button
@@ -1353,7 +1366,7 @@ export function PageView() {
           <PageEditor
             page={page}
             onSave={handleEditorSave}
-            onCancel={() => setEditing(false)}
+            onCancel={() => { editorRef.current?.save(); }}
             hideMeta
             hideToolbar
             editorRef={editorRef}
@@ -1449,9 +1462,9 @@ export function PageView() {
       )}
 
       {/* Highlight palette */}
-      {showHighlightPalette && (
+      {showHighlightPalette && paletteRect && (
         <HighlightPalette
-          position={palettePosition}
+          anchorRect={paletteRect}
           colors={highlightColors}
           onHighlight={applyHighlight}
           onClose={() => setShowHighlightPalette(false)}
@@ -1459,7 +1472,7 @@ export function PageView() {
       )}
 
       {/* Highlight hover menu */}
-      {showHoverMenu && hoveredHighlightId && page && (
+      {showHoverMenu && hoveredHighlightId && hoverMenuRect && page && (
         <div
           onMouseEnter={() => {
             isMouseOverMenuRef.current = true;
@@ -1480,7 +1493,7 @@ export function PageView() {
             highlightId={hoveredHighlightId}
             currentColor={page.highlights?.find(h => h.id === hoveredHighlightId)?.color || highlightColors[0]}
             colors={highlightColors}
-            position={hoverMenuPosition}
+            anchorRect={hoverMenuRect}
             onChangeColor={handleChangeHighlightColor}
             onDelete={handleDeleteHighlight}
             onClose={() => {

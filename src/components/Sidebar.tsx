@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useStore } from '@/store/useStore';
 import { pageService } from '@/services';
@@ -6,6 +6,7 @@ import { CreatePageModal } from './CreatePageModal';
 import './Sidebar.css';
 
 const DEFAULT_PALETTE = ['#3b82f6', '#f59e0b', '#22c55e', '#ef4444', '#8b5cf6', '#ec4899', '#14b8a6', '#f97316'];
+const PAGE_BATCH_SIZE = 50;
 
 export function Sidebar() {
   const { pages, setPages, hasFileSystemAccess, setSidebarOpen, activeFilters, setActiveFilters, sortOptions, setSortOptions, loadSettingsFromFile, columnColors, sidebarWidth, setSidebarWidth } = useStore();
@@ -14,7 +15,10 @@ export function Sidebar() {
   const [createParentId, setCreateParentId] = useState<string | undefined>();
   const [collapsedPages, setCollapsedPages] = useState<Set<string>>(new Set());
   const [searchText, setSearchText] = useState(activeFilters.searchText);
+  const [debouncedSearchText, setDebouncedSearchText] = useState(activeFilters.searchText);
   const [isResizing, setIsResizing] = useState(false);
+  const [visibleCount, setVisibleCount] = useState(PAGE_BATCH_SIZE);
+  const debounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
     if (hasFileSystemAccess) {
@@ -37,8 +41,29 @@ export function Sidebar() {
 
   const handleSearch = (value: string) => {
     setSearchText(value);
-    setActiveFilters({ ...activeFilters, searchText: value });
+    if (debounceTimerRef.current) {
+      clearTimeout(debounceTimerRef.current);
+    }
+    debounceTimerRef.current = setTimeout(() => {
+      setDebouncedSearchText(value);
+      setActiveFilters({ ...activeFilters, searchText: value });
+      setVisibleCount(PAGE_BATCH_SIZE);
+    }, 300);
   };
+
+  // Clean up debounce timer on unmount
+  useEffect(() => {
+    return () => {
+      if (debounceTimerRef.current) {
+        clearTimeout(debounceTimerRef.current);
+      }
+    };
+  }, []);
+
+  // Reset visible count when filters/sort change
+  useEffect(() => {
+    setVisibleCount(PAGE_BATCH_SIZE);
+  }, [activeFilters.tags, sortOptions]);
 
   const toggleCollapse = (pageId: string) => {
     setCollapsedPages(prev => {
@@ -90,41 +115,76 @@ export function Sidebar() {
   const handleCreateSubPage = (parentId: string, e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
-    setCreateParentId(parentId); // Store parent page ID for subpage creation
+    setCreateParentId(parentId);
     setShowCreateModal(true);
   };
 
-  const filteredPages = pages.filter(page => {
-    if (searchText) {
-      const s = searchText.toLowerCase();
-      if (!page.title.toLowerCase().includes(s) && !page.content.toLowerCase().includes(s)) {
-        return false;
+  const filteredPages = useMemo(() => {
+    const result = pages.filter(page => {
+      if (debouncedSearchText) {
+        const s = debouncedSearchText.toLowerCase();
+        if (!page.title.toLowerCase().includes(s) && !page.content.toLowerCase().includes(s)) {
+          return false;
+        }
       }
-    }
-    if (activeFilters.tags.length > 0) {
-      if (!activeFilters.tags.some(tag => page.tags.some(t => t.toLowerCase() === tag.toLowerCase()))) {
-        return false;
+      if (activeFilters.tags.length > 0) {
+        if (!activeFilters.tags.some(tag => page.tags.some(t => t.toLowerCase() === tag.toLowerCase()))) {
+          return false;
+        }
       }
-    }
-    return true;
-  });
-
-  if (sortOptions) {
-    filteredPages.sort((a, b) => {
-      const aVal = a[sortOptions.field] || '';
-      const bVal = b[sortOptions.field] || '';
-      const cmp = aVal < bVal ? -1 : aVal > bVal ? 1 : 0;
-      return sortOptions.direction === 'asc' ? cmp : -cmp;
+      return true;
     });
-  }
 
-  const allTags = Array.from(
-    pages.flatMap(p => p.tags).reduce((map, tag) => {
-      const key = tag.toLowerCase();
-      if (!map.has(key)) map.set(key, tag);
-      return map;
-    }, new Map<string, string>()).values()
-  ).sort((a, b) => a.toLowerCase().localeCompare(b.toLowerCase()));
+    if (sortOptions) {
+      result.sort((a, b) => {
+        const aVal = a[sortOptions.field] || '';
+        const bVal = b[sortOptions.field] || '';
+        const cmp = aVal < bVal ? -1 : aVal > bVal ? 1 : 0;
+        return sortOptions.direction === 'asc' ? cmp : -cmp;
+      });
+    }
+
+    return result;
+  }, [pages, debouncedSearchText, activeFilters.tags, sortOptions]);
+
+  // Pre-build lookup maps for O(1) access instead of O(n) find/filter per node
+  const { childrenMap, pageMap } = useMemo(() => {
+    const cMap = new Map<string, typeof filteredPages>();
+    const pMap = new Map<string, typeof filteredPages[number]>();
+
+    for (const page of filteredPages) {
+      pMap.set(page.id, page);
+    }
+
+    for (const page of filteredPages) {
+      if (page.parentId) {
+        const siblings = cMap.get(page.parentId);
+        if (siblings) {
+          siblings.push(page);
+        } else {
+          cMap.set(page.parentId, [page]);
+        }
+      }
+    }
+
+    return { childrenMap: cMap, pageMap: pMap };
+  }, [filteredPages]);
+
+  const rootPages = useMemo(
+    () => filteredPages.filter(p => !p.parentId),
+    [filteredPages]
+  );
+
+  const allTags = useMemo(() =>
+    Array.from(
+      pages.flatMap(p => p.tags).reduce((map, tag) => {
+        const key = tag.toLowerCase();
+        if (!map.has(key)) map.set(key, tag);
+        return map;
+      }, new Map<string, string>()).values()
+    ).sort((a, b) => a.toLowerCase().localeCompare(b.toLowerCase())),
+    [pages]
+  );
 
   const toggleTag = (tag: string) => {
     const currentTags = activeFilters.tags;
@@ -143,12 +203,10 @@ export function Sidebar() {
   };
 
   const renderPageTree = (pageId: string, level: number = 0) => {
-    const page = filteredPages.find(p => p.id === pageId);
+    const page = pageMap.get(pageId);
     if (!page) return null;
 
-    // Find children by parentId (not by file path)
-    const children = filteredPages.filter(p => p.parentId === pageId);
-
+    const children = childrenMap.get(pageId) || [];
     const isCollapsed = collapsedPages.has(pageId);
 
     return (
@@ -185,8 +243,8 @@ export function Sidebar() {
     );
   };
 
-  // Root pages are pages without a parentId
-  const rootPages = filteredPages.filter(p => !p.parentId);
+  const visibleRootPages = rootPages.slice(0, visibleCount);
+  const remainingCount = rootPages.length - visibleCount;
 
   return (
     <aside className="sidebar" style={{ width: `${sidebarWidth}px` }}>
@@ -198,7 +256,7 @@ export function Sidebar() {
           <button
             className="btn-icon"
             onClick={() => {
-              setCreateParentId(undefined); // No parent = root-level page
+              setCreateParentId(undefined);
               setShowCreateModal(true);
             }}
             title="New page"
@@ -297,6 +355,12 @@ export function Sidebar() {
           </button>
         )}
         <div className="sidebar-controls-divider" />
+        <span className="sidebar-page-count">
+          {rootPages.length === filteredPages.length
+            ? `${filteredPages.length}`
+            : `${filteredPages.length}`} pages
+        </span>
+        <div className="sidebar-controls-divider" />
         <button
           className="btn-icon"
           onClick={() => collapsedPages.size > 0 ? expandAll() : collapseAll()}
@@ -311,9 +375,17 @@ export function Sidebar() {
       <div className="sidebar-content">
         {loading ? (
           <div className="loading">Loading pages...</div>
-        ) : rootPages.length > 0 ? (
+        ) : visibleRootPages.length > 0 ? (
           <div className="pages-tree">
-            {rootPages.map(page => renderPageTree(page.id))}
+            {visibleRootPages.map(page => renderPageTree(page.id))}
+            {remainingCount > 0 && (
+              <button
+                className="show-more-btn"
+                onClick={() => setVisibleCount(prev => prev + PAGE_BATCH_SIZE)}
+              >
+                Show more ({remainingCount} remaining)
+              </button>
+            )}
           </div>
         ) : (
           <div className="empty-state">
@@ -322,7 +394,6 @@ export function Sidebar() {
           </div>
         )}
       </div>
-
 
       {showCreateModal && (
         <CreatePageModal

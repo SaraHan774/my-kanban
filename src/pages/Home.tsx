@@ -1,10 +1,11 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import { useStore } from '@/store/useStore';
 import { fileSystemService, pageService, markdownService, resolveImagesInHtml } from '@/services';
 import { CreatePageModal } from '@/components/CreatePageModal';
 import { CreateTodoModal } from '@/components/CreateTodoModal';
 import { ContextMenu } from '@/components/ContextMenu';
+import { TooltipWindow } from '@/components/TooltipWindow';
 import './Home.css';
 
 const DEFAULT_PALETTE = ['#3b82f6', '#f59e0b', '#22c55e', '#ef4444', '#8b5cf6', '#ec4899', '#14b8a6', '#f97316'];
@@ -149,40 +150,107 @@ export function Home() {
     );
   }
 
-  // NEW: Filter root-level pages (no parentId) for Home Kanban board
-  // Pages with parentId belong to other boards (e.g., nested kanban boards)
-  const rootPages = pages.filter(p => !p.parentId);
+  // Ref to access latest pages in callbacks without re-creating them
+  const pagesRef = useRef(pages);
+  pagesRef.current = pages;
+
+  // O(n) page lookup map — avoids repeated pages.find() in handlers
+  const pageMap = useMemo(() => {
+    const map = new Map<string, typeof pages[number]>();
+    for (const p of pages) map.set(p.id, p);
+    return map;
+  }, [pages]);
+
+  // Filter root-level pages (no parentId) for Home Kanban board
+  const rootPages = useMemo(() => pages.filter(p => !p.parentId), [pages]);
 
   // Derive columns from all unique kanbanColumn values (case-insensitive dedup)
-  const unsortedColumns = Array.from(
+  const unsortedColumns = useMemo(() => Array.from(
     rootPages.map(p => p.kanbanColumn).filter(Boolean).reduce((map, col) => {
       const key = (col as string).toLowerCase();
       if (!map.has(key)) map.set(key, col as string);
       return map;
     }, new Map<string, string>()).values()
-  );
+  ), [rootPages]);
 
   // Sort columns by persisted order; unknown columns go to the end
-  const columns = [...unsortedColumns].sort((a, b) => {
+  const columns = useMemo(() => [...unsortedColumns].sort((a, b) => {
     const aIdx = columnOrder.indexOf(a.toLowerCase());
     const bIdx = columnOrder.indexOf(b.toLowerCase());
     if (aIdx === -1 && bIdx === -1) return 0;
     if (aIdx === -1) return 1;
     if (bIdx === -1) return -1;
     return aIdx - bIdx;
-  });
+  }), [unsortedColumns, columnOrder]);
 
   // Create a stable color mapping based on alphabetically sorted columns
-  // This ensures each column always gets the same color regardless of display order
-  const sortedColumnNames = [...unsortedColumns].sort((a, b) => a.toLowerCase().localeCompare(b.toLowerCase()));
-  const getColumnColor = (columnName: string) => {
+  const sortedColumnNames = useMemo(
+    () => [...unsortedColumns].sort((a, b) => a.toLowerCase().localeCompare(b.toLowerCase())),
+    [unsortedColumns]
+  );
+  const getColumnColor = useCallback((columnName: string) => {
     const customColor = columnColors[columnName.toLowerCase()];
     if (customColor) return customColor;
     const stableIndex = sortedColumnNames.findIndex(c => c.toLowerCase() === columnName.toLowerCase());
     return DEFAULT_PALETTE[stableIndex % DEFAULT_PALETTE.length];
-  };
+  }, [columnColors, sortedColumnNames]);
 
-  const hasUncategorized = rootPages.some(p => !p.kanbanColumn);
+  // Pre-sort function for cards (pinned first, then by createdAt)
+  const sortCards = useCallback((cards: typeof rootPages) => {
+    return [...cards].sort((a, b) => {
+      if (a.pinned && !b.pinned) return -1;
+      if (!a.pinned && b.pinned) return 1;
+      if (a.pinned && b.pinned) return (b.pinnedAt || '').localeCompare(a.pinnedAt || '');
+      return b.createdAt.localeCompare(a.createdAt);
+    });
+  }, []);
+
+  // Pre-group and sort cards by column — O(n) grouping instead of O(columns × pages) filtering
+  const columnCardsMap = useMemo(() => {
+    const map = new Map<string, typeof rootPages>();
+    const uncategorized: typeof rootPages = [];
+
+    for (const page of rootPages) {
+      if (page.kanbanColumn) {
+        const key = page.kanbanColumn.toLowerCase();
+        const arr = map.get(key);
+        if (arr) arr.push(page);
+        else map.set(key, [page]);
+      } else {
+        uncategorized.push(page);
+      }
+    }
+
+    // Sort each group
+    for (const [key, cards] of map) {
+      map.set(key, sortCards(cards));
+    }
+    map.set('__uncategorized__', sortCards(uncategorized));
+
+    return map;
+  }, [rootPages, sortCards]);
+
+  const uncategorizedCards = columnCardsMap.get('__uncategorized__') || [];
+  const hasUncategorized = uncategorizedCards.length > 0;
+
+  // Pre-sort for list view
+  const sortedListPages = useMemo(() => {
+    const sorted = [...rootPages];
+    sorted.sort((a, b) => {
+      let aVal: string | undefined;
+      let bVal: string | undefined;
+      if (listSortField === 'kanbanColumn') {
+        aVal = a.kanbanColumn?.toLowerCase() || '';
+        bVal = b.kanbanColumn?.toLowerCase() || '';
+      } else {
+        aVal = a[listSortField] || '';
+        bVal = b[listSortField] || '';
+      }
+      const cmp = aVal < bVal ? -1 : aVal > bVal ? 1 : 0;
+      return listSortDir === 'asc' ? cmp : -cmp;
+    });
+    return sorted;
+  }, [rootPages, listSortField, listSortDir]);
 
   // --- Card drag & drop ---
   const handleDragStart = (cardId: string, e: React.DragEvent) => {
@@ -241,7 +309,7 @@ export function Home() {
     e.stopPropagation();
     if (!draggedCardId) return;
 
-    const card = pages.find(c => c.id === draggedCardId);
+    const card = pageMap.get(draggedCardId);
     if (!card || card.kanbanColumn?.toLowerCase() === columnTag.toLowerCase()) {
       setDraggedCardId(null);
       return;
@@ -264,7 +332,7 @@ export function Home() {
     e.stopPropagation();
     if (!draggedCardId) return;
 
-    const card = pages.find(c => c.id === draggedCardId);
+    const card = pageMap.get(draggedCardId);
     if (!card || !card.kanbanColumn) {
       setDraggedCardId(null);
       return;
@@ -287,7 +355,7 @@ export function Home() {
     e.preventDefault();
     e.stopPropagation();
 
-    const card = pages.find(c => c.id === cardId);
+    const card = pageMap.get(cardId);
     if (!card) return;
 
     const updatedCard = {
@@ -315,7 +383,7 @@ export function Home() {
 
     hoverTimerRef.current = setTimeout(async () => {
       let html = await markdownService.toHtml(card.content);
-      const pg = pages.find(p => p.id === card.id);
+      const pg = pageMap.get(card.id);
       if (pg) {
         html = await resolveImagesInHtml(html, pg.path);
       }
@@ -407,19 +475,7 @@ export function Home() {
       {boardView === 'kanban' ? (
         <div className="kanban-board">
           {columns.map((col) => {
-            const columnCards = rootPages
-              .filter(p => p.kanbanColumn?.toLowerCase() === col.toLowerCase())
-              .sort((a, b) => {
-                // Pinned cards first
-                if (a.pinned && !b.pinned) return -1;
-                if (!a.pinned && b.pinned) return 1;
-                // If both pinned, sort by pinnedAt (most recent first)
-                if (a.pinned && b.pinned) {
-                  return (b.pinnedAt || '').localeCompare(a.pinnedAt || '');
-                }
-                // Non-pinned cards sorted by creation date (newest first)
-                return b.createdAt.localeCompare(a.createdAt);
-              });
+            const columnCards = columnCardsMap.get(col.toLowerCase()) || [];
             const color = getColumnColor(col);
             return (
               <div
@@ -503,24 +559,11 @@ export function Home() {
               <div className="column-header" style={{ borderTopColor: '#6b7280' }}>
                 <h3>Uncategorized</h3>
                 <span className="card-count">
-                  {rootPages.filter(p => !p.kanbanColumn).length}
+                  {uncategorizedCards.length}
                 </span>
               </div>
               <div className="column-content">
-                {rootPages
-                  .filter(p => !p.kanbanColumn)
-                  .sort((a, b) => {
-                    // Pinned cards first
-                    if (a.pinned && !b.pinned) return -1;
-                    if (!a.pinned && b.pinned) return 1;
-                    // If both pinned, sort by pinnedAt (most recent first)
-                    if (a.pinned && b.pinned) {
-                      return (b.pinnedAt || '').localeCompare(a.pinnedAt || '');
-                    }
-                    // Non-pinned cards sorted by creation date (newest first)
-                    return b.createdAt.localeCompare(a.createdAt);
-                  })
-                  .map(card => {
+                {uncategorizedCards.map(card => {
                     const dueDateClass = card.dueDate ? (() => {
                       const diff = Math.ceil((new Date(card.dueDate).getTime() - Date.now()) / 86400000);
                       return diff < 0 ? 'overdue' : diff <= 3 ? 'due-soon' : '';
@@ -615,23 +658,7 @@ export function Home() {
             </span>
           </div>
           {(() => {
-            const sorted = [...rootPages];
-            sorted.sort((a, b) => {
-              let aVal: string | undefined;
-              let bVal: string | undefined;
-
-              if (listSortField === 'kanbanColumn') {
-                aVal = a.kanbanColumn?.toLowerCase() || '';
-                bVal = b.kanbanColumn?.toLowerCase() || '';
-              } else {
-                aVal = a[listSortField] || '';
-                bVal = b[listSortField] || '';
-              }
-
-              const cmp = aVal < bVal ? -1 : aVal > bVal ? 1 : 0;
-              return listSortDir === 'asc' ? cmp : -cmp;
-            });
-            return sorted.length > 0 ? sorted.map(page => (
+            return sortedListPages.length > 0 ? sortedListPages.map(page => (
               <Link key={page.id} to={`/page/${page.id}`} className="list-row">
                 <span className="list-cell list-cell-title">{page.title}</span>
                 <span className="list-cell">
@@ -655,42 +682,14 @@ export function Home() {
         </div>
       )}
 
-      {previewCard && (() => {
-        const { rect, html } = previewCard;
-        const previewWidth = 320;
-        const previewMaxHeight = 420;
-        const gap = 4; // Reduced gap for closer positioning
-
-        // Calculate available space
-        const spaceOnRight = window.innerWidth - rect.right - gap;
-        const spaceOnLeft = rect.left - gap;
-
-        let left;
-
-        // Prefer LEFT side (shows preview between columns)
-        if (spaceOnLeft >= previewWidth) {
-          left = rect.left - previewWidth - gap;
-        }
-        // Otherwise try right side
-        else if (spaceOnRight >= previewWidth) {
-          left = rect.right + gap;
-        }
-        // If neither fits, clamp to visible area
-        else {
-          left = Math.max(gap, Math.min(rect.left, window.innerWidth - previewWidth - gap));
-        }
-
-        const cardMidY = rect.top + rect.height / 2;
-        // Clamp so the preview doesn't clip at viewport edges (accounting for transform: translateY(-50%))
-        const top = Math.max(previewMaxHeight / 2 + 8, Math.min(cardMidY, window.innerHeight - previewMaxHeight / 2 - 8));
-        return (
+      {previewCard && (
+        <TooltipWindow anchorRect={previewCard.rect} placement="left" width={320} maxHeight={420}>
           <div
             className="card-hover-preview markdown-content"
-            style={{ left, top }}
-            dangerouslySetInnerHTML={{ __html: html }}
+            dangerouslySetInnerHTML={{ __html: previewCard.html }}
           />
-        );
-      })()}
+        </TooltipWindow>
+      )}
 
       {showCreateModal && (
         <CreatePageModal onClose={() => setShowCreateModal(false)} />
