@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useStore } from '@/store/useStore';
 import { DEFAULT_FONT_SETTINGS, FontSettings } from '@/services/configService';
 import { AppSlashCommand } from '@/data/defaultSlashCommands';
@@ -72,6 +72,64 @@ export function Settings() {
     };
     checkMigration();
   }, []);
+
+  // TOC
+  const tocItems = [
+    { id: 'typography', label: 'Typography' },
+    { id: 'board-appearance', label: 'Board Appearance' },
+    { id: 'highlight-colors', label: 'Highlight Colors' },
+    { id: 'column-colors', label: 'Column Colors' },
+    ...(needsMigration ? [{ id: 'migration', label: 'Migration' }] : []),
+    { id: 'slash-commands', label: 'Slash Commands' },
+    { id: 'keyboard-shortcuts', label: 'Keyboard Shortcuts' },
+  ];
+
+  const [activeSection, setActiveSection] = useState(tocItems[0]?.id ?? '');
+  const tocRef = useRef<HTMLElement>(null);
+
+  // JS-driven sticky: CSS sticky breaks inside contain:paint scroll containers
+  useEffect(() => {
+    const scrollContainer = document.querySelector('.main-content') as HTMLElement | null;
+    const tocEl = tocRef.current;
+    if (!scrollContainer || !tocEl) return;
+
+    const sectionIds = tocItems.map((t) => t.id);
+
+    const handleScroll = () => {
+      // --- sticky positioning via transform ---
+      const layout = tocEl.parentElement;
+      if (layout) {
+        const layoutRect = layout.getBoundingClientRect();
+        const containerRect = scrollContainer.getBoundingClientRect();
+        const topBarHeight = 48;
+        const stickyTop = containerRect.top + topBarHeight;
+
+        if (layoutRect.top < stickyTop) {
+          const offset = stickyTop - layoutRect.top;
+          const maxOffset = layout.offsetHeight - tocEl.offsetHeight;
+          tocEl.style.transform = `translateY(${Math.min(offset, Math.max(0, maxOffset))}px)`;
+        } else {
+          tocEl.style.transform = '';
+        }
+      }
+
+      // --- active section tracking ---
+      const threshold = scrollContainer.getBoundingClientRect().top + 80;
+      let current = sectionIds[0];
+      for (const id of sectionIds) {
+        const el = document.getElementById(id);
+        if (el && el.getBoundingClientRect().top <= threshold) {
+          current = id;
+        }
+      }
+      setActiveSection(current);
+    };
+
+    scrollContainer.addEventListener('scroll', handleScroll, { passive: true });
+    handleScroll();
+    return () => scrollContainer.removeEventListener('scroll', handleScroll);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [needsMigration]);
 
   const handleMigrate = async () => {
     if (!window.confirm(
@@ -306,7 +364,25 @@ export function Settings() {
     <div className="settings-page">
       <h1>Settings</h1>
 
-      <section className="settings-section">
+      <div className="settings-layout">
+        <nav className="settings-toc" ref={tocRef}>
+          {tocItems.map((item) => (
+            <a
+              key={item.id}
+              href={`#${item.id}`}
+              className={activeSection === item.id ? 'active' : ''}
+              onClick={(e) => {
+                e.preventDefault();
+                document.getElementById(item.id)?.scrollIntoView({ behavior: 'smooth' });
+              }}
+            >
+              {item.label}
+            </a>
+          ))}
+        </nav>
+
+        <div className="settings-content">
+      <section id="typography" className="settings-section">
         <div className="settings-section-header">
           <h2>Typography</h2>
           <div className="settings-section-actions">
@@ -566,7 +642,7 @@ export function Settings() {
         </div>
       </section>
 
-      <section className="settings-section">
+      <section id="board-appearance" className="settings-section">
         <h2>Board Appearance</h2>
         <div className="settings-density-container">
           <label>Card Density</label>
@@ -610,7 +686,7 @@ export function Settings() {
         </div>
       </section>
 
-      <section className="settings-section">
+      <section id="highlight-colors" className="settings-section">
         <div className="settings-section-header">
           <h2>Highlight Colors</h2>
         </div>
@@ -668,7 +744,7 @@ export function Settings() {
         </button>
       </section>
 
-      <section className="settings-section">
+      <section id="column-colors" className="settings-section">
         <div className="settings-section-header">
           <h2>Column Colors</h2>
         </div>
@@ -709,7 +785,7 @@ export function Settings() {
       </section>
 
       {needsMigration && (
-        <section className="settings-section">
+        <section id="migration" className="settings-section">
           <div className="settings-section-header">
             <h2>⚠️ Migration Required</h2>
           </div>
@@ -740,7 +816,7 @@ export function Settings() {
         </section>
       )}
 
-      <section className="settings-section">
+      <section id="slash-commands" className="settings-section">
         <div className="settings-section-header">
           <h2>Slash Commands</h2>
           <div className="settings-section-actions">
@@ -780,6 +856,87 @@ export function Settings() {
           ))}
         </div>
       </section>
+      <section id="keyboard-shortcuts" className="settings-section">
+        <h2>Keyboard Shortcuts</h2>
+
+        <h3 className="shortcuts-group-title">Page View (Reading Mode)</h3>
+        <div className="shortcuts-table">
+          <div className="shortcut-row">
+            <kbd>E</kbd>
+            <span>Enter edit mode</span>
+          </div>
+          <div className="shortcut-row">
+            <kbd>⌘ E</kbd>
+            <span>Enter edit mode</span>
+          </div>
+          <div className="shortcut-row">
+            <kbd>⌘ F</kbd>
+            <span>Find in page</span>
+          </div>
+          <div className="shortcut-row">
+            <kbd>⌘ M</kbd>
+            <span>Toggle memo panel</span>
+          </div>
+          <div className="shortcut-row">
+            <kbd>⌘ ⇧ M</kbd>
+            <span>Create new memo</span>
+          </div>
+          <div className="shortcut-row">
+            <kbd>⌘ ⇧ I</kbd>
+            <span>Toggle immerse mode</span>
+          </div>
+          <div className="shortcut-row">
+            <kbd>Esc</kbd>
+            <span>Exit immerse mode</span>
+          </div>
+        </div>
+
+        <h3 className="shortcuts-group-title">Editor (Editing Mode)</h3>
+        <div className="shortcuts-table">
+          <div className="shortcut-row">
+            <kbd>⌘ S</kbd>
+            <span>Save page</span>
+          </div>
+          <div className="shortcut-row">
+            <kbd>⌘ F</kbd>
+            <span>Find &amp; replace</span>
+          </div>
+          <div className="shortcut-row">
+            <kbd>Esc</kbd>
+            <span>Save and exit edit mode</span>
+          </div>
+          <div className="shortcut-row">
+            <kbd>⌘ B</kbd>
+            <span>Bold text</span>
+          </div>
+          <div className="shortcut-row">
+            <kbd>⌘ I</kbd>
+            <span>Italic text</span>
+          </div>
+          <div className="shortcut-row">
+            <kbd>⌘ E</kbd>
+            <span>Inline code</span>
+          </div>
+          <div className="shortcut-row">
+            <kbd>Tab</kbd>
+            <span>Indent line / insert spaces</span>
+          </div>
+          <div className="shortcut-row">
+            <kbd>⇧ Tab</kbd>
+            <span>Dedent line</span>
+          </div>
+          <div className="shortcut-row">
+            <kbd>Enter</kbd>
+            <span>Continue list item (in lists)</span>
+          </div>
+          <div className="shortcut-row">
+            <kbd>/</kbd>
+            <span>Open slash command palette</span>
+          </div>
+        </div>
+      </section>
+        </div>
+      </div>
     </div>
   );
 }

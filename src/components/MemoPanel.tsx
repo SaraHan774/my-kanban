@@ -65,9 +65,10 @@ export function MemoPanel({
         <button
           className="btn-add-memo"
           onClick={onCreateMemo}
-          title="Create new memo"
+          title="Create new memo (Cmd+Shift+M)"
         >
           <span className="material-symbols-outlined">add</span>
+          New
         </button>
       </div>
 
@@ -90,6 +91,7 @@ export function MemoPanel({
                   onUpdate={onUpdateMemo}
                   onDelete={onDeleteMemo}
                   onScrollToHighlight={onScrollToHighlight}
+                  autoFocus={memo.id === lastCreatedMemoId}
                 />
               </div>
             ))}

@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import { useStore } from '@/store/useStore';
-import { fileSystemService, pageService, markdownService } from '@/services';
+import { fileSystemService, pageService, markdownService, resolveImagesInHtml } from '@/services';
 import { CreatePageModal } from '@/components/CreatePageModal';
 import { CreateTodoModal } from '@/components/CreateTodoModal';
 import { ContextMenu } from '@/components/ContextMenu';
@@ -314,7 +314,11 @@ export function Home() {
     const rect = target.getBoundingClientRect();
 
     hoverTimerRef.current = setTimeout(async () => {
-      const html = await markdownService.toHtml(card.content);
+      let html = await markdownService.toHtml(card.content);
+      const pg = pages.find(p => p.id === card.id);
+      if (pg) {
+        html = await resolveImagesInHtml(html, pg.path);
+      }
       setPreviewCard({ id: card.id, html, rect });
     }, 350);
   };

@@ -7,10 +7,11 @@ interface MemoCardProps {
   onUpdate: (memoId: string, note: string) => void;
   onDelete: (memoId: string) => void;
   onScrollToHighlight?: (highlightId: string) => void;
+  autoFocus?: boolean;
 }
 
-export function MemoCard({ memo, onUpdate, onDelete, onScrollToHighlight }: MemoCardProps) {
-  const [isEditing, setIsEditing] = useState(false);
+export function MemoCard({ memo, onUpdate, onDelete, onScrollToHighlight, autoFocus }: MemoCardProps) {
+  const [isEditing, setIsEditing] = useState(autoFocus ?? false);
   const [noteText, setNoteText] = useState(memo.note);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 

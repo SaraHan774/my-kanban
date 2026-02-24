@@ -25,10 +25,10 @@
 }
 
 .page-view {
-  width: 100%;
+  flex: 1;
+  min-width: 0;
   margin: 0;
   padding: 2rem;
-  transition: width 0.3s ease-out;
   overflow-y: auto;
   display: flex;
   flex-direction: column;
@@ -871,31 +871,25 @@ mark.highlight-underline {
   position: relative;
 }
 
-.page-content-layout.memo-mode-active {
-  gap: 0;
-}
-
-.page-content-layout.memo-mode-active .document-view {
+.page-content-layout .document-view {
   flex: 1;
-  min-width: 0; /* Allow flex item to shrink below content size */
+  min-width: 0;
 }
 
-.page-content-layout:not(.memo-mode-active) .document-view {
-  width: 100%;
-  flex: 1;
-}
-
-/* Memo panel wrapper */
+/* Memo panel - viewport-level right panel (sibling of .page-view) */
 .memo-panel-wrapper {
-  min-width: 500px;
+  width: 400px;
+  min-width: 320px;
   max-width: 50vw;
   flex-shrink: 0;
-  height: 100%;
-  overflow: hidden;
+  height: 100vh;
+  overflow-y: auto;
+  background-color: var(--bg-primary);
+  border-left: 0.5px solid color-mix(in srgb, var(--border-color) 50%, transparent);
   animation: memo-slide-in 0.25s ease-out;
 }
 
-/* Resize handle */
+/* Resize handle - between page-view and memo panel */
 .memo-resize-handle {
   width: 1px;
   background-color: transparent;
@@ -903,6 +897,7 @@ mark.highlight-underline {
   position: relative;
   flex-shrink: 0;
   transition: background-color 0.2s;
+  height: 100vh;
 }
 
 .memo-resize-handle:hover {
@@ -939,50 +934,11 @@ mark.highlight.highlight-flash {
   animation: highlight-flash 1s ease-in-out;
 }
 
-/* Narrow mode: memo panel overlays from right, content stays in place */
-.page-view.page-narrow .page-content-layout.memo-mode-active .document-view,
-.page-content-layout.memo-mode-active .document-view.width-narrow {
-  flex: none;
-  width: 100%;
-}
-
-.page-view.page-narrow .page-content-layout.memo-mode-active .memo-resize-handle,
-.page-view.page-narrow .page-content-layout.memo-mode-active .memo-panel-wrapper {
-  position: absolute;
-  top: 0;
-  right: 0;
-  height: 100%;
-  z-index: 20;
-}
-
-.page-view.page-narrow .page-content-layout.memo-mode-active .memo-resize-handle {
-  right: auto;
-}
-
-.page-view.page-narrow .page-content-layout.memo-mode-active .memo-panel-wrapper {
-  box-shadow: -4px 0 16px rgba(0, 0, 0, 0.1);
-  background-color: var(--bg-primary);
-  animation: memo-slide-in 0.25s ease-out;
-}
-
 @keyframes memo-slide-in {
   from {
     transform: translateX(100%);
   }
   to {
     transform: translateX(0);
-  }
-}
-
-/* Responsive memo mode */
-@media (max-width: 1024px) {
-  .page-content-layout.memo-mode-active {
-    flex-direction: column;
-  }
-
-  .page-content-layout.memo-mode-active .document-view {
-    width: 100%;
-    border-right: none;
-    border-bottom: 1px solid var(--border-color);
   }
 }

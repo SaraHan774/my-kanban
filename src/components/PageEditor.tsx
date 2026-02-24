@@ -312,8 +312,9 @@ export function PageEditor({ page, onSave, onCancel, hideMeta, hideToolbar, meta
     setPreview(!preview);
   }, [preview, content, page.path, pages]);
 
-  // Clean up blob URLs on unmount
+  // Clean up blob URLs on unmount — only when used standalone (not embedded in PageView)
   useEffect(() => {
+    if (hideMeta) return; // Embedded in PageView — PageView manages the cache
     return () => { clearImageCache(); };
   }, []);
 
