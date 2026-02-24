@@ -14,18 +14,32 @@ import {
   readDir,
   remove,
   exists as fsExists,
+  BaseDirectory,
 } from '@tauri-apps/plugin-fs';
+import { appDataDir } from '@tauri-apps/api/path';
 import { IFileSystemService } from '@/types';
 
 const LS_WORKSPACE_PATH = 'tauri-workspace-path';
+
+/** Detect Android or iOS runtime (Tauri mobile) */
+function isMobilePlatform(): boolean {
+  return /android/i.test(navigator.userAgent) ||
+    (/iPad|iPhone|iPod/.test(navigator.userAgent));
+}
 
 export class TauriFileSystemService implements IFileSystemService {
   private rootPath: string | null = null;
 
   /**
-   * Request access to a directory from the user via native dialog
+   * Request access to a directory.
+   * On mobile: auto-provision app-private storage.
+   * On desktop: show native folder picker dialog.
    */
   async requestDirectoryAccess(): Promise<string> {
+    if (isMobilePlatform()) {
+      return this.provisionMobileWorkspace();
+    }
+
     const selected = await open({ directory: true, multiple: false });
     if (!selected) {
       throw new Error('No directory selected');
@@ -37,10 +51,59 @@ export class TauriFileSystemService implements IFileSystemService {
   }
 
   /**
+   * Request directory access using only the native folder picker.
+   * Returns null if picker is not available or user cancels.
+   */
+  async requestDirectoryWithPicker(): Promise<string | null> {
+    try {
+      const selected = await open({ directory: true, multiple: false });
+      if (selected) {
+        const dirPath = selected as string;
+        this.rootPath = dirPath;
+        localStorage.setItem(LS_WORKSPACE_PATH, dirPath);
+        return dirPath;
+      }
+    } catch {
+      // Picker not available
+    }
+    return null;
+  }
+
+  /**
+   * Create workspace inside app-private storage for mobile platforms.
+   * Uses $APPDATA which needs no special Android permissions.
+   */
+  private async provisionMobileWorkspace(): Promise<string> {
+    const dataDir = await appDataDir();
+    // Ensure the workspace subdirectory exists using BaseDirectory
+    // (avoids scope issues with raw paths on Android)
+    try {
+      await mkdir('workspace', { baseDir: BaseDirectory.AppData, recursive: true });
+    } catch {
+      // Directory may already exist — that's fine
+    }
+    this.rootPath = dataDir;
+    localStorage.setItem(LS_WORKSPACE_PATH, dataDir);
+    return dataDir;
+  }
+
+  /**
    * Attempt to restore file system access from a previously saved path.
    */
   async tryRestore(): Promise<'granted' | 'prompt' | 'denied'> {
     try {
+      // On mobile, auto-provision if no saved path
+      if (isMobilePlatform()) {
+        const saved = localStorage.getItem(LS_WORKSPACE_PATH);
+        if (saved) {
+          this.rootPath = saved;
+          return 'granted';
+        }
+        // Auto-provision on first launch
+        await this.provisionMobileWorkspace();
+        return 'granted';
+      }
+
       const saved = localStorage.getItem(LS_WORKSPACE_PATH);
       if (!saved) return 'denied';
 

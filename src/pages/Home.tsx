@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import { useStore } from '@/store/useStore';
 import { fileSystemService, pageService, markdownService } from '@/services';
+import { isSafAvailable, SafFileSystemService } from '@/services/safFileSystem';
 import { CreatePageModal } from '@/components/CreatePageModal';
 import { CreateTodoModal } from '@/components/CreateTodoModal';
 import { ContextMenu } from '@/components/ContextMenu';
@@ -137,12 +138,33 @@ export function Home() {
           </div>
 
           <button onClick={handleSelectFolder} className="btn btn-primary btn-large">
-            Select Workspace Folder
+            {/android|ipad|iphone|ipod/i.test(navigator.userAgent) ? 'Open Workspace' : 'Select Workspace Folder'}
           </button>
 
+          {/android|ipad|iphone|ipod/i.test(navigator.userAgent) && (
+            <button onClick={async () => {
+              if (!isSafAvailable()) {
+                alert('Folder picker is not available. Please restart the app and try again.');
+                return;
+              }
+              try {
+                const saf = new SafFileSystemService();
+                const result = await saf.requestDirectoryAccess();
+                if (result) {
+                  window.location.reload();
+                }
+              } catch (e) {
+                alert('Failed to select folder: ' + e);
+              }
+            }} className="btn btn-secondary btn-large" style={{ marginTop: '0.5rem' }}>
+              Connect Google Drive / Folder
+            </button>
+          )}
+
           <p className="help-text">
-            Choose a folder where your workspace will be stored.
-            The app will create a &quot;workspace&quot; subfolder to organize your pages.
+            {/android|ipad|iphone|ipod/i.test(navigator.userAgent)
+              ? 'Your pages will be stored in the app\'s private storage.'
+              : 'Choose a folder where your workspace will be stored. The app will create a "workspace" subfolder to organize your pages.'}
           </p>
         </div>
       </div>

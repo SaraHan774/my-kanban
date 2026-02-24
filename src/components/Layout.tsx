@@ -154,12 +154,15 @@ export function Layout() {
   return (
     <div className="layout">
       {!isImmerseMode && (
-      <div
-        className={`sidebar-container ${sidebarOpen ? 'open' : 'closed'}`}
-        style={{ width: sidebarOpen ? `${sidebarWidth}px` : '0' }}
-      >
-        <Sidebar />
-      </div>
+      <>
+        <div
+          className={`sidebar-container ${sidebarOpen ? 'open' : 'closed'}`}
+          style={{ width: sidebarOpen ? `${sidebarWidth}px` : '0' }}
+        >
+          <Sidebar />
+        </div>
+        {sidebarOpen && <div className="sidebar-backdrop" onClick={() => setSidebarOpen(false)} />}
+      </>
       )}
       <main className="main-content">
         {!isImmerseMode && (

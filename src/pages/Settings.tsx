@@ -3,7 +3,10 @@ import { useStore } from '@/store/useStore';
 import { DEFAULT_FONT_SETTINGS, FontSettings } from '@/services/configService';
 import { AppSlashCommand } from '@/data/defaultSlashCommands';
 import { migrationService } from '@/services';
+import { SafFileSystemService } from '@/services/safFileSystem';
 import './Settings.css';
+
+const isMobile = /android|ipad|iphone|ipod/i.test(navigator.userAgent);
 
 const SANS_FONT_OPTIONS = [
   { value: 'System Default', label: 'System Default' },
@@ -736,6 +739,48 @@ export function Settings() {
           </button>
           {migrationResult && (
             <pre className="settings-migration-result">{migrationResult}</pre>
+          )}
+        </section>
+      )}
+
+      {isMobile && (
+        <section className="settings-section">
+          <div className="settings-section-header">
+            <h2>Storage</h2>
+          </div>
+          <p className="settings-description">
+            {localStorage.getItem('saf-tree-uri')
+              ? 'Using external folder (Google Drive / local)'
+              : 'Using app private storage'}
+          </p>
+          <button
+            className="btn btn-primary"
+            style={{ padding: '0.75rem 1.5rem', fontSize: '1rem' }}
+            onPointerUp={async () => {
+              try {
+                const saf = new SafFileSystemService();
+                const result = await saf.requestDirectoryAccess();
+                if (result) {
+                  window.location.reload();
+                }
+              } catch (e) {
+                alert('Failed to select folder: ' + e);
+              }
+            }}
+          >
+            {localStorage.getItem('saf-tree-uri') ? 'Change Folder' : 'Connect External Folder'}
+          </button>
+          {localStorage.getItem('saf-tree-uri') && (
+            <button
+              className="btn btn-secondary"
+              style={{ marginTop: '0.5rem', padding: '0.5rem 1rem' }}
+              onPointerUp={() => {
+                localStorage.removeItem('saf-tree-uri');
+                window.location.reload();
+              }}
+            >
+              Reset to App Storage
+            </button>
           )}
         </section>
       )}

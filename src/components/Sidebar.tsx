@@ -165,7 +165,7 @@ export function Sidebar() {
           ) : (
             <span className="collapse-btn-placeholder" />
           )}
-          <Link to={`/page/${page.id}`} className="sidebar-page-link" replace>
+          <Link to={`/page/${page.id}`} className="sidebar-page-link" replace onClick={() => { if (window.innerWidth < 768) setSidebarOpen(false); }}>
             <span className="page-title">{page.title}</span>
           </Link>
           <button

@@ -395,3 +395,76 @@ body:has(.sidebar-resize-handle.resizing) {
   cursor: col-resize;
   user-select: none;
 }
+
+/* ══════════════════════════════════════
+   Mobile Sidebar
+   ══════════════════════════════════════ */
+@media (max-width: 767px) {
+  .sidebar {
+    width: 100% !important;
+    min-width: unset;
+    max-width: unset;
+    height: 100dvh;
+    padding-top: var(--safe-top);
+    padding-bottom: var(--safe-bottom);
+    padding-left: var(--safe-left);
+    padding-right: var(--safe-right);
+  }
+
+  .sidebar-resize-handle {
+    display: none;
+  }
+
+  /* Increase touch targets */
+  .sidebar-page-link {
+    min-height: 44px;
+    padding: 0.5rem 0.5rem;
+  }
+
+  .btn-icon {
+    min-width: 36px;
+    min-height: 36px;
+  }
+
+  .collapse-btn {
+    width: 36px;
+    height: 36px;
+    font-size: 14px;
+  }
+
+  .collapse-btn-placeholder {
+    width: 36px;
+  }
+
+  /* Always show add-child button on touch (no hover) */
+  .btn-add-child {
+    opacity: 0.5;
+    width: 36px;
+    height: 36px;
+  }
+
+  .collapse-btn {
+    opacity: 1;
+  }
+
+  .filter-tag {
+    min-height: 32px;
+    padding: 0.25rem 0.625rem;
+    font-size: 0.75rem;
+  }
+
+  .sort-select {
+    height: 36px;
+    font-size: 0.8125rem;
+  }
+
+  .sort-dir-btn {
+    width: 36px;
+    height: 36px;
+  }
+
+  .search-input {
+    padding: 0.5rem 0.75rem;
+    font-size: 1rem;
+  }
+}

@@ -5,9 +5,11 @@ export interface DirEntry {
 
 export interface IFileSystemService {
   requestDirectoryAccess(): Promise<unknown>;
+  requestDirectoryWithPicker?(): Promise<string | null>;
   tryRestore(): Promise<'granted' | 'prompt' | 'denied'>;
   requestRestoredPermission(): Promise<boolean>;
   getRootHandle(): unknown;
+  setRootHandle?(path: unknown): void;
   readFile(path: string): Promise<string>;
   writeFile(path: string, content: string): Promise<void>;
   createDirectory(path: string): Promise<unknown>;

@@ -473,3 +473,96 @@
   width: 100%;
   height: auto;
 }
+
+/* ══════════════════════════════════════
+   Mobile Page Editor
+   ══════════════════════════════════════ */
+@media (max-width: 767px) {
+  .editor-toolbar {
+    flex-wrap: wrap;
+    padding: 0.375rem 0.75rem;
+    gap: 0.25rem;
+  }
+
+  .editor-toolbar-left,
+  .editor-toolbar-right {
+    gap: 0.125rem;
+  }
+
+  /* Override global 44px min-height for compact toolbar elements */
+  .toolbar-btn {
+    padding: 0.3rem 0.5rem;
+    font-size: 0.75rem;
+    min-height: 32px;
+  }
+
+  .editor-toolbar-right .btn {
+    min-height: 32px;
+  }
+
+  .selected-column-chip,
+  .chip-remove {
+    min-height: unset;
+  }
+
+  .column-selector-display {
+    min-height: 32px;
+  }
+
+  .editor-prop-row {
+    min-height: 32px;
+  }
+
+  .editor-meta {
+    padding: 0.75rem 1rem 0.5rem;
+  }
+
+  .editor-textarea {
+    padding: 1rem;
+    font-size: 0.875rem;
+  }
+
+  .textarea-highlight-overlay {
+    padding: 1rem;
+  }
+
+  .editor-preview {
+    padding: 1rem;
+  }
+
+  .editor-prop-label {
+    width: 90px;
+    font-size: 0.7rem;
+  }
+
+  /* Column dropdown as bottom sheet */
+  .column-dropdown {
+    position: fixed;
+    top: auto;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    margin-top: 0;
+    border-radius: 16px 16px 0 0;
+    max-height: 60vh;
+    overflow-y: auto;
+    z-index: 1000;
+    padding-bottom: env(safe-area-inset-bottom, 0.5rem);
+    animation: editorBottomSheetIn 0.25s ease-out;
+  }
+
+  @keyframes editorBottomSheetIn {
+    from {
+      transform: translateY(100%);
+    }
+    to {
+      transform: translateY(0);
+    }
+  }
+
+  .column-chip {
+    min-height: 36px;
+    display: inline-flex;
+    align-items: center;
+  }
+}

@@ -632,3 +632,111 @@
   font-size: 0.75rem;
   margin: 0.4em 0;
 }
+
+/* ══════════════════════════════════════
+   Mobile Kanban Board + List View
+   ══════════════════════════════════════ */
+@media (max-width: 767px) {
+  .board-header {
+    flex-wrap: wrap;
+    padding: 0.375rem 0.75rem;
+    gap: 0.25rem;
+  }
+
+  .board-actions-right {
+    width: 100%;
+    justify-content: flex-end;
+  }
+
+  /* Horizontal snap-scroll columns */
+  .kanban-board {
+    padding: 0.5rem;
+    gap: 0.5rem;
+    scroll-snap-type: x mandatory;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .kanban-column {
+    min-width: min(85vw, 320px);
+    max-width: min(85vw, 320px);
+    scroll-snap-align: start;
+  }
+
+  .kanban-column.compact-density {
+    min-width: min(85vw, 320px);
+    max-width: min(85vw, 320px);
+  }
+
+  /* Larger card touch targets */
+  .card-link {
+    padding: 0.875rem;
+  }
+
+  /* Always show pin button (no hover on touch) */
+  .pin-btn {
+    opacity: 1;
+  }
+
+  /* Disable drag cursors on mobile */
+  .kanban-card {
+    cursor: default;
+  }
+
+  .kanban-card:active {
+    cursor: default;
+  }
+
+  .column-header {
+    cursor: default;
+  }
+
+  .column-header:active {
+    cursor: default;
+  }
+
+  .column-drag-handle {
+    display: none;
+  }
+
+  /* Hide hover preview on mobile */
+  .card-hover-preview {
+    display: none !important;
+  }
+
+  /* List view: collapse to 2 columns (Title + Column) */
+  .list-view-header,
+  .list-row {
+    grid-template-columns: 2fr 1fr;
+  }
+
+  /* Hide Due Date and Created columns */
+  .list-view-header > :nth-child(3),
+  .list-view-header > :nth-child(4),
+  .list-row > :nth-child(3),
+  .list-row > :nth-child(4) {
+    display: none;
+  }
+
+  .list-view {
+    margin: 0.5rem;
+  }
+}
+
+/* Tablet adjustments */
+@media (min-width: 768px) and (max-width: 1023px) {
+  .kanban-column {
+    min-width: 260px;
+    max-width: 300px;
+  }
+
+  /* List view: 3 columns (hide Created only) */
+  .list-view-header,
+  .list-row {
+    grid-template-columns: 2fr 1fr 1fr;
+  }
+
+  .list-view-header > :nth-child(4),
+  .list-row > :nth-child(4) {
+    display: none;
+  }
+}

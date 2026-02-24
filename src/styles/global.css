@@ -141,6 +141,12 @@ pre code {
   display: none;
 }
 
+*::-webkit-scrollbar {
+  display: none;
+  width: 0;
+  height: 0;
+}
+
 /* Firefox scrollbar */
 * {
   scrollbar-width: none;
@@ -257,4 +263,62 @@ input:focus, textarea:focus {
 .page-link[data-page-ref]:not([data-page-ref=""]) {
   /* Title-based links (might break if title changes) */
   opacity: 0.9;
+}
+
+/* ══════════════════════════════════════
+   Mobile Responsive Foundation
+   ══════════════════════════════════════ */
+@media (max-width: 767px) {
+  :root {
+    --font-ui-size: 16px; /* Prevents iOS auto-zoom on input focus */
+    /* Safe area insets — use max() to handle Android where env() returns 0 */
+    --safe-top: max(env(safe-area-inset-top, 0px), 28px);
+    --safe-bottom: env(safe-area-inset-bottom, 0px);
+    --safe-left: env(safe-area-inset-left, 0px);
+    --safe-right: env(safe-area-inset-right, 0px);
+  }
+
+  * {
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  /* Disable pinch-zoom on mobile WebView */
+  html {
+    touch-action: manipulation;
+  }
+
+  /* Minimum touch targets */
+  button, .btn, a, select, input {
+    min-height: 44px;
+  }
+
+  /* Prevent iOS auto-zoom on inputs */
+  input, textarea, select {
+    font-size: 16px !important;
+  }
+
+  /* Edge-to-edge safe area support (Android + iOS) */
+  .top-bar {
+    padding-top: var(--safe-top);
+  }
+
+  body {
+    padding-bottom: var(--safe-bottom);
+    padding-left: var(--safe-left);
+    padding-right: var(--safe-right);
+  }
+
+  /* Modal keyboard handling: dvh shrinks when keyboard opens, keeping modal centered */
+  .modal-overlay,
+  .confirm-modal-overlay {
+    height: 100dvh;
+    padding-top: var(--safe-top);
+    padding-bottom: var(--safe-bottom);
+  }
+
+  .modal,
+  .confirm-modal {
+    max-height: calc(100dvh - var(--safe-top) - var(--safe-bottom) - 2rem);
+    overflow-y: auto;
+  }
 }

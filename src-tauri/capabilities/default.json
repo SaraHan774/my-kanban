@@ -19,6 +19,7 @@
     {
       "identifier": "fs:scope",
       "allow": [
+        "$APPDATA/**",
         "$HOME/**",
         "$HOME/**/.images",
         "$HOME/**/.images/**",

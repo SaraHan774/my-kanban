@@ -613,3 +613,48 @@
 .btn-reset-highlight-colors:hover {
   background-color: var(--bg-tertiary);
 }
+
+/* ══════════════════════════════════════
+   Mobile Settings
+   ══════════════════════════════════════ */
+@media (max-width: 767px) {
+  .settings-page {
+    padding: 1rem;
+  }
+
+  .settings-page h1 {
+    font-size: 1.5rem;
+    margin-bottom: 1rem;
+  }
+
+  .settings-typography-row {
+    flex-direction: column;
+    gap: 0.75rem;
+  }
+
+  .settings-form-row {
+    flex-direction: column;
+    gap: 0.5rem;
+  }
+
+  .settings-density-toggle {
+    flex-direction: column;
+  }
+
+  .settings-color-row {
+    flex-wrap: wrap;
+  }
+
+  .settings-command-row {
+    flex-wrap: wrap;
+    gap: 0.5rem;
+  }
+
+  .settings-cmd-key {
+    min-width: auto;
+  }
+
+  .settings-highlight-colors {
+    flex-direction: column;
+  }
+}

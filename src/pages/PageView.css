@@ -986,3 +986,104 @@ mark.highlight.highlight-flash {
     border-bottom: 1px solid var(--border-color);
   }
 }
+
+/* ══════════════════════════════════════
+   Mobile Page View
+   ══════════════════════════════════════ */
+@media (max-width: 767px) {
+  .page-view {
+    padding: 1rem;
+  }
+
+  .document-view {
+    padding: 0 0 1rem 0;
+  }
+
+  .page-header {
+    padding: 0.25rem 0.5rem 0;
+    margin: 0 0 0.75rem 0;
+  }
+
+  .page-header-content {
+    padding: 0 0.5rem;
+  }
+
+  .page-title {
+    font-size: 1.25rem;
+  }
+
+  .page-header-content .editor-title-input.as-heading {
+    font-size: 1.25rem;
+  }
+
+  .page-header-content .editor-meta {
+    padding: 0.5rem 0.5rem 0.75rem;
+  }
+
+  /* Hide memo panel on mobile */
+  .memo-panel-wrapper,
+  .memo-resize-handle {
+    display: none !important;
+  }
+
+  /* Hide terminal on mobile */
+  .terminal-container {
+    display: none !important;
+  }
+
+  .page-view-container.with-terminal .page-view {
+    width: 100%;
+  }
+
+  /* Page menu as bottom sheet */
+  .page-menu-dropdown {
+    position: fixed;
+    top: auto;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    border-radius: 16px 16px 0 0;
+    min-width: unset;
+    max-height: 70vh;
+    overflow-y: auto;
+    padding-bottom: env(safe-area-inset-bottom, 0.5rem);
+    animation: bottomSheetSlideUp 0.25s ease-out;
+  }
+
+  @keyframes bottomSheetSlideUp {
+    from {
+      transform: translateY(100%);
+    }
+    to {
+      transform: translateY(0);
+    }
+  }
+
+  .page-menu-item {
+    min-height: 48px;
+    padding: 0.875rem 1.25rem;
+  }
+
+  /* Page actions compact */
+  .page-actions-bar {
+    margin-bottom: 0.5rem;
+  }
+
+  .page-actions {
+    gap: 0.125rem;
+  }
+
+  .editor-mode-tabs {
+    gap: 0;
+  }
+
+  .mode-tab {
+    padding: 6px 8px;
+    font-size: 0.7rem;
+  }
+
+  /* Sub-pages grid */
+  .sub-pages-list {
+    grid-template-columns: 1fr;
+  }
+}
