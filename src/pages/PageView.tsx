@@ -25,6 +25,7 @@ export function PageView() {
   const [loading, setLoading] = useState(true);
   const [editing, setEditing] = useState(false);
   const contentRef = useRef<HTMLDivElement>(null);
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
   const editorRef = useRef<PageEditorHandle | null>(null);
   const [editorPreview, setEditorPreview] = useState(false);
   const [editorSaving, setEditorSaving] = useState(false);
@@ -196,7 +197,7 @@ export function PageView() {
       setEditing(false);
       setLastCreatedMemoId(null);
       // Reset scroll position to top when navigating to a new page
-      window.scrollTo(0, 0);
+      scrollContainerRef.current?.scrollTo(0, 0);
     }
   }, [pageId]);
 
@@ -853,13 +854,15 @@ export function PageView() {
 
   // Track scroll position to show/hide scroll to top button
   useEffect(() => {
+    const container = scrollContainerRef.current;
+    if (!container) return;
+
     const handleScroll = () => {
-      // Show button when scrolled down more than 300px
-      setShowScrollTop(window.scrollY > 300);
+      setShowScrollTop(container.scrollTop > 300);
     };
 
-    window.addEventListener('scroll', handleScroll);
-    return () => window.removeEventListener('scroll', handleScroll);
+    container.addEventListener('scroll', handleScroll);
+    return () => container.removeEventListener('scroll', handleScroll);
   }, []);
 
   // Close page menu on click outside
@@ -1045,7 +1048,7 @@ export function PageView() {
   }, [memoMode]);
 
   const scrollToTop = () => {
-    window.scrollTo({
+    scrollContainerRef.current?.scrollTo({
       top: 0,
       behavior: 'smooth'
     });
@@ -1070,7 +1073,7 @@ export function PageView() {
   return (
     <>
       <div className={`page-view-container ${showTerminal ? 'with-terminal' : ''}`}>
-        <div className={`page-view ${isImmerseMode ? 'immerse-mode' : ''} ${pageWidth === 'narrow' ? 'page-narrow' : ''}`}>
+        <div ref={scrollContainerRef} className={`page-view ${isImmerseMode ? 'immerse-mode' : ''} ${pageWidth === 'narrow' ? 'page-narrow' : ''}`}>
         {!isImmerseMode && (
         <div className="page-header">
         <div className="page-actions-bar">
@@ -1374,7 +1377,7 @@ export function PageView() {
           />
         </div>
       ) : (
-      <div className="page-content-layout">
+      <div className="page-content-layout" onDoubleClick={startEditing}>
         <div className={`document-view ${pageWidth === 'narrow' ? 'width-narrow' : ''}`}>
           {showFindBar && (
             <FindBar

@@ -359,7 +359,7 @@
   font-family: var(--font-content);
   font-size: var(--font-content-size);
   line-height: var(--line-height-content);
-  padding: 1.5rem 2rem 2rem 2rem;
+  padding: 1.5rem 2rem 6rem 2rem;
   flex: 1;
   min-height: 0;
 }
@@ -461,6 +461,14 @@
   padding-left: 1rem;
   margin: 1rem 0;
   color: var(--text-secondary);
+}
+
+.markdown-content hr {
+  border: none;
+  height: 1px;
+  background-color: var(--border-color, #e0e0e0);
+  opacity: 0.5;
+  margin: 1.5rem 0;
 }
 
 /* Page links (wiki-style [[Page Title]] links) */
@@ -866,8 +874,7 @@ mark.highlight-underline {
 .page-content-layout {
   display: flex;
   width: 100%;
-  flex: 1;
-  min-height: 0;
+  flex: 1 0 auto;
   position: relative;
 }
 
