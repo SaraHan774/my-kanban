@@ -1,11 +1,12 @@
 import { useEffect, useRef } from 'react';
+import { TooltipWindow } from './TooltipWindow';
 import './HighlightHoverMenu.css';
 
 interface HighlightHoverMenuProps {
   highlightId: string;
   currentColor: string;
   colors: string[];
-  position: { top: number; left: number };
+  anchorRect: DOMRect;
   onChangeColor: (highlightId: string, newColor: string) => void;
   onDelete: (highlightId: string) => void;
   onClose: () => void;
@@ -15,7 +16,7 @@ export function HighlightHoverMenu({
   highlightId,
   currentColor,
   colors,
-  position,
+  anchorRect,
   onChangeColor,
   onDelete,
   onClose,
@@ -61,31 +62,28 @@ export function HighlightHoverMenu({
     onClose();
   };
 
+  // Estimate width: colors * 30 + delete btn + padding
+  const menuWidth = colors.length * 30 + 50 + 24;
+
   return (
-    <div
-      ref={menuRef}
-      className="highlight-hover-menu"
-      style={{
-        position: 'fixed',
-        top: `${position.top}px`,
-        left: `${position.left}px`,
-      }}
-    >
-      <div className="hover-menu-colors">
-        {colors.map((color) => (
-          <button
-            key={color}
-            className={`hover-color-btn ${color === currentColor ? 'active' : ''}`}
-            style={{ backgroundColor: color }}
-            onClick={() => handleColorChange(color)}
-            title="Change color"
-          />
-        ))}
+    <TooltipWindow anchorRect={anchorRect} placement="top" width={menuWidth} maxHeight={60} pointerEvents>
+      <div ref={menuRef} className="highlight-hover-menu">
+        <div className="hover-menu-colors">
+          {colors.map((color) => (
+            <button
+              key={color}
+              className={`hover-color-btn ${color === currentColor ? 'active' : ''}`}
+              style={{ backgroundColor: color }}
+              onClick={() => handleColorChange(color)}
+              title="Change color"
+            />
+          ))}
+        </div>
+        <div className="hover-menu-divider" />
+        <button className="hover-delete-btn" onClick={handleDelete} title="Delete highlight">
+          🗑️
+        </button>
       </div>
-      <div className="hover-menu-divider" />
-      <button className="hover-delete-btn" onClick={handleDelete} title="Delete highlight">
-        🗑️
-      </button>
-    </div>
+    </TooltipWindow>
   );
 }

@@ -1,0 +1,19 @@
+.tooltip-window {
+  position: fixed;
+  z-index: 99999;
+  pointer-events: none;
+  animation: tooltip-fade-in 0.12s ease forwards;
+}
+
+.tooltip-window--interactive {
+  pointer-events: auto;
+}
+
+@keyframes tooltip-fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
