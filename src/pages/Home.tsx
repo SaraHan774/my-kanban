@@ -71,85 +71,6 @@ export function Home() {
     }
   };
 
-  if (!hasFileSystemAccess) {
-    // Still checking IndexedDB
-    if (restoreState === 'idle') {
-      return (
-        <div className="home">
-          <div className="home-empty">
-            <p>Loading workspace...</p>
-          </div>
-        </div>
-      );
-    }
-
-    // Saved handle exists but needs user gesture to re-grant permission
-    if (restoreState === 'prompt') {
-      return (
-        <div className="home">
-          <div className="welcome-card">
-            <h1>Welcome back</h1>
-            <p className="welcome-text">
-              Your workspace folder was disconnected after the page refresh.
-              Click below to reconnect.
-            </p>
-
-            <button onClick={handleReconnect} className="btn btn-primary btn-large">
-              Reconnect Workspace
-            </button>
-
-            <p className="help-text">
-              Or{' '}
-              <button className="link-btn" onClick={handleSelectFolder}>
-                select a different folder
-              </button>
-            </p>
-          </div>
-        </div>
-      );
-    }
-
-    // No saved handle — first-time welcome
-    return (
-      <div className="home">
-        <div className="welcome-card">
-          <h1>Welcome to My Kanban</h1>
-          <p className="welcome-text">
-            A local, file-based Kanban board with Notion-like pages.
-            All your data is stored locally and can be tracked with git.
-          </p>
-
-          <div className="features">
-            <div className="feature">
-              <span className="feature-icon">📋</span>
-              <h3>Kanban Board</h3>
-              <p>Organize pages into columns with drag & drop</p>
-            </div>
-            <div className="feature">
-              <span className="feature-icon">📝</span>
-              <h3>Markdown Notes</h3>
-              <p>Write notes with full markdown syntax support</p>
-            </div>
-            <div className="feature">
-              <span className="feature-icon">🏷️</span>
-              <h3>Tag = Column</h3>
-              <p>Create tags that become kanban columns</p>
-            </div>
-          </div>
-
-          <button onClick={handleSelectFolder} className="btn btn-primary btn-large">
-            Select Workspace Folder
-          </button>
-
-          <p className="help-text">
-            Choose a folder where your workspace will be stored.
-            The app will create a &quot;workspace&quot; subfolder to organize your pages.
-          </p>
-        </div>
-      </div>
-    );
-  }
-
   // Ref to access latest pages in callbacks without re-creating them
   const pagesRef = useRef(pages);
   pagesRef.current = pages;
@@ -251,6 +172,85 @@ export function Home() {
     });
     return sorted;
   }, [rootPages, listSortField, listSortDir]);
+
+  if (!hasFileSystemAccess) {
+    // Still checking IndexedDB
+    if (restoreState === 'idle') {
+      return (
+        <div className="home">
+          <div className="home-empty">
+            <p>Loading workspace...</p>
+          </div>
+        </div>
+      );
+    }
+
+    // Saved handle exists but needs user gesture to re-grant permission
+    if (restoreState === 'prompt') {
+      return (
+        <div className="home">
+          <div className="welcome-card">
+            <h1>Welcome back</h1>
+            <p className="welcome-text">
+              Your workspace folder was disconnected after the page refresh.
+              Click below to reconnect.
+            </p>
+
+            <button onClick={handleReconnect} className="btn btn-primary btn-large">
+              Reconnect Workspace
+            </button>
+
+            <p className="help-text">
+              Or{' '}
+              <button className="link-btn" onClick={handleSelectFolder}>
+                select a different folder
+              </button>
+            </p>
+          </div>
+        </div>
+      );
+    }
+
+    // No saved handle — first-time welcome
+    return (
+      <div className="home">
+        <div className="welcome-card">
+          <h1>Welcome to My Kanban</h1>
+          <p className="welcome-text">
+            A local, file-based Kanban board with Notion-like pages.
+            All your data is stored locally and can be tracked with git.
+          </p>
+
+          <div className="features">
+            <div className="feature">
+              <span className="feature-icon">📋</span>
+              <h3>Kanban Board</h3>
+              <p>Organize pages into columns with drag & drop</p>
+            </div>
+            <div className="feature">
+              <span className="feature-icon">📝</span>
+              <h3>Markdown Notes</h3>
+              <p>Write notes with full markdown syntax support</p>
+            </div>
+            <div className="feature">
+              <span className="feature-icon">🏷️</span>
+              <h3>Tag = Column</h3>
+              <p>Create tags that become kanban columns</p>
+            </div>
+          </div>
+
+          <button onClick={handleSelectFolder} className="btn btn-primary btn-large">
+            Select Workspace Folder
+          </button>
+
+          <p className="help-text">
+            Choose a folder where your workspace will be stored.
+            The app will create a &quot;workspace&quot; subfolder to organize your pages.
+          </p>
+        </div>
+      </div>
+    );
+  }
 
   // --- Card drag & drop ---
   const handleDragStart = (cardId: string, e: React.DragEvent) => {
