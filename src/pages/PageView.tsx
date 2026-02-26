@@ -1077,7 +1077,7 @@ export function PageView() {
         {!isImmerseMode && (
         <div className="page-header">
         <div className="page-actions-bar">
-          <button className="btn-icon" onClick={() => navigate(-1)} title="Go back">
+          <button className="btn-icon" onClick={() => navigate(page?.parentId ? `/page/${page.parentId}` : '/')} title="Go back">
             <span className="material-symbols-outlined">arrow_back</span>
           </button>
           <div className="page-actions">
