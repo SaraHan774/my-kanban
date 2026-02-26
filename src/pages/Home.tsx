@@ -378,9 +378,10 @@ export function Home() {
     if (!card.content.trim()) return;
     const target = e.currentTarget as HTMLElement;
 
+    // Capture position immediately (not after timeout)
+    const rect = target.getBoundingClientRect();
+
     hoverTimerRef.current = setTimeout(async () => {
-      // Capture rect at display time so sidebar transitions are accounted for
-      const rect = target.getBoundingClientRect();
       let html = await markdownService.toHtml(card.content);
       const pg = pageMap.get(card.id);
       if (pg) {
@@ -682,7 +683,7 @@ export function Home() {
       )}
 
       {previewCard && (
-        <TooltipWindow anchorRect={previewCard.rect} placement="left" gap={0} width={320} maxHeight={240}>
+        <TooltipWindow anchorRect={previewCard.rect} placement="left" width={320} maxHeight={420}>
           <div
             className="card-hover-preview markdown-content"
             dangerouslySetInnerHTML={{ __html: previewCard.html }}

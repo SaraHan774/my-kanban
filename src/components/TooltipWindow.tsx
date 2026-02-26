@@ -14,12 +14,6 @@ interface TooltipWindowProps {
   children: React.ReactNode;
 }
 
-interface Position {
-  top: number;
-  left?: number;
-  right?: number;
-}
-
 export function TooltipWindow({
   anchorRect,
   placement = 'left',
@@ -32,46 +26,31 @@ export function TooltipWindow({
   children,
 }: TooltipWindowProps) {
   const ref = useRef<HTMLDivElement>(null);
-  const [pos, setPos] = useState<Position | null>(null);
+  const [pos, setPos] = useState<{ top: number; left: number } | null>(null);
 
   useLayoutEffect(() => {
     const vw = window.innerWidth;
     const vh = window.innerHeight;
     const margin = 8;
 
+    let left: number;
     let top: number;
-    let left: number | undefined;
-    let right: number | undefined;
 
     if (placement === 'left' || placement === 'right') {
       // Horizontal placement: prefer placement side, fallback to opposite, then clamp
       const spaceLeft = anchorRect.left - gap;
       const spaceRight = vw - anchorRect.right - gap;
 
-      let resolvedSide: 'left' | 'right';
-
       if (placement === 'left' && spaceLeft >= width) {
-        resolvedSide = 'left';
+        left = anchorRect.left - width - gap;
       } else if (placement === 'right' && spaceRight >= width) {
-        resolvedSide = 'right';
+        left = anchorRect.right + gap;
       } else if (spaceLeft >= width) {
-        resolvedSide = 'left';
+        left = anchorRect.left - width - gap;
       } else if (spaceRight >= width) {
-        resolvedSide = 'right';
+        left = anchorRect.right + gap;
       } else {
-        // Fallback: clamp with left
-        resolvedSide = 'left';
         left = Math.max(margin, Math.min(anchorRect.left, vw - width - margin));
-      }
-
-      // Use CSS right for left-placement, CSS left for right-placement
-      // so the edge closest to the card is always precisely positioned
-      if (left === undefined) {
-        if (resolvedSide === 'left') {
-          right = vw - anchorRect.left + gap;
-        } else {
-          left = anchorRect.right + gap;
-        }
       }
 
       // Vertically center on anchor, then clamp
@@ -101,7 +80,7 @@ export function TooltipWindow({
       left = Math.max(margin, Math.min(anchorMidX - width / 2, vw - width - margin));
     }
 
-    setPos({ top, left, right });
+    setPos({ top, left });
   }, [anchorRect, placement, gap, width, maxHeight]);
 
   const isVertical = placement === 'top' || placement === 'bottom';
@@ -112,8 +91,8 @@ export function TooltipWindow({
     maxHeight,
     ...(pos
       ? {
+          left: pos.left,
           top: pos.top,
-          ...(pos.right !== undefined ? { right: pos.right } : { left: pos.left }),
           ...(isVertical ? {} : { transform: 'translateY(-50%)' }),
         }
       : { opacity: 0 }),
