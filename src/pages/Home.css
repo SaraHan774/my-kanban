@@ -573,7 +573,7 @@
 
 /* Hover preview popup */
 .card-hover-preview {
-  min-height: 80px;
+  max-height: inherit;
   overflow-y: auto;
   background: var(--bg-primary);
   border: 1px solid var(--border-color);
