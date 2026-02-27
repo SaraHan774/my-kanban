@@ -7,21 +7,22 @@
   margin-bottom: 1.5rem;
 }
 
-/* TOC Layout */
+/* TOC Layout - Two column with independent scroll */
 .settings-layout {
   display: flex;
   gap: 2rem;
-  align-items: flex-start;
+  height: calc(100vh - 48px - 4rem); /* Full height minus top bar and page padding */
+  overflow: hidden; /* Prevent parent scroll */
 }
 
 .settings-toc {
   width: 160px;
   flex-shrink: 0;
-  align-self: flex-start;
   display: flex;
   flex-direction: column;
   gap: 2px;
-  will-change: transform;
+  overflow-y: auto; /* TOC scrolls independently if needed */
+  padding-right: 0.5rem;
 }
 
 .settings-toc a {
@@ -52,6 +53,9 @@
 .settings-content {
   flex: 1;
   min-width: 0;
+  overflow-y: auto; /* Content area scrolls independently */
+  overflow-x: hidden;
+  padding-right: 1rem;
 }
 
 .settings-section {

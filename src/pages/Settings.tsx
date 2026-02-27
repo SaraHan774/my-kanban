@@ -85,36 +85,16 @@ export function Settings() {
   ];
 
   const [activeSection, setActiveSection] = useState(tocItems[0]?.id ?? '');
-  const tocRef = useRef<HTMLElement>(null);
 
-  // JS-driven sticky: CSS sticky breaks inside contain:paint scroll containers
+  // Track active section on scroll in the content container
   useEffect(() => {
-    const scrollContainer = document.querySelector('.main-content') as HTMLElement | null;
-    const tocEl = tocRef.current;
-    if (!scrollContainer || !tocEl) return;
+    const scrollContainer = document.querySelector('.settings-content') as HTMLElement | null;
+    if (!scrollContainer) return;
 
     const sectionIds = tocItems.map((t) => t.id);
 
     const handleScroll = () => {
-      // --- sticky positioning via transform ---
-      const layout = tocEl.parentElement;
-      if (layout) {
-        const layoutRect = layout.getBoundingClientRect();
-        const containerRect = scrollContainer.getBoundingClientRect();
-        const topBarHeight = 48;
-        const stickyTop = containerRect.top + topBarHeight;
-
-        if (layoutRect.top < stickyTop) {
-          const offset = stickyTop - layoutRect.top;
-          const maxOffset = layout.offsetHeight - tocEl.offsetHeight;
-          tocEl.style.transform = `translateY(${Math.min(offset, Math.max(0, maxOffset))}px)`;
-        } else {
-          tocEl.style.transform = '';
-        }
-      }
-
-      // --- active section tracking ---
-      const threshold = scrollContainer.getBoundingClientRect().top + 80;
+      const threshold = scrollContainer.getBoundingClientRect().top + 120;
       let current = sectionIds[0];
       for (const id of sectionIds) {
         const el = document.getElementById(id);
@@ -365,7 +345,7 @@ export function Settings() {
       <h1>Settings</h1>
 
       <div className="settings-layout">
-        <nav className="settings-toc" ref={tocRef}>
+        <nav className="settings-toc">
           {tocItems.map((item) => (
             <a
               key={item.id}
@@ -373,7 +353,16 @@ export function Settings() {
               className={activeSection === item.id ? 'active' : ''}
               onClick={(e) => {
                 e.preventDefault();
-                document.getElementById(item.id)?.scrollIntoView({ behavior: 'smooth' });
+                const contentContainer = document.querySelector('.settings-content') as HTMLElement | null;
+                const targetSection = document.getElementById(item.id);
+                if (!contentContainer || !targetSection) return;
+
+                // Scroll the content container to the target section
+                const offsetTop = targetSection.offsetTop;
+                contentContainer.scrollTo({
+                  top: offsetTop - 20, // Small offset from top
+                  behavior: 'smooth'
+                });
               }}
             >
               {item.label}
