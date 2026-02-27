@@ -683,7 +683,7 @@ export function Home() {
       )}
 
       {previewCard && (
-        <TooltipWindow anchorRect={previewCard.rect} placement="left" width={320} maxHeight={420}>
+        <TooltipWindow anchorRect={previewCard.rect} placement="left" width={320} maxHeight={500}>
           <div
             className="card-hover-preview markdown-content"
             dangerouslySetInnerHTML={{ __html: previewCard.html }}
