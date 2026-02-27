@@ -665,24 +665,10 @@ export function PageView() {
     const sorted = [...highlights].sort((a, b) => b.startOffset - a.startOffset);
 
     sorted.forEach(h => {
-      // Filter to exclude code blocks and other special elements
       const walker = document.createTreeWalker(
         tempDiv,
         NodeFilter.SHOW_TEXT,
-        {
-          acceptNode: (node) => {
-            // Skip text nodes inside code blocks, pre tags, script, or style elements
-            let parent = node.parentElement;
-            while (parent && parent !== tempDiv) {
-              const tagName = parent.tagName;
-              if (['PRE', 'CODE', 'SCRIPT', 'STYLE'].includes(tagName)) {
-                return NodeFilter.FILTER_REJECT;
-              }
-              parent = parent.parentElement;
-            }
-            return NodeFilter.FILTER_ACCEPT;
-          }
-        }
+        null
       );
 
       let textNode;

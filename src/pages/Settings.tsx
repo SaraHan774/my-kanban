@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useStore } from '@/store/useStore';
 import { DEFAULT_FONT_SETTINGS, FontSettings } from '@/services/configService';
 import { AppSlashCommand } from '@/data/defaultSlashCommands';
