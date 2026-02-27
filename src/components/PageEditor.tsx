@@ -1,4 +1,5 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
+import { flushSync } from 'react-dom';
 import { useNavigate } from 'react-router-dom';
 import { Page } from '@/types';
 import { pageService, markdownService, saveImage, resolveImagesInHtml, clearImageCache } from '@/services';
@@ -370,20 +371,20 @@ export function PageEditor({ page, onSave, onCancel, hideMeta, hideToolbar, meta
             const newIndent = indent.substring(2);
             const newLine = checkbox ? `${newIndent}${bullet} [ ] ` : `${newIndent}${bullet} `;
             const newContent = content.substring(0, lineStart) + newLine + content.substring(start);
-            setContent(newContent);
             const newPos = lineStart + newLine.length;
-            setTimeout(() => {
-              textarea.focus();
-              textarea.setSelectionRange(newPos, newPos);
-            }, 0);
+            flushSync(() => {
+              setContent(newContent);
+            });
+            textarea.focus();
+            textarea.setSelectionRange(newPos, newPos);
           } else {
             // Top-level: exit the list (remove bullet, leave plain line)
             const newContent = content.substring(0, lineStart) + content.substring(start);
-            setContent(newContent);
-            setTimeout(() => {
-              textarea.focus();
-              textarea.setSelectionRange(lineStart, lineStart);
-            }, 0);
+            flushSync(() => {
+              setContent(newContent);
+            });
+            textarea.focus();
+            textarea.setSelectionRange(lineStart, lineStart);
           }
         } else {
           // Has content: continue list with same indentation and bullet
@@ -394,12 +395,12 @@ export function PageEditor({ page, onSave, onCancel, hideMeta, hideToolbar, meta
           const checkboxPart = checkbox ? '[ ] ' : '';
           const insertion = `\n${indent}${nextBullet} ${checkboxPart}`;
           const newContent = content.substring(0, start) + insertion + content.substring(start);
-          setContent(newContent);
           const newPos = start + insertion.length;
-          setTimeout(() => {
-            textarea.focus();
-            textarea.setSelectionRange(newPos, newPos);
-          }, 0);
+          flushSync(() => {
+            setContent(newContent);
+          });
+          textarea.focus();
+          textarea.setSelectionRange(newPos, newPos);
         }
         return;
       }
