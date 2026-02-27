@@ -46,15 +46,36 @@ impl TerminalManager {
         let mut reader = pair.master.try_clone_reader().map_err(|e| e.to_string())?;
         let writer = pair.master.take_writer().map_err(|e| e.to_string())?;
 
-        // Build command - spawn zsh shell
-        let mut cmd = CommandBuilder::new("zsh");
+        // Detect shell: Try $SHELL env var first, then fallback to common shells
+        let shell = std::env::var("SHELL")
+            .ok()
+            .and_then(|s| {
+                if !s.is_empty() && std::path::Path::new(&s).exists() {
+                    Some(s)
+                } else {
+                    None
+                }
+            })
+            .or_else(|| {
+                // Fallback order: zsh, bash, sh
+                for shell in &["zsh", "bash", "sh"] {
+                    if which::which(shell).is_ok() {
+                        return Some(shell.to_string());
+                    }
+                }
+                None
+            })
+            .ok_or_else(|| "No suitable shell found (tried: $SHELL, zsh, bash, sh)".to_string())?;
+
+        // Build command - spawn detected shell
+        let mut cmd = CommandBuilder::new(&shell);
         cmd.cwd(&working_dir);
 
         // Spawn child process
         let _child = pair
             .slave
             .spawn_command(cmd)
-            .map_err(|e| format!("Failed to spawn zsh: {}", e))?;
+            .map_err(|e| format!("Failed to spawn shell ({}): {}", shell, e))?;
 
         // Store session
         let session = TerminalSession {
