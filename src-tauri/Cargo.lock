@@ -2073,7 +2073,7 @@ dependencies = [
 
 [[package]]
 name = "my-kanban"
-version = "0.5.1-p1"
+version = "0.5.2"
 dependencies = [
  "portable-pty",
  "serde",
