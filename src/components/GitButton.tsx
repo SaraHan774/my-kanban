@@ -9,7 +9,6 @@ export function GitButton() {
   const [isRepository, setIsRepository] = useState(false);
   const [status, setStatus] = useState<GitStatus | null>(null);
   const [showModal, setShowModal] = useState(false);
-  const [error, setError] = useState('');
 
   // Check if we're in Tauri (desktop) mode
   const isTauri = typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window;
@@ -80,10 +79,9 @@ export function GitButton() {
     try {
       const newStatus = await gitService.getStatus();
       setStatus(newStatus);
-      setError('');
     } catch (err) {
-      const message = err instanceof Error ? err.message : String(err);
-      setError(message);
+      // Errors are handled silently in the button, detailed errors shown in GitModal
+      console.error('GitButton: Failed to fetch status:', err);
     }
   };
 
