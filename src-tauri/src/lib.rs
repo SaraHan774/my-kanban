@@ -3,6 +3,8 @@ use tauri::{Manager, WebviewUrl, WebviewWindowBuilder, State};
 mod terminal;
 use terminal::TerminalManager;
 
+mod git_shell;
+
 #[derive(serde::Serialize, serde::Deserialize)]
 struct WindowBounds {
     x: f64,
@@ -103,7 +105,15 @@ pub fn run() {
             spawn_terminal,
             write_terminal,
             resize_terminal,
-            close_terminal
+            close_terminal,
+            git_shell::git_get_status,
+            git_shell::git_commit,
+            git_shell::git_push,
+            git_shell::git_pull,
+            git_shell::git_sync,
+            git_shell::git_is_repository,
+            git_shell::git_initialize,
+            git_shell::git_lfs_available,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

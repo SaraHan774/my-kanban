@@ -5,7 +5,7 @@
 import { create } from 'zustand';
 import { Page, AppConfig, DEFAULT_CONFIG, SortOptions } from '@/types';
 import { AppSlashCommand, DEFAULT_SLASH_COMMANDS } from '@/data/defaultSlashCommands';
-import { configService, FontSettings } from '@/services/configService';
+import { configService, FontSettings, GitSettings } from '@/services/configService';
 
 // Load initial settings from localStorage (synchronous, fast first render)
 const initialSettings = configService.loadFromLocalStorage();
@@ -23,6 +23,7 @@ const persistSettings = (state: {
   sidebarWidth: number;
   highlightColors: string[];
   pageWidth: 'narrow' | 'wide';
+  git: GitSettings;
 }) => {
   configService.save({
     columnColors: state.columnColors,
@@ -36,6 +37,7 @@ const persistSettings = (state: {
     sidebarWidth: state.sidebarWidth,
     highlightColors: state.highlightColors,
     pageWidth: state.pageWidth,
+    git: state.git,
   });
 };
 
@@ -121,6 +123,10 @@ interface AppState {
   // Page width (persisted)
   pageWidth: 'narrow' | 'wide';
   setPageWidth: (width: 'narrow' | 'wide') => void;
+
+  // Git settings (persisted)
+  git: GitSettings;
+  setGitSettings: (git: GitSettings) => void;
 
   // Toast notification (not persisted)
   toast: { message: string; type: 'success' | 'error' | 'info' } | null;
@@ -293,6 +299,14 @@ export const useStore = create<AppState>((set, get) => ({
     persistSettings({ ...state, pageWidth: width });
   },
 
+  // Git settings
+  git: initialSettings.git,
+  setGitSettings: (git) => {
+    set({ git });
+    const state = get();
+    persistSettings({ ...state, git });
+  },
+
   // Toast notification
   toast: null,
   showToast: (message, type = 'success') => {
@@ -325,6 +339,7 @@ export const useStore = create<AppState>((set, get) => ({
         sidebarWidth: fileSettings.sidebarWidth || 280,
         highlightColors: fileSettings.highlightColors || ['#FFEB3B', '#C5E1A5', '#90CAF9', '#FFCC80', '#F48FB1'],
         pageWidth: fileSettings.pageWidth || 'narrow',
+        git: fileSettings.git,
       });
       // Sync localStorage cache
       configService.saveToLocalStorage(fileSettings);
@@ -343,6 +358,7 @@ export const useStore = create<AppState>((set, get) => ({
         sidebarWidth: state.sidebarWidth,
         highlightColors: state.highlightColors,
         pageWidth: state.pageWidth,
+        git: state.git,
       });
     }
   },

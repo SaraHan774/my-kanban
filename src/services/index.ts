@@ -8,3 +8,4 @@ export * from './configService';
 export * from './imageService';
 export * from './migration';
 export * from './graphService';
+export * from './gitService';

@@ -21,6 +21,7 @@ const LS_BOARD_VIEW = 'kanban-board-view';
 const LS_SIDEBAR_WIDTH = 'kanban-sidebar-width';
 const LS_HIGHLIGHT_COLORS = 'kanban-highlight-colors';
 const LS_PAGE_WIDTH = 'kanban-page-width';
+const LS_GIT_SETTINGS = 'kanban-git-settings';
 
 export interface FontSettings {
   // Content fonts (page view - reading area)
@@ -57,6 +58,17 @@ export const DEFAULT_FONT_SETTINGS: FontSettings = {
   },
 };
 
+export interface GitSettings {
+  enabled: boolean;
+  autoCommit: boolean;
+  autoCommitInterval: number; // minutes
+  userName: string;
+  userEmail: string;
+  remoteUrl: string;
+  remoteName: string;
+  branchName: string;
+}
+
 export interface KanbanSettings {
   columnColors: Record<string, string>;
   slashCommands: AppSlashCommand[];
@@ -69,7 +81,19 @@ export interface KanbanSettings {
   sidebarWidth: number;
   highlightColors: string[];
   pageWidth: 'narrow' | 'wide';
+  git: GitSettings;
 }
+
+const DEFAULT_GIT_SETTINGS: GitSettings = {
+  enabled: false,
+  autoCommit: false,
+  autoCommitInterval: 15, // 15 minutes
+  userName: '',
+  userEmail: '',
+  remoteUrl: '',
+  remoteName: 'origin',
+  branchName: 'main',
+};
 
 const DEFAULT_SETTINGS: KanbanSettings = {
   columnColors: {},
@@ -83,6 +107,7 @@ const DEFAULT_SETTINGS: KanbanSettings = {
   sidebarWidth: 280,
   highlightColors: ['#FFEB3B', '#C5E1A5', '#90CAF9', '#FFCC80', '#F48FB1'],
   pageWidth: 'narrow',
+  git: DEFAULT_GIT_SETTINGS,
 };
 
 class ConfigService {
@@ -124,6 +149,7 @@ class ConfigService {
         sidebarWidth: parsed.sidebarWidth ?? DEFAULT_SETTINGS.sidebarWidth,
         highlightColors: parsed.highlightColors ?? DEFAULT_SETTINGS.highlightColors,
         pageWidth: parsed.pageWidth ?? DEFAULT_SETTINGS.pageWidth,
+        git: parsed.git ?? DEFAULT_SETTINGS.git,
       };
     } catch {
       return null;
@@ -209,6 +235,11 @@ class ConfigService {
     const pageWidth = localStorage.getItem(LS_PAGE_WIDTH) as KanbanSettings['pageWidth'] | null;
     if (pageWidth) settings.pageWidth = pageWidth;
 
+    try {
+      const git = localStorage.getItem(LS_GIT_SETTINGS);
+      if (git) settings.git = JSON.parse(git);
+    } catch { /* ignore */ }
+
     return settings;
   }
 
@@ -227,6 +258,7 @@ class ConfigService {
     localStorage.setItem(LS_SIDEBAR_WIDTH, JSON.stringify(settings.sidebarWidth));
     localStorage.setItem(LS_HIGHLIGHT_COLORS, JSON.stringify(settings.highlightColors));
     localStorage.setItem(LS_PAGE_WIDTH, settings.pageWidth);
+    localStorage.setItem(LS_GIT_SETTINGS, JSON.stringify(settings.git));
   }
 
   /**
