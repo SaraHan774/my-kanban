@@ -459,6 +459,13 @@ export function Home() {
             <span className="material-symbols-outlined">list</span>
             List
           </button>
+          <button
+            className={`view-tab ${boardView === 'compact' ? 'active' : ''}`}
+            onClick={() => setBoardView('compact')}
+          >
+            <span className="material-symbols-outlined">grid_view</span>
+            Compact
+          </button>
         </div>
         <div className="board-actions-right">
           <button className="board-action-btn" onClick={() => setShowTodoModal(true)}>
@@ -472,7 +479,55 @@ export function Home() {
         </div>
       </div>
 
-      {boardView === 'kanban' ? (
+      {boardView === 'compact' ? (
+        /* ===== COMPACT GRID VIEW ===== */
+        <div className="compact-grid-view">
+          {columns.map((col) => {
+            const columnCards = columnCardsMap.get(col.toLowerCase()) || [];
+            const color = getColumnColor(col);
+            return (
+              <div key={col} className="compact-column" style={{ '--column-color': color } as React.CSSProperties}>
+                <div className="compact-column-header" style={{ backgroundColor: color }}>
+                  <h4>{col}</h4>
+                  <span className="compact-card-count">{columnCards.length}</span>
+                </div>
+                <div className="compact-column-list">
+                  {columnCards.map(card => (
+                    <Link
+                      key={card.id}
+                      to={`/page/${card.id}`}
+                      className="compact-card-item"
+                    >
+                      {card.pinned && <span className="compact-pin-indicator material-symbols-outlined">keep</span>}
+                      <span className="compact-card-title">{card.title}</span>
+                    </Link>
+                  ))}
+                </div>
+              </div>
+            );
+          })}
+          {hasUncategorized && (
+            <div className="compact-column" style={{ '--column-color': '#6b7280' } as React.CSSProperties}>
+              <div className="compact-column-header" style={{ backgroundColor: '#6b7280' }}>
+                <h4>Uncategorized</h4>
+                <span className="compact-card-count">{uncategorizedCards.length}</span>
+              </div>
+              <div className="compact-column-list">
+                {uncategorizedCards.map(card => (
+                  <Link
+                    key={card.id}
+                    to={`/page/${card.id}`}
+                    className="compact-card-item"
+                  >
+                    {card.pinned && <span className="compact-pin-indicator material-symbols-outlined">keep</span>}
+                    <span className="compact-card-title">{card.title}</span>
+                  </Link>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      ) : boardView === 'kanban' ? (
         <div className="kanban-board">
           {columns.map((col) => {
             const columnCards = columnCardsMap.get(col.toLowerCase()) || [];

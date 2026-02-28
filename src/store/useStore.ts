@@ -19,7 +19,7 @@ const persistSettings = (state: {
   zoomLevel: number;
   fontSettings: FontSettings;
   boardDensity: 'normal' | 'compact';
-  boardView: 'kanban' | 'list';
+  boardView: 'kanban' | 'list' | 'compact';
   sidebarWidth: number;
   highlightColors: string[];
   pageWidth: 'narrow' | 'wide';
@@ -107,8 +107,8 @@ interface AppState {
   setBoardDensity: (density: 'normal' | 'compact') => void;
 
   // Board view (persisted)
-  boardView: 'kanban' | 'list';
-  setBoardView: (view: 'kanban' | 'list') => void;
+  boardView: 'kanban' | 'list' | 'compact';
+  setBoardView: (view: 'kanban' | 'list' | 'compact') => void;
 
   // Sidebar width (persisted)
   sidebarWidth: number;

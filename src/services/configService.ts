@@ -65,7 +65,7 @@ export interface KanbanSettings {
   zoomLevel: number;
   fontSettings: FontSettings;
   boardDensity: 'normal' | 'compact';
-  boardView: 'kanban' | 'list';
+  boardView: 'kanban' | 'list' | 'compact';
   sidebarWidth: number;
   highlightColors: string[];
   pageWidth: 'narrow' | 'wide';

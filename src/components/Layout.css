@@ -1,7 +1,7 @@
 .layout {
   display: flex;
-  min-height: 100vh;
-  overflow-x: hidden;
+  height: 100vh;
+  overflow: hidden;
 }
 
 /* Sidebar container with slide animation */
@@ -34,9 +34,9 @@
 
 .main-content {
   flex: 1;
-  overflow-y: auto;
   display: flex;
   flex-direction: column;
+  overflow: hidden;
   /* Performance hint: paint and style containment only (layout would break position:fixed) */
   contain: style paint;
 }
