@@ -14,6 +14,8 @@ Available as both a **Progressive Web App (PWA)** and a **native desktop app** p
 - **Hierarchical Sub-pages** - Create sub-pages with automatic parent-child relationships, inheriting column assignments
 - **Tag System** - Categorize pages with tags and filter by them in the sidebar
 - **Kanban Boards** - Root-level pages organized into customizable kanban columns with drag-and-drop reordering
+- **Multiple View Modes** - Switch between Board (kanban), List (sortable table), and Compact (grid) views
+- **Compact Grid View** - View all columns at once in a responsive grid layout - perfect for managing many columns without horizontal scrolling
 - **Column Colors** - Customize colors for each kanban column or use automatic palette-based coloring
 - **Board Density** - Switch between normal and compact board layouts
 - **Todo Checklists** - GitHub-style checklists with interactive checkboxes
@@ -172,7 +174,10 @@ npm run tauri:build
 3. **Reorder columns** - Drag column headers to rearrange their order (colors stay with column names)
 4. **Card management** - Root-level pages appear as cards on the main board
 5. **Board density** - Switch between normal and compact layouts for different information density
-6. **List view** - Alternative list view with sortable columns (Title, Column, Due Date, Created)
+6. **Three view modes:**
+   - **Board** - Classic kanban board with cards showing full metadata (tags, dates, excerpts)
+   - **List** - Table view with sortable columns (Title, Column, Due Date, Created)
+   - **Compact** - Responsive grid layout showing all columns at once - ideal for managing many columns without scrolling. Pages displayed as minimal title-only lists
 
 ### Tags & Filtering
 
@@ -312,6 +317,7 @@ my-kanban/
 - [x] Column color customization with stable color assignment
 - [x] Board density settings (normal/compact)
 - [x] List view with sortable columns
+- [x] Compact grid view mode for viewing many columns at once
 - [ ] Drag-and-drop for kanban cards (between columns)
 - [ ] Due date tracking and reminders
 - [ ] Calendar integration
