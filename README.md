@@ -318,8 +318,9 @@ my-kanban/
 - [x] Board density settings (normal/compact)
 - [x] List view with sortable columns
 - [x] Compact grid view mode for viewing many columns at once
-- [ ] Drag-and-drop for kanban cards (between columns)
-- [ ] Due date tracking and reminders
+- [x] Drag-and-drop for kanban cards (between columns)
+- [x] Due date tracking with overdue/due-soon indicators
+- [ ] Due date reminders and notifications
 - [ ] Calendar integration
 - [ ] Advanced filtering UI (multiple filters, date ranges)
 - [ ] Rich text editor mode
