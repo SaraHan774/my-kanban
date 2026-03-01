@@ -294,42 +294,50 @@ export function PageView() {
     };
   }, [htmlContent, navigate, pageId]);
 
-  // Use event delegation to handle ALL link clicks (including dynamically added ones)
+  // Process and mark external links to prevent in-app navigation
   useEffect(() => {
     const container = contentRef.current;
     if (!container) return;
 
-    const handleLinkClick = (e: MouseEvent) => {
-      const target = e.target as HTMLElement;
-      const link = target.closest('a[href]') as HTMLAnchorElement | null;
+    // Find all links and process them
+    const allLinks = container.querySelectorAll<HTMLAnchorElement>('a[href]');
 
-      if (!link) return;
-
+    allLinks.forEach((link) => {
       const href = link.getAttribute('href');
       if (!href) return;
 
-      // Internal page links (handled by wiki link navigation)
-      if (link.hasAttribute('data-page-ref') || link.hasAttribute('data-page-id')) {
-        return; // Let the wiki link handler deal with it
+      // Skip internal links
+      if (link.hasAttribute('data-page-ref') ||
+          link.hasAttribute('data-page-id') ||
+          href.startsWith('/page/') ||
+          href.startsWith('#')) {
+        return;
       }
 
-      // Internal SPA routes
-      if (href.startsWith('/page/')) {
-        return; // Let the SPA navigation handler deal with it
-      }
+      // Mark as external link and store original href
+      link.setAttribute('data-external-url', href);
+      link.removeAttribute('href'); // Remove href to prevent default navigation
+      link.style.cursor = 'pointer';
+      link.style.color = 'var(--link-color, #3b82f6)';
+      link.style.textDecoration = 'underline';
+    });
 
-      // Hash links (same page anchors)
-      if (href.startsWith('#')) {
-        return; // Allow default behavior
-      }
+    const handleLinkClick = (e: MouseEvent) => {
+      const target = e.target as HTMLElement;
+      const link = target.closest('a') as HTMLAnchorElement | null;
 
-      // Everything else is external - open in system browser
-      e.preventDefault();
-      e.stopPropagation();
-      openExternalUrl(href);
+      if (!link) return;
+
+      const externalUrl = link.getAttribute('data-external-url');
+      if (externalUrl) {
+        e.preventDefault();
+        e.stopPropagation();
+        e.stopImmediatePropagation();
+        console.log('[LINK CLICK] Opening external URL:', externalUrl);
+        openExternalUrl(externalUrl);
+      }
     };
 
-    // Use capture phase to ensure we catch the event first
     container.addEventListener('click', handleLinkClick, true);
 
     return () => {
