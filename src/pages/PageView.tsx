@@ -294,28 +294,45 @@ export function PageView() {
     };
   }, [htmlContent, navigate, pageId]);
 
-  // Attach click handlers to external links to open in browser
+  // Attach click handlers to ALL links to handle external URLs
   useEffect(() => {
     const container = contentRef.current;
     if (!container) return;
 
-    const externalLinks = container.querySelectorAll<HTMLAnchorElement>('a[href^="http://"], a[href^="https://"]');
+    // Select all links in the content
+    const allLinks = container.querySelectorAll<HTMLAnchorElement>('a[href]');
     const handlers: Array<(e: Event) => void> = [];
 
-    externalLinks.forEach((link) => {
+    allLinks.forEach((link) => {
       const handler = (e: Event) => {
-        e.preventDefault();
         const href = link.getAttribute('href');
-        if (href) {
-          openExternalUrl(href);
+        if (!href) return;
+
+        // Internal page links (handled by wiki link navigation)
+        if (link.hasAttribute('data-page-ref') || link.hasAttribute('data-page-id')) {
+          return; // Let the wiki link handler deal with it
         }
+
+        // Internal SPA routes
+        if (href.startsWith('/page/')) {
+          return; // Let the SPA navigation handler deal with it
+        }
+
+        // Hash links (same page anchors)
+        if (href.startsWith('#')) {
+          return; // Allow default behavior
+        }
+
+        // Everything else is external - open in system browser
+        e.preventDefault();
+        openExternalUrl(href);
       };
       link.addEventListener('click', handler);
       handlers.push(handler);
     });
 
     return () => {
-      externalLinks.forEach((link, index) => {
+      allLinks.forEach((link, index) => {
         link.removeEventListener('click', handlers[index]);
       });
     };
