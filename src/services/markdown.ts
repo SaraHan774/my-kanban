@@ -15,29 +15,6 @@ const FRONTMATTER_RE = /^---\r?\n([\s\S]*?)\r?\n---\r?\n?([\s\S]*)$/;
 marked.use({
   breaks: true,  // Enable GFM line breaks: single newline → <br>
   gfm: true,     // Enable GitHub Flavored Markdown
-  extensions: [
-    {
-      name: 'strikethrough',
-      level: 'inline',
-      start(src: string) {
-        return src.match(/~~/)?.index;
-      },
-      tokenizer(src: string) {
-        const match = src.match(/^~~(?=\S)([\s\S]*?\S)~~/);
-        if (match) {
-          return {
-            type: 'strikethrough',
-            raw: match[0],
-            text: match[1].trim()
-          };
-        }
-        return undefined;
-      },
-      renderer(token: any) {
-        return `<del>${this.parser.parseInline(token.text)}</del>`;
-      }
-    }
-  ]
 });
 
 // Configure marked with syntax highlighting + mermaid code block support
@@ -100,10 +77,22 @@ export class MarkdownService {
    * @param markdown - Markdown content
    */
   async toHtml(markdown: string): Promise<string> {
-    // First convert wiki-style links to HTML
-    const withLinks = this.convertWikiLinksToHtml(markdown);
+    // First escape single tildes (but not double tildes for strikethrough)
+    const withEscapedTildes = this.escapeSingleTildes(markdown);
+    // Then convert wiki-style links to HTML
+    const withLinks = this.convertWikiLinksToHtml(withEscapedTildes);
     // Then process markdown
     return marked(withLinks);
+  }
+
+  /**
+   * Escape single tildes to prevent them from being treated as strikethrough
+   * Only double tildes (~~) should create strikethrough
+   */
+  private escapeSingleTildes(content: string): string {
+    // Replace single tildes with escaped version, but preserve double tildes
+    // Use negative lookbehind and lookahead to match tildes that aren't part of ~~
+    return content.replace(/(?<!~)~(?!~)/g, '\\~');
   }
 
   /**
