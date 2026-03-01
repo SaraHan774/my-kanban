@@ -814,8 +814,6 @@ export function PageView() {
 
         // OPTIMIZATION: Try to use word index first for faster lookup
         const firstWord = normalizedFirstWords.split(/\s+/)[0];
-        const lastWordSplit = normalizedLastWords.split(/\s+/);
-        const lastWord = lastWordSplit[lastWordSplit.length - 1];
 
         let firstWordsIndex = -1;
         let lastWordsIndex = -1;
@@ -894,8 +892,6 @@ export function PageView() {
           // Try normalized text match with position mapping
           const normalizedSearchText = normalizeWhitespace(searchText);
           const normalizedFullText = normalizeWhitespace(fullText);
-          const normalizedIndex = normalizedFullText.indexOf(normalizedSearchText);
-
 
           // Debug: check if any part of the search text exists
           const searchWords = normalizedSearchText.split(' ').filter(w => w.length > 2);

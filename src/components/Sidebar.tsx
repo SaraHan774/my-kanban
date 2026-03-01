@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom';
 import { invoke } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
 import { useStore } from '@/store/useStore';
-import { pageService } from '@/services';
+import { pageService, fileSystemService } from '@/services';
 import { CreatePageModal } from './CreatePageModal';
 import './Sidebar.css';
 
@@ -50,10 +50,10 @@ export function Sidebar() {
 
     const startWatching = async () => {
       try {
-        // Get workspace path from config
-        const config = await pageService.getConfig();
-        if (config?.workspacePath) {
-          await invoke('watch_workspace', { workspacePath: config.workspacePath });
+        // Get workspace path from fileSystemService
+        const rootHandle = fileSystemService.getRootHandle();
+        if (typeof rootHandle === 'string') {
+          await invoke('watch_workspace', { workspacePath: rootHandle });
           console.log('Started watching workspace for changes');
         }
       } catch (err) {
