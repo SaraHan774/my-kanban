@@ -3,7 +3,7 @@ import { useParams, Link, useNavigate } from 'react-router-dom';
 import { invoke } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
 import { useStore } from '@/store/useStore';
-import { pageService, markdownService, resolveImagesInHtml, clearImageCache, fileSystemService } from '@/services';
+import { pageService, markdownService, resolveImagesInHtml, clearImageCache, fileSystemService, highlightService } from '@/services';
 import { Page, Highlight, Memo } from '@/types';
 import { PageEditor, PageEditorHandle } from '@/components/PageEditor';
 import { FindBar } from '@/components/FindBar';
@@ -15,7 +15,6 @@ import { Terminal } from '@/components/Terminal';
 import { useMermaid } from '@/hooks/useMermaid';
 import { convertWikiLinksToMarkdown } from '@/utils/wikiLinks';
 import { openExternalUrl } from '@/lib/openExternal';
-import { getHighlightColor, getUnderlineColor } from '@/utils/colorAdjust';
 import './PageView.css';
 
 // Tauri imports for file watching
@@ -174,9 +173,9 @@ export function PageView() {
     const contentWithLinks = convertWikiLinksToMarkdown(content, pagesRef.current);
     let html = await markdownService.toHtml(contentWithLinks);
     html = await resolveImagesInHtml(html, pagePath);
-    html = applyHighlightsToHtml(html, highlights);
+    html = highlightService.applyHighlightsToHtml(html, highlights, highlightsVisibleRef.current);
     setHtmlContent(html);
-  }, [/* pagesRef is stable; applyHighlightsToHtml uses highlightsVisible via closure */]);
+  }, [/* pagesRef is stable */]);
 
   // Render mermaid diagrams after HTML content updates
   useMermaid(contentRef, htmlContent);
@@ -475,26 +474,19 @@ export function PageView() {
     const contentEl = contentRef.current;
     if (!contentEl) return;
 
+    // Calculate text offsets using service
+    const { startOffset, endOffset, trimmedText } = highlightService.calculateTextOffsets(range, contentEl);
     const plainText = contentEl.textContent || '';
-    const beforeRange = document.createRange();
-    beforeRange.setStart(contentEl, 0);
-    beforeRange.setEnd(range.startContainer, range.startOffset);
-    const rawStartOffset = beforeRange.toString().length;
 
-    // Trim the text and adjust offsets accordingly
-    const trimmedText = rawText.trim();
-    const leadingSpaces = rawText.length - rawText.trimStart().length;
-    const startOffset = rawStartOffset + leadingSpaces;
-    const endOffset = startOffset + trimmedText.length;
+    // Get context using service
+    const { contextBefore, contextAfter } = highlightService.extractHighlightContext(
+      plainText,
+      startOffset,
+      endOffset
+    );
 
-    // Get context
-    const contextBefore = plainText.substring(Math.max(0, startOffset - 20), startOffset);
-    const contextAfter = plainText.substring(endOffset, Math.min(plainText.length, endOffset + 20));
-
-    // Extract first and last words for robust matching
-    const words = trimmedText.split(/\s+/).filter(w => w.length > 0);
-    const firstWords = words.slice(0, 3).join(' '); // First 3 words
-    const lastWords = words.slice(-3).join(' '); // Last 3 words
+    // Extract first and last words using service
+    const { firstWords, lastWords } = highlightService.extractAnchorWords(trimmedText);
 
     const highlight: Highlight = {
       id: crypto.randomUUID(),
@@ -704,340 +696,6 @@ export function PageView() {
     }
   }, []);
 
-  const applyHighlightsToHtml = (html: string, highlights: Highlight[]): string => {
-    if (!highlights || highlights.length === 0 || !highlightsVisibleRef.current) return html;
-
-    // Helper function to apply highlight to text nodes at a specific position
-    const applyHighlightToNodes = (
-      container: HTMLElement,
-      searchText: string,
-      startPosition: number,
-      highlight: Highlight,
-      endPosition?: number  // Optional: if provided, use this instead of calculating from searchText
-    ) => {
-      const walker = document.createTreeWalker(
-        container,
-        NodeFilter.SHOW_TEXT,
-        null
-      );
-
-      let currentOffset = 0;
-      let textNode;
-      const nodesToProcess: Array<{ node: Node; localStart: number; localEnd: number }> = [];
-
-      const actualEndPosition = endPosition !== undefined ? endPosition : (startPosition + searchText.length);
-
-      // Find all text nodes that contain part of the highlight
-      while ((textNode = walker.nextNode())) {
-        const textContent = textNode.textContent || '';
-        const nodeStart = currentOffset;
-        const nodeEnd = currentOffset + textContent.length;
-
-        // Check if this text node overlaps with the highlight range
-        if (nodeStart < actualEndPosition && nodeEnd > startPosition) {
-          const localStart = Math.max(0, startPosition - nodeStart);
-          const localEnd = Math.min(textContent.length, actualEndPosition - nodeStart);
-          nodesToProcess.push({ node: textNode, localStart, localEnd });
-        }
-
-        currentOffset = nodeEnd;
-      }
-
-      // Apply highlights to collected nodes (reverse order to avoid DOM shifts)
-      nodesToProcess.reverse().forEach(({ node, localStart, localEnd }) => {
-        const textContent = node.textContent || '';
-
-        const before = textContent.substring(0, localStart);
-        const highlighted = textContent.substring(localStart, localEnd);
-        const after = textContent.substring(localEnd);
-
-        // Skip if highlighted portion is only whitespace
-        if (highlighted.trim().length === 0) {
-          return;
-        }
-
-        const mark = document.createElement('mark');
-        mark.className = `highlight highlight-${highlight.style}`;
-        // Apply dark mode adjusted colors
-        mark.style.backgroundColor = highlight.style === 'highlight' ? getHighlightColor(highlight.color) : 'transparent';
-        mark.style.borderBottom = highlight.style === 'underline' ? `3px solid ${getUnderlineColor(highlight.color)}` : 'none';
-        mark.setAttribute('data-highlight-id', highlight.id);
-        mark.textContent = highlighted;
-
-        const fragment = document.createDocumentFragment();
-        if (before) fragment.appendChild(document.createTextNode(before));
-        fragment.appendChild(mark);
-        if (after) fragment.appendChild(document.createTextNode(after));
-
-        node.parentNode?.replaceChild(fragment, node);
-      });
-    };
-
-    // Create a temporary div to parse HTML
-    const tempDiv = document.createElement('div');
-    tempDiv.innerHTML = html;
-
-    // Get all text content for context matching
-    const fullText = tempDiv.textContent || '';
-
-    // Helper to normalize whitespace for comparison
-    const normalizeWhitespace = (text: string): string => {
-      return text.replace(/\s+/g, ' ').trim();
-    };
-
-    // OPTIMIZATION: Pre-compute normalized text and position map ONCE for all highlights
-    // This changes complexity from O(H*N) to O(H+N)
-    const normalizedFullText = normalizeWhitespace(fullText);
-
-    // Build position map once (maps normalized position -> original position)
-    const buildPositionMap = (): number[] => {
-      const positionMap: number[] = [0];
-      let normPos = 0;
-      let inWhitespace = false;
-
-      for (let i = 0; i < fullText.length; i++) {
-        const char = fullText[i];
-        const isWhitespace = /\s/.test(char);
-
-        if (isWhitespace) {
-          if (!inWhitespace) {
-            positionMap[normPos] = i;
-            normPos++;
-            inWhitespace = true;
-          }
-        } else {
-          positionMap[normPos] = i;
-          normPos++;
-          inWhitespace = false;
-        }
-      }
-      return positionMap;
-    };
-
-    const positionMap = buildPositionMap();
-
-    // OPTIMIZATION: Build word index for O(1) word lookup instead of O(N) indexOf
-    // Map: normalized word -> array of positions where it appears
-    const wordIndex = new Map<string, number[]>();
-    const words = normalizedFullText.split(/\s+/);
-    let currentPos = 0;
-    words.forEach(word => {
-      if (word.length > 0) {
-        const positions = wordIndex.get(word) || [];
-        positions.push(currentPos);
-        wordIndex.set(word, positions);
-        currentPos += word.length + 1; // +1 for space
-      }
-    });
-
-    // Process each highlight using text + context matching
-    highlights.forEach(h => {
-      const searchText = h.text;
-
-      // NEW APPROACH: Use firstWords/lastWords if available (much more robust!)
-      if (h.firstWords && h.lastWords) {
-
-        // Use pre-computed normalized text (OPTIMIZATION!)
-        const normalizedFirstWords = normalizeWhitespace(h.firstWords);
-        const normalizedLastWords = normalizeWhitespace(h.lastWords);
-
-        // OPTIMIZATION: Try to use word index first for faster lookup
-        const firstWord = normalizedFirstWords.split(/\s+/)[0];
-
-        let firstWordsIndex = -1;
-        let lastWordsIndex = -1;
-
-        // Fast path: Use word index if available
-        const firstWordPositions = wordIndex.get(firstWord);
-        if (firstWordPositions && firstWordPositions.length > 0) {
-          // Try each occurrence of the first word
-          for (const pos of firstWordPositions) {
-            if (normalizedFullText.substring(pos, pos + normalizedFirstWords.length) === normalizedFirstWords) {
-              firstWordsIndex = pos;
-              break;
-            }
-          }
-        }
-
-        // Fallback to indexOf if word index didn't work
-        if (firstWordsIndex === -1) {
-          firstWordsIndex = normalizedFullText.indexOf(normalizedFirstWords);
-        }
-
-        if (firstWordsIndex === -1) {
-          console.warn('[HIGHLIGHT] Could not find first words:', h.firstWords);
-          return;
-        }
-
-        // Find last words after first words
-        lastWordsIndex = normalizedFullText.indexOf(normalizedLastWords, firstWordsIndex + normalizedFirstWords.length);
-        if (lastWordsIndex === -1) {
-          console.warn('[HIGHLIGHT] Could not find last words:', h.lastWords);
-          return;
-        }
-
-        // Use pre-computed position map (OPTIMIZATION!)
-        const startPos = positionMap[firstWordsIndex] || firstWordsIndex;
-        const endPos = positionMap[lastWordsIndex + normalizedLastWords.length] || (lastWordsIndex + normalizedLastWords.length);
-
-
-        // Apply highlight with explicit end position to avoid extending beyond last words
-        applyHighlightToNodes(tempDiv, searchText, startPos, h, endPos);
-        return;
-      }
-
-      // FALLBACK: Old approach using context
-      const contextBefore = h.contextBefore || '';
-      const contextAfter = h.contextAfter || '';
-
-      // First, try exact match
-      const pattern = contextBefore + searchText + contextAfter;
-      let patternIndex = fullText.indexOf(pattern);
-
-
-      if (patternIndex === -1) {
-        // Try normalized whitespace match (use pre-computed normalizedFullText - OPTIMIZATION!)
-        const normalizedPattern = normalizeWhitespace(pattern);
-        const normalizedIndex = normalizedFullText.indexOf(normalizedPattern);
-
-
-        if (normalizedIndex !== -1) {
-          // Use pre-computed position map (OPTIMIZATION!)
-          const patternStartInOriginal = positionMap[normalizedIndex] || 0;
-
-          // The text starts after the contextBefore portion
-          const normalizedContextLength = normalizeWhitespace(contextBefore).length;
-          const textStartInNormalized = normalizedIndex + normalizedContextLength;
-          const textStartInOriginal = positionMap[textStartInNormalized] || patternStartInOriginal;
-
-          applyHighlightToNodes(tempDiv, searchText, textStartInOriginal, h);
-          return;
-        }
-
-        // Fallback: try to find just the text without context
-        let textIndex = fullText.indexOf(searchText);
-
-        if (textIndex === -1) {
-          // Try normalized text match with position mapping
-          const normalizedSearchText = normalizeWhitespace(searchText);
-          const normalizedFullText = normalizeWhitespace(fullText);
-
-          // Debug: check if any part of the search text exists
-          const searchWords = normalizedSearchText.split(' ').filter(w => w.length > 2);
-
-          // Find the most unique word (longest) to avoid false matches
-          const sortedWords = [...searchWords].sort((a, b) => b.length - a.length);
-          const uniqueWord = sortedWords[0];
-          const uniqueWordIndex = uniqueWord ? normalizedFullText.indexOf(uniqueWord) : -1;
-
-
-          const firstWordIndex = uniqueWordIndex;
-          if (firstWordIndex !== -1 && uniqueWord) {
-            // Show the actual text in fullText around the first word
-            const snippet = normalizedFullText.substring(firstWordIndex, firstWordIndex + normalizedSearchText.length + 50);
-
-            // Character-by-character comparison
-            let mismatchPos = -1;
-            for (let i = 0; i < Math.min(normalizedSearchText.length, snippet.length); i++) {
-              if (normalizedSearchText[i] !== snippet[i]) {
-                mismatchPos = i;
-                break;
-              }
-            }
-            if (mismatchPos !== -1) {
-            } else {
-            }
-
-            // Fallback: Use fuzzy matching from first word position
-            // This handles cases where HTML removes spaces after punctuation
-            if (mismatchPos !== -1 && firstWordIndex !== -1) {
-
-              // Try to match by skipping over punctuation and whitespace differences
-              const fuzzyMatch = (text: string, search: string, startPos: number): number => {
-                let textPos = startPos;
-                let searchPos = 0;
-
-                while (searchPos < search.length && textPos < text.length) {
-                  const searchChar = search[searchPos];
-                  const textChar = text[textPos];
-
-                  // If characters match, advance both
-                  if (searchChar === textChar) {
-                    searchPos++;
-                    textPos++;
-                  }
-                  // If search has whitespace, skip it (HTML might not have it)
-                  else if (/\s/.test(searchChar)) {
-                    searchPos++;
-                  }
-                  // If text has whitespace, skip it
-                  else if (/\s/.test(textChar)) {
-                    textPos++;
-                  }
-                  // Characters don't match and neither is whitespace - no match
-                  else {
-                    return -1;
-                  }
-                }
-
-                // Found complete match
-                if (searchPos >= search.length) {
-                  return startPos;
-                }
-                return -1;
-              };
-
-              const fuzzyMatchPos = fuzzyMatch(normalizedFullText, normalizedSearchText, firstWordIndex);
-              if (fuzzyMatchPos !== -1) {
-
-                // Build position mapping to convert normalized position to original
-                const positionMap: number[] = [0];
-                let normPos = 0;
-                let inWhitespace = false;
-
-                for (let i = 0; i < fullText.length; i++) {
-                  const char = fullText[i];
-                  const isWhitespace = /\s/.test(char);
-
-                  if (isWhitespace) {
-                    if (!inWhitespace) {
-                      positionMap[normPos] = i;
-                      normPos++;
-                      inWhitespace = true;
-                    }
-                  } else {
-                    positionMap[normPos] = i;
-                    normPos++;
-                    inWhitespace = false;
-                  }
-                }
-
-                // Map fuzzy match position to original text
-                textIndex = positionMap[fuzzyMatchPos] || fuzzyMatchPos;
-              }
-            }
-          }
-
-          // If still no match, warn and skip
-          if (textIndex === -1) {
-            console.warn(`[HIGHLIGHT] Could not find text in content, even with normalization and fuzzy matching`);
-            console.warn('[HIGHLIGHT] Search text (first 100 chars):', searchText.substring(0, 100));
-            console.warn('[HIGHLIGHT] Normalized search text:', normalizedSearchText);
-            return;
-          }
-        }
-
-        applyHighlightToNodes(tempDiv, searchText, textIndex, h);
-      } else {
-        // Use context-based match (more accurate)
-        const textStartInPattern = contextBefore.length;
-        const absoluteTextStart = patternIndex + textStartInPattern;
-        applyHighlightToNodes(tempDiv, searchText, absoluteTextStart, h);
-      }
-    });
-
-    return tempDiv.innerHTML;
-  };
 
   const handleCopyLink = async () => {
     if (!page) return;
@@ -1112,6 +770,15 @@ export function PageView() {
         e.preventDefault();
         setIsImmerseMode(!isImmerseMode);
         showToast(isImmerseMode ? 'Immerse mode deactivated' : 'Immerse mode activated', 'info');
+        return;
+      }
+
+      // Cmd+Shift+D for highlight debug mode
+      if ((e.metaKey || e.ctrlKey) && e.shiftKey && e.key === 'd') {
+        e.preventDefault();
+        const newMode = !highlightService.getDebugMode();
+        highlightService.setDebugMode(newMode);
+        showToast(`Highlight debug: ${newMode ? 'ON' : 'OFF'}`, 'info');
         return;
       }
 
