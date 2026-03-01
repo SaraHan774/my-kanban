@@ -428,18 +428,16 @@ class HighlightService {
         return;
       }
 
-      console.warn('[HIGHLIGHT MATCH] ✗ Failed to find firstWords/lastWords', {
-        id: highlight.id,
-        savedText: highlight.text,
-        firstWords: highlight.firstWords,
-        lastWords: highlight.lastWords,
-        contextBefore: highlight.contextBefore,
-        contextAfter: highlight.contextAfter,
-        normalizedTextPreview: normalizedText.substring(0, 300),
-        fullTextPreview: fullText.substring(0, 300),
-        suggestion: 'Text might have been in a list/table that was reformatted'
-      });
-      return;
+      // firstWords/lastWords failed, but don't give up yet
+      // Fall through to try context-based matching
+      if (this.debugMode) {
+        console.log('[HIGHLIGHT MATCH] firstWords/lastWords failed, trying context fallback', {
+          id: highlight.id,
+          savedText: highlight.text,
+          firstWords: highlight.firstWords,
+          lastWords: highlight.lastWords
+        });
+      }
     }
 
     // Strategy 2: Context-based matching
@@ -511,8 +509,18 @@ class HighlightService {
 
     console.warn('[HIGHLIGHT MATCH] ✗ All strategies failed', {
       id: highlight.id,
-      text: highlight.text.substring(0, 50),
-      normalizedText: normalizedSearchText.substring(0, 50)
+      savedText: highlight.text,
+      firstWords: highlight.firstWords || '(none)',
+      lastWords: highlight.lastWords || '(none)',
+      contextBefore: highlight.contextBefore?.substring(Math.max(0, (highlight.contextBefore?.length || 0) - 30)) || '(none)',
+      contextAfter: highlight.contextAfter?.substring(0, 30) || '(none)',
+      searchedIn: normalizedText.substring(0, 200),
+      suggestion: 'This text may have been deleted or significantly modified. Consider deleting this highlight or updating the page content.',
+      actions: [
+        '1. Search for this text manually (Cmd+F)',
+        '2. If found, delete and recreate the highlight',
+        '3. If not found, delete this orphaned highlight'
+      ]
     });
   }
 
@@ -616,7 +624,7 @@ class HighlightService {
     plainText: string,
     startOffset: number,
     endOffset: number,
-    contextLength: number = 20
+    contextLength: number = 50  // Increased from 20 to 50 for better uniqueness
   ): { contextBefore: string; contextAfter: string } {
     const contextBefore = plainText.substring(Math.max(0, startOffset - contextLength), startOffset);
     const contextAfter = plainText.substring(endOffset, Math.min(plainText.length, endOffset + contextLength));
