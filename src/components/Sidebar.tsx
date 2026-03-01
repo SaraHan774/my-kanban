@@ -1,14 +1,14 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
+import { invoke } from '@tauri-apps/api/core';
+import { listen } from '@tauri-apps/api/event';
 import { useStore } from '@/store/useStore';
 import { pageService } from '@/services';
 import { CreatePageModal } from './CreatePageModal';
 import './Sidebar.css';
 
-// Tauri imports for workspace watching
-const isTauri = '__TAURI__' in window;
-const invoke = isTauri ? (window as any).__TAURI__.core.invoke : null;
-const listen = isTauri ? (window as any).__TAURI__.event.listen : null;
+// Tauri detection
+const isTauri = '__TAURI_INTERNALS__' in window;
 
 const DEFAULT_PALETTE = ['#3b82f6', '#f59e0b', '#22c55e', '#ef4444', '#8b5cf6', '#ec4899', '#14b8a6', '#f97316'];
 const PAGE_BATCH_SIZE = 50;
@@ -46,7 +46,7 @@ export function Sidebar() {
 
   // Start watching workspace for file changes (Tauri only)
   useEffect(() => {
-    if (!invoke || !hasFileSystemAccess) return;
+    if (!isTauri || !hasFileSystemAccess) return;
 
     const startWatching = async () => {
       try {
@@ -62,11 +62,11 @@ export function Sidebar() {
     };
 
     startWatching();
-  }, [hasFileSystemAccess, invoke]);
+  }, [hasFileSystemAccess]);
 
   // Listen for workspace changes (Tauri only)
   useEffect(() => {
-    if (!listen || !hasFileSystemAccess) return;
+    if (!isTauri || !hasFileSystemAccess) return;
 
     let unlisten: (() => void) | null = null;
 
@@ -88,7 +88,7 @@ export function Sidebar() {
         unlisten();
       }
     };
-  }, [hasFileSystemAccess, listen]);
+  }, [hasFileSystemAccess]);
 
   const handleSearch = (value: string) => {
     setSearchText(value);

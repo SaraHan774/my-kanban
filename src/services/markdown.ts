@@ -11,8 +11,34 @@ import { PageFrontmatter, RawPageData } from '@/types';
 
 const FRONTMATTER_RE = /^---\r?\n([\s\S]*?)\r?\n---\r?\n?([\s\S]*)$/;
 
-// Enable GFM line breaks: single newline → <br>
-marked.use({ breaks: true });
+// Configure marked with GFM options
+marked.use({
+  breaks: true,  // Enable GFM line breaks: single newline → <br>
+  gfm: true,     // Enable GitHub Flavored Markdown
+  extensions: [
+    {
+      name: 'strikethrough',
+      level: 'inline',
+      start(src: string) {
+        return src.match(/~~/)?.index;
+      },
+      tokenizer(src: string) {
+        const match = src.match(/^~~(?=\S)([\s\S]*?\S)~~/);
+        if (match) {
+          return {
+            type: 'strikethrough',
+            raw: match[0],
+            text: match[1].trim()
+          };
+        }
+        return undefined;
+      },
+      renderer(token: any) {
+        return `<del>${this.parser.parseInline(token.text)}</del>`;
+      }
+    }
+  ]
+});
 
 // Configure marked with syntax highlighting + mermaid code block support
 marked.use(
