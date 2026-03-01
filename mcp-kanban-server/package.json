@@ -1,0 +1,25 @@
+{
+  "name": "mcp-kanban-server",
+  "version": "1.0.0",
+  "description": "MCP server for My Kanban highlights and memos",
+  "type": "module",
+  "main": "dist/index.js",
+  "bin": {
+    "mcp-kanban-server": "./dist/index.js"
+  },
+  "scripts": {
+    "build": "tsc",
+    "watch": "tsc --watch",
+    "dev": "npm run build && node dist/index.js"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.0.4",
+    "gray-matter": "^4.0.3",
+    "js-yaml": "^4.1.1"
+  },
+  "devDependencies": {
+    "@types/js-yaml": "^4.0.9",
+    "@types/node": "^20.11.0",
+    "typescript": "^5.3.3"
+  }
+}
