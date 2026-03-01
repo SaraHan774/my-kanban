@@ -28,6 +28,10 @@ dist-ssr
 .env.local
 .env.*.local
 
+# Firebase service account credentials (NEVER COMMIT!)
+*firebase*adminsdk*.json
+*.serviceaccount.json
+
 # Workspace data (user's personal data)
 workspace/
 .kanban-config.json
