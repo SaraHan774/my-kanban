@@ -254,15 +254,15 @@ const tools: Tool[] = [
         },
         color: {
           type: 'string',
-          description: 'Highlight color (e.g., "#FFEB3B" for yellow, "#FF5252" for red, "#42A5F5" for blue, "#66BB6A" for green)',
+          description: 'Highlight color (optional, defaults to "#FFEB3B" yellow). Examples: "#FF5252" for red, "#42A5F5" for blue, "#66BB6A" for green',
         },
         style: {
           type: 'string',
           enum: ['highlight', 'underline'],
-          description: 'Highlight style: "highlight" for background color or "underline" for underline',
+          description: 'Highlight style: "highlight" for background color or "underline" for underline (optional, defaults to "highlight")',
         },
       },
-      required: ['filename', 'text', 'color', 'style'],
+      required: ['filename', 'text'],
     },
   },
   {
@@ -495,8 +495,8 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         const {
           filename,
           text,
-          color,
-          style,
+          color = '#FFEB3B', // Default to yellow
+          style = 'highlight', // Default to highlight style
         } = args as any;
 
         const page = await readPage(filename);
