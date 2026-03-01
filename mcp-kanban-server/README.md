@@ -8,6 +8,7 @@ MCP (Model Context Protocol) 서버로, Claude가 My Kanban 앱의 하이라이�
 - `create_page` - 새로운 페이지 생성 (콘텐츠, 하이라이트, 메모 포함)
 - `list_pages` - 모든 페이지 목록 조회 (하이라이트/메모 개수 포함)
 - `read_page` - 특정 페이지의 모든 하이라이트와 메모 읽기
+- `update_page_content` - 기존 페이지의 본문 수정 (교체 또는 추가)
 
 ### ✏️ 하이라이트 기능
 - `add_highlight` - 새로운 하이라이트 추가

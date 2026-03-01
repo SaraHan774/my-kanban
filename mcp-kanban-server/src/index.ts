@@ -204,6 +204,28 @@ const tools: Tool[] = [
     },
   },
   {
+    name: 'update_page_content',
+    description: 'Update the markdown content of an existing page (preserves frontmatter)',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        filename: {
+          type: 'string',
+          description: 'The markdown filename',
+        },
+        content: {
+          type: 'string',
+          description: 'New markdown content for the page',
+        },
+        append: {
+          type: 'boolean',
+          description: 'If true, append to existing content instead of replacing',
+        },
+      },
+      required: ['filename', 'content'],
+    },
+  },
+  {
     name: 'add_highlight',
     description: 'Add a new highlight to a page',
     inputSchema: {
@@ -432,6 +454,29 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
                 null,
                 2
               ),
+            },
+          ],
+        };
+      }
+
+      case 'update_page_content': {
+        const { filename, content, append = false } = args as any;
+
+        const page = await readPage(filename);
+
+        // Update content (append or replace)
+        const newContent = append
+          ? `${page.content}\n\n${content}`.trim()
+          : content;
+
+        // Write back with updated content, preserving frontmatter
+        await writePage(filename, page.frontmatter, newContent);
+
+        return {
+          content: [
+            {
+              type: 'text',
+              text: `Page content updated successfully. ${append ? 'Content appended.' : 'Content replaced.'}`,
             },
           ],
         };
