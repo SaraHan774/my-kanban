@@ -55,9 +55,11 @@ interface PageFrontmatter {
   viewType: 'document' | 'kanban';
   parentId?: string;
   kanbanColumn?: string;
+  googleCalendarEventId?: string;
+  pinned?: boolean;
+  pinnedAt?: string;
   highlights?: Highlight[];
   memos?: Memo[];
-  [key: string]: any;
 }
 
 // Workspace path - configurable via environment variable
@@ -69,8 +71,8 @@ async function readPage(filename: string) {
   const content = await fs.readFile(filePath, 'utf-8');
   const parsed = matter(content);
   return {
-    frontmatter: parsed.data as PageFrontmatter,
-    content: parsed.content,
+    frontmatter: normalizeFrontmatter(parsed.data),
+    content: parsed.content.trim(),
     path: filePath,
   };
 }
@@ -80,7 +82,13 @@ async function writePage(filename: string, frontmatter: PageFrontmatter, content
   const filePath = path.join(WORKSPACE_PATH, filename);
   frontmatter.updatedAt = new Date().toISOString();
 
-  const fileContent = matter.stringify(content, frontmatter);
+  // Use same YAML options as markdownService.serialize
+  const yamlStr = yaml.dump(frontmatter, {
+    lineWidth: -1,
+    quotingType: '"',
+    forceQuotes: false
+  });
+  const fileContent = `---\n${yamlStr}---\n${content}\n`;
   await fs.writeFile(filePath, fileContent, 'utf-8');
 }
 
@@ -90,9 +98,39 @@ async function listMarkdownFiles(): Promise<string[]> {
   return files.filter(f => f.endsWith('.md'));
 }
 
-// Helper: Generate unique ID
+// Helper: Generate unique ID (UUID v4 format matching codebase)
 function generateId(): string {
-  return `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+  return crypto.randomUUID();
+}
+
+// Helper: Sanitize filename (matching pageService.sanitizeFileName)
+function sanitizeFileName(name: string): string {
+  return name
+    .replace(/[<>:"/\\|?*]/g, '-')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+// Helper: Normalize frontmatter (matching markdownService.normalizeFrontmatter)
+function normalizeFrontmatter(data: any): PageFrontmatter {
+  const now = new Date().toISOString();
+
+  return {
+    id: data.id || crypto.randomUUID(),
+    title: data.title || 'Untitled',
+    tags: Array.isArray(data.tags) ? data.tags : [],
+    createdAt: data.createdAt || now,
+    updatedAt: data.updatedAt || now,
+    viewType: data.viewType || 'document',
+    ...(data.parentId && { parentId: data.parentId }),
+    ...(data.dueDate && { dueDate: data.dueDate }),
+    ...(data.kanbanColumn && { kanbanColumn: data.kanbanColumn }),
+    ...(data.googleCalendarEventId && { googleCalendarEventId: data.googleCalendarEventId }),
+    ...(data.pinned !== undefined && { pinned: data.pinned }),
+    ...(data.pinnedAt && { pinnedAt: data.pinnedAt }),
+    highlights: Array.isArray(data.highlights) ? data.highlights : [],
+    memos: Array.isArray(data.memos) ? data.memos : []
+  };
 }
 
 // MCP Server
@@ -342,8 +380,9 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       case 'create_page': {
         const { title, content, tags = [], viewType = 'document', parentId } = args as any;
 
-        // Generate filename from title (sanitize for filesystem)
-        const filename = `${title.replace(/[/\\?%*:|"<>]/g, '-')}.md`;
+        // Generate filename from title (using same sanitization as pageService)
+        const sanitizedName = sanitizeFileName(title);
+        const filename = `${sanitizedName}.md`;
 
         // Check if file already exists
         const files = await listMarkdownFiles();
@@ -351,15 +390,15 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
           throw new Error(`File "${filename}" already exists. Use a different title.`);
         }
 
-        // Create frontmatter
+        // Create frontmatter (matching pageService.createPage structure)
         const frontmatter: PageFrontmatter = {
-          id: generateId(),
+          id: generateId(), // Now uses crypto.randomUUID()
           title,
           tags,
           createdAt: new Date().toISOString(),
           updatedAt: new Date().toISOString(),
           viewType,
-          parentId,
+          ...(parentId && { parentId }), // Only include if defined
           highlights: [],
           memos: [],
         };
