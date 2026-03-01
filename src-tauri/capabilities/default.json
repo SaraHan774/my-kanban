@@ -22,12 +22,15 @@
         "$HOME/**",
         "$HOME/**/.images",
         "$HOME/**/.images/**",
+        "$HOME/**/.kanban-config.json",
         "$DOCUMENT/**",
         "$DOCUMENT/**/.images",
         "$DOCUMENT/**/.images/**",
+        "$DOCUMENT/**/.kanban-config.json",
         "$DESKTOP/**",
         "$DESKTOP/**/.images",
-        "$DESKTOP/**/.images/**"
+        "$DESKTOP/**/.images/**",
+        "$DESKTOP/**/.kanban-config.json"
       ]
     }
   ]

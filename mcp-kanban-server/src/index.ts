@@ -83,6 +83,10 @@ async function writePage(filename: string, frontmatter: PageFrontmatter, content
   const filePath = path.join(WORKSPACE_PATH, filename);
   frontmatter.updatedAt = new Date().toISOString();
 
+  console.error(`[DEBUG] writePage called for: ${filename}`);
+  console.error(`[DEBUG] Content length: ${content.length}`);
+  console.error(`[DEBUG] Content preview (first 100 chars): ${content.substring(0, 100)}`);
+
   // Use same YAML options as markdownService.serialize
   const yamlStr = yaml.dump(frontmatter, {
     lineWidth: -1,
@@ -90,7 +94,16 @@ async function writePage(filename: string, frontmatter: PageFrontmatter, content
     forceQuotes: false
   });
   const fileContent = `---\n${yamlStr}---\n${content}\n`;
+
+  console.error(`[DEBUG] Full file content length: ${fileContent.length}`);
+  console.error(`[DEBUG] Writing to path: ${filePath}`);
+
   await fs.writeFile(filePath, fileContent, 'utf-8');
+
+  console.error(`[DEBUG] Write complete, verifying...`);
+  const verification = await fs.readFile(filePath, 'utf-8');
+  console.error(`[DEBUG] Verification read length: ${verification.length}`);
+  console.error(`[DEBUG] Verification content preview: ${verification.substring(0, 200)}`);
 }
 
 // Helper: List all markdown files
@@ -227,7 +240,7 @@ const tools: Tool[] = [
   },
   {
     name: 'add_highlight',
-    description: 'Add a new highlight to a page',
+    description: 'Add a new highlight to a page. The text will be automatically located in the content and offsets will be calculated.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -237,35 +250,19 @@ const tools: Tool[] = [
         },
         text: {
           type: 'string',
-          description: 'The highlighted text',
+          description: 'The exact text to highlight (must match exactly as it appears in the content)',
         },
         color: {
           type: 'string',
-          description: 'Highlight color (e.g., "#FFEB3B")',
+          description: 'Highlight color (e.g., "#FFEB3B" for yellow, "#FF5252" for red, "#42A5F5" for blue, "#66BB6A" for green)',
         },
         style: {
           type: 'string',
           enum: ['highlight', 'underline'],
-          description: 'Highlight style',
-        },
-        startOffset: {
-          type: 'number',
-          description: 'Start position in the content',
-        },
-        endOffset: {
-          type: 'number',
-          description: 'End position in the content',
-        },
-        contextBefore: {
-          type: 'string',
-          description: 'Text context before highlight',
-        },
-        contextAfter: {
-          type: 'string',
-          description: 'Text context after highlight',
+          description: 'Highlight style: "highlight" for background color or "underline" for underline',
         },
       },
-      required: ['filename', 'text', 'color', 'style', 'startOffset', 'endOffset'],
+      required: ['filename', 'text', 'color', 'style'],
     },
   },
   {
@@ -462,12 +459,24 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       case 'update_page_content': {
         const { filename, content, append = false } = args as any;
 
+        console.error(`[DEBUG] update_page_content called`);
+        console.error(`[DEBUG] filename: ${filename}`);
+        console.error(`[DEBUG] append: ${append}`);
+        console.error(`[DEBUG] received content length: ${content?.length || 0}`);
+        console.error(`[DEBUG] received content preview: ${content?.substring(0, 100) || '(empty)'}`);
+
         const page = await readPage(filename);
+
+        console.error(`[DEBUG] read existing content length: ${page.content.length}`);
+        console.error(`[DEBUG] read existing content: ${page.content}`);
 
         // Update content (append or replace)
         const newContent = append
           ? `${page.content}\n\n${content}`.trim()
           : content;
+
+        console.error(`[DEBUG] newContent length: ${newContent.length}`);
+        console.error(`[DEBUG] newContent preview: ${newContent.substring(0, 100)}`);
 
         // Write back with updated content, preserving frontmatter
         await writePage(filename, page.frontmatter, newContent);
@@ -488,22 +497,43 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
           text,
           color,
           style,
-          startOffset,
-          endOffset,
-          contextBefore = '',
-          contextAfter = '',
         } = args as any;
 
         const page = await readPage(filename);
+
+        // Automatically find the text in the content and calculate offsets
+        const textToFind = text.trim();
+        const contentText = page.content;
+
+        // Find the first occurrence of the text
+        const startOffset = contentText.indexOf(textToFind);
+
+        if (startOffset === -1) {
+          throw new Error(`Text "${textToFind}" not found in page content. Make sure the text matches exactly.`);
+        }
+
+        const endOffset = startOffset + textToFind.length;
+
+        // Extract context (20 characters before and after)
+        const contextBefore = contentText.substring(Math.max(0, startOffset - 20), startOffset);
+        const contextAfter = contentText.substring(endOffset, Math.min(contentText.length, endOffset + 20));
+
+        // Extract first and last words for robust matching
+        const words = textToFind.split(/\s+/).filter(w => w.length > 0);
+        const firstWords = words.slice(0, 3).join(' '); // First 3 words
+        const lastWords = words.slice(-3).join(' '); // Last 3 words
+
         const highlight: Highlight = {
           id: generateId(),
-          text,
+          text: textToFind,
           color,
           style,
           startOffset,
           endOffset,
           contextBefore,
           contextAfter,
+          firstWords,
+          lastWords,
           createdAt: new Date().toISOString(),
         };
 
@@ -516,7 +546,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
           content: [
             {
               type: 'text',
-              text: `Highlight added successfully. ID: ${highlight.id}`,
+              text: `Highlight added successfully. ID: ${highlight.id}, Text: "${textToFind}", Position: ${startOffset}-${endOffset}`,
             },
           ],
         };

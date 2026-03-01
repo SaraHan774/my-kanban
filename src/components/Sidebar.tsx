@@ -5,6 +5,11 @@ import { pageService } from '@/services';
 import { CreatePageModal } from './CreatePageModal';
 import './Sidebar.css';
 
+// Tauri imports for workspace watching
+const isTauri = '__TAURI__' in window;
+const invoke = isTauri ? (window as any).__TAURI__.core.invoke : null;
+const listen = isTauri ? (window as any).__TAURI__.event.listen : null;
+
 const DEFAULT_PALETTE = ['#3b82f6', '#f59e0b', '#22c55e', '#ef4444', '#8b5cf6', '#ec4899', '#14b8a6', '#f97316'];
 const PAGE_BATCH_SIZE = 50;
 
@@ -38,6 +43,52 @@ export function Sidebar() {
       setLoading(false);
     }
   };
+
+  // Start watching workspace for file changes (Tauri only)
+  useEffect(() => {
+    if (!invoke || !hasFileSystemAccess) return;
+
+    const startWatching = async () => {
+      try {
+        // Get workspace path from config
+        const config = await pageService.getConfig();
+        if (config?.workspacePath) {
+          await invoke('watch_workspace', { workspacePath: config.workspacePath });
+          console.log('Started watching workspace for changes');
+        }
+      } catch (err) {
+        console.error('Failed to start workspace watcher:', err);
+      }
+    };
+
+    startWatching();
+  }, [hasFileSystemAccess, invoke]);
+
+  // Listen for workspace changes (Tauri only)
+  useEffect(() => {
+    if (!listen || !hasFileSystemAccess) return;
+
+    let unlisten: (() => void) | null = null;
+
+    const setupListener = async () => {
+      try {
+        unlisten = await listen('workspace-changed', async () => {
+          console.log('Workspace changed, reloading pages...');
+          await loadPages();
+        });
+      } catch (err) {
+        console.error('Failed to setup workspace change listener:', err);
+      }
+    };
+
+    setupListener();
+
+    return () => {
+      if (unlisten) {
+        unlisten();
+      }
+    };
+  }, [hasFileSystemAccess, listen]);
 
   const handleSearch = (value: string) => {
     setSearchText(value);

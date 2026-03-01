@@ -5,6 +5,9 @@ use terminal::TerminalManager;
 
 mod git_shell;
 
+mod file_watcher;
+use file_watcher::FileWatcherManager;
+
 #[derive(serde::Serialize, serde::Deserialize)]
 struct WindowBounds {
     x: f64,
@@ -99,6 +102,7 @@ pub fn run() {
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_opener::init())
         .manage(TerminalManager::new())
+        .manage(FileWatcherManager::new())
         .invoke_handler(tauri::generate_handler![
             open_side_browser,
             close_side_browser,
@@ -114,6 +118,9 @@ pub fn run() {
             git_shell::git_is_repository,
             git_shell::git_initialize,
             git_shell::git_lfs_available,
+            file_watcher::watch_file,
+            file_watcher::unwatch_file,
+            file_watcher::watch_workspace,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

@@ -20,6 +20,8 @@ export interface Highlight {
   endOffset: number;
   contextBefore: string;
   contextAfter: string;
+  firstWords?: string;  // First 3 words for matching (more robust than offsets)
+  lastWords?: string;   // Last 3 words for matching
   createdAt: string;
 }
 
