@@ -172,7 +172,7 @@ const tools: Tool[] = [
   },
   {
     name: 'create_page',
-    description: 'Create a new page with optional content, highlights, and memos',
+    description: 'Create a new page with content and required kanban column',
     inputSchema: {
       type: 'object',
       properties: {
@@ -184,10 +184,9 @@ const tools: Tool[] = [
           type: 'string',
           description: 'Page content (markdown)',
         },
-        tags: {
-          type: 'array',
-          items: { type: 'string' },
-          description: 'Optional tags',
+        kanbanColumn: {
+          type: 'string',
+          description: 'Kanban column name (required, e.g., "To Do", "In Progress", "Done")',
         },
         viewType: {
           type: 'string',
@@ -199,7 +198,7 @@ const tools: Tool[] = [
           description: 'Optional parent page ID for nested pages',
         },
       },
-      required: ['title', 'content'],
+      required: ['title', 'content', 'kanbanColumn'],
     },
   },
   {
@@ -398,7 +397,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       }
 
       case 'create_page': {
-        const { title, content, tags = [], viewType = 'document', parentId } = args as any;
+        const { title, content, kanbanColumn, viewType = 'document', parentId } = args as any;
 
         // Generate filename from title (using same sanitization as pageService)
         const sanitizedName = sanitizeFileName(title);
@@ -414,10 +413,11 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         const frontmatter: PageFrontmatter = {
           id: generateId(), // Now uses crypto.randomUUID()
           title,
-          tags,
+          tags: [], // Always empty - tags not added via MCP
           createdAt: new Date().toISOString(),
           updatedAt: new Date().toISOString(),
           viewType,
+          kanbanColumn, // Required field
           ...(parentId && { parentId }), // Only include if defined
           highlights: [],
           memos: [],
@@ -430,7 +430,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
           content: [
             {
               type: 'text',
-              text: `Page created successfully: ${filename}`,
+              text: `Page created successfully: ${filename} (Column: ${kanbanColumn})`,
             },
           ],
         };
