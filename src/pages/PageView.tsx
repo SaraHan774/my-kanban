@@ -502,6 +502,21 @@ export function PageView() {
       createdAt: new Date().toISOString(),
     };
 
+    // Debug logging when creating highlight
+    if (highlightService.getDebugMode()) {
+      console.log('[HIGHLIGHT CREATE]', {
+        text: trimmedText,
+        firstWords,
+        lastWords,
+        startOffset,
+        endOffset,
+        contextBefore: contextBefore.substring(Math.max(0, contextBefore.length - 30)),
+        contextAfter: contextAfter.substring(0, 30),
+        plainTextPreview: plainText.substring(Math.max(0, startOffset - 50), endOffset + 50),
+        containerHTML: contentEl.innerHTML.substring(0, 500)
+      });
+    }
+
     const updatedHighlights = [...(page.highlights || []), highlight];
 
     // If memo mode is active, create a linked memo

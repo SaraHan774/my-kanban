@@ -306,12 +306,33 @@ class HighlightService {
     const tempDiv = document.createElement('div');
     tempDiv.innerHTML = html;
 
+    // FIX: Add spaces between block elements to preserve structure
+    // Without this, <li>A</li><li>B</li> becomes "AB" instead of "A B"
+    this.insertSpacesBetweenBlocks(tempDiv);
+
     const fullText = tempDiv.textContent || '';
+
+    if (this.debugMode) {
+      console.log('[HIGHLIGHT RENDER] Starting highlight rendering', {
+        highlightCount: highlights.length,
+        fullTextLength: fullText.length,
+        fullTextPreview: fullText.substring(0, 200),
+        htmlPreview: html.substring(0, 200)
+      });
+    }
 
     // OPTIMIZATION: Pre-compute once for all highlights (O(N) instead of O(H*N))
     const normalizedText = normalizeWhitespace(fullText);
     const positionMap = buildPositionMap(fullText);
     const wordIndex = buildWordIndex(normalizedText);
+
+    if (this.debugMode) {
+      console.log('[HIGHLIGHT RENDER] Text analysis', {
+        normalizedTextPreview: normalizedText.substring(0, 200),
+        wordIndexSize: wordIndex.size,
+        positionMapLength: positionMap.length
+      });
+    }
 
     // Process each highlight with fallback strategies
     highlights.forEach(h => {
@@ -319,6 +340,48 @@ class HighlightService {
     });
 
     return tempDiv.innerHTML;
+  }
+
+  /**
+   * Inserts spaces between block-level elements to preserve text structure.
+   *
+   * Without this, adjacent block elements have no separation in textContent:
+   * - <li>A</li><li>B</li> → "AB" instead of "A B"
+   * - <td>X</td><td>Y</td> → "XY" instead of "X Y"
+   *
+   * This fixes highlight matching in lists and tables.
+   */
+  private insertSpacesBetweenBlocks(container: HTMLElement): void {
+    // Block elements that should have space after them
+    const blockElements = container.querySelectorAll(
+      'li, td, th, p, div.mermaid-block, blockquote, h1, h2, h3, h4, h5, h6, pre'
+    );
+
+    blockElements.forEach(el => {
+      // Add a space node after each block element's last text node
+      const walker = document.createTreeWalker(
+        el,
+        NodeFilter.SHOW_TEXT,
+        null
+      );
+
+      let lastTextNode: Node | null = null;
+      let node;
+      while ((node = walker.nextNode())) {
+        lastTextNode = node;
+      }
+
+      // Append space to last text node, or create new text node with space
+      if (lastTextNode && lastTextNode.textContent) {
+        // Only add space if it doesn't already end with whitespace
+        if (!/\s$/.test(lastTextNode.textContent)) {
+          lastTextNode.textContent += ' ';
+        }
+      } else if (el.childNodes.length > 0) {
+        // No text nodes, append space as new text node
+        el.appendChild(document.createTextNode(' '));
+      }
+    });
   }
 
   /**
@@ -357,17 +420,24 @@ class HighlightService {
             id: highlight.id,
             strategy: 'firstWords/lastWords',
             startPos: match.startPos,
-            endPos: match.endPos
+            endPos: match.endPos,
+            matchedText: fullText.substring(match.startPos, match.endPos)
           });
         }
         this.applyHighlightToNodes(container, highlight.text, match.startPos, highlight, match.endPos);
         return;
       }
 
-      console.warn('[HIGHLIGHT MATCH] ✗ Failed to find firstWords', {
+      console.warn('[HIGHLIGHT MATCH] ✗ Failed to find firstWords/lastWords', {
         id: highlight.id,
+        savedText: highlight.text,
         firstWords: highlight.firstWords,
-        searchedIn: normalizedText.substring(0, 100)
+        lastWords: highlight.lastWords,
+        contextBefore: highlight.contextBefore,
+        contextAfter: highlight.contextAfter,
+        normalizedTextPreview: normalizedText.substring(0, 300),
+        fullTextPreview: fullText.substring(0, 300),
+        suggestion: 'Text might have been in a list/table that was reformatted'
       });
       return;
     }
