@@ -8,6 +8,7 @@ use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 use tauri::{AppHandle, Emitter};
+use unicode_normalization::UnicodeNormalization;
 
 pub struct FileWatcherManager {
     watchers: Arc<Mutex<HashMap<String, Debouncer<RecommendedWatcher, FileIdMap>>>>,
@@ -43,28 +44,58 @@ impl FileWatcherManager {
         let file_path_clone = file_path.clone();
         let file_name_clone = file_name.clone();
 
-        // Create debounced watcher (waits 200ms after last event for better vi/vim support)
+        // Create debounced watcher (waits 300ms after last event for better editor compatibility)
         let mut debouncer = new_debouncer(
-            Duration::from_millis(200),
+            Duration::from_millis(300),
             None,
             move |result: DebounceEventResult| {
                 match result {
                     Ok(events) => {
+                        let mut should_emit = false;
+
                         for event in events {
-                            // Check if any of the event paths match our watched file
+                            // For VSCode/TextEdit atomic saves, we need to check if ANY event
+                            // in this batch affects our target file. This includes:
+                            // 1. Direct modifications (vi/vim style)
+                            // 2. Rename events where destination is our file (VSCode/TextEdit style)
+                            // 3. Create events for our file
+
                             for event_path in &event.paths {
+                                // Get the full path as string for comparison
+                                let event_path_str = event_path.to_string_lossy();
+
+                                // Normalize both strings to NFC form for comparison (handles macOS NFD filenames)
+                                let normalized_path: String = event_path_str.nfc().collect();
+                                let normalized_target: String = file_name_clone.nfc().collect();
+
+                                // Check if the event path ends with our target filename
+                                // This catches both direct edits and atomic save renames
+                                if normalized_path.ends_with(&normalized_target) {
+                                    should_emit = true;
+                                    break;
+                                }
+
+                                // Also check just the filename for safety
                                 if let Some(name) = event_path.file_name() {
-                                    if name.to_string_lossy() == file_name_clone {
-                                        let _ = app_clone.emit("file-changed", file_path_clone.clone());
+                                    let event_filename = name.to_string_lossy();
+                                    let normalized_event: String = event_filename.nfc().collect();
+                                    if normalized_event == normalized_target {
+                                        should_emit = true;
                                         break;
                                     }
                                 }
                             }
+
+                            if should_emit {
+                                break;
+                            }
+                        }
+
+                        if should_emit {
+                            let _ = app_clone.emit("file-changed", file_path_clone.clone());
                         }
                     }
-                    Err(errors) => {
-                        eprintln!("File watcher error: {:?}", errors);
-                    }
+                    Err(_) => {}
                 }
             },
         )
