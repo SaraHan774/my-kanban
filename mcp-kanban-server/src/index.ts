@@ -16,6 +16,7 @@ import {
 } from '@modelcontextprotocol/sdk/types.js';
 import fs from 'fs/promises';
 import path from 'path';
+import crypto from 'crypto';
 import matter from 'gray-matter';
 import yaml from 'js-yaml';
 
