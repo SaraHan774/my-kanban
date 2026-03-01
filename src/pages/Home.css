@@ -561,14 +561,13 @@
 /* ===== COMPACT GRID VIEW ===== */
 .compact-grid-view {
   margin: 1rem 1.5rem;
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
-  gap: 0.75rem;
+  column-count: auto;
+  column-width: 220px;
+  column-gap: 0.75rem;
   overflow-y: auto;
   padding-bottom: 1rem;
   flex: 1;
   align-self: stretch;
-  align-content: start;
 }
 
 .compact-column {
@@ -578,7 +577,9 @@
   background-color: var(--bg-primary);
   display: flex;
   flex-direction: column;
-  max-height: 400px;
+  break-inside: avoid;
+  margin-bottom: 0.75rem;
+  page-break-inside: avoid;
 }
 
 .compact-column-header {
@@ -647,18 +648,18 @@
 /* Responsive breakpoints for compact grid */
 @media (max-width: 1200px) {
   .compact-grid-view {
-    grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+    column-width: 200px;
   }
 }
 
 @media (max-width: 768px) {
   .compact-grid-view {
-    grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
-    gap: 0.5rem;
+    column-width: 180px;
+    column-gap: 0.5rem;
   }
 
   .compact-column {
-    max-height: 300px;
+    margin-bottom: 0.5rem;
   }
 }
 
@@ -723,4 +724,20 @@
   overflow-x: auto;
   font-size: 0.75rem;
   margin: 0.4em 0;
+}
+
+/* Refresh button animation */
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+.board-action-btn.refreshing {
+  opacity: 0.6;
+  cursor: wait;
+}
+
+.board-action-btn:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
 }
