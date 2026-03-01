@@ -294,47 +294,46 @@ export function PageView() {
     };
   }, [htmlContent, navigate, pageId]);
 
-  // Attach click handlers to ALL links to handle external URLs
+  // Use event delegation to handle ALL link clicks (including dynamically added ones)
   useEffect(() => {
     const container = contentRef.current;
     if (!container) return;
 
-    // Select all links in the content
-    const allLinks = container.querySelectorAll<HTMLAnchorElement>('a[href]');
-    const handlers: Array<(e: Event) => void> = [];
+    const handleLinkClick = (e: MouseEvent) => {
+      const target = e.target as HTMLElement;
+      const link = target.closest('a[href]') as HTMLAnchorElement | null;
 
-    allLinks.forEach((link) => {
-      const handler = (e: Event) => {
-        const href = link.getAttribute('href');
-        if (!href) return;
+      if (!link) return;
 
-        // Internal page links (handled by wiki link navigation)
-        if (link.hasAttribute('data-page-ref') || link.hasAttribute('data-page-id')) {
-          return; // Let the wiki link handler deal with it
-        }
+      const href = link.getAttribute('href');
+      if (!href) return;
 
-        // Internal SPA routes
-        if (href.startsWith('/page/')) {
-          return; // Let the SPA navigation handler deal with it
-        }
+      // Internal page links (handled by wiki link navigation)
+      if (link.hasAttribute('data-page-ref') || link.hasAttribute('data-page-id')) {
+        return; // Let the wiki link handler deal with it
+      }
 
-        // Hash links (same page anchors)
-        if (href.startsWith('#')) {
-          return; // Allow default behavior
-        }
+      // Internal SPA routes
+      if (href.startsWith('/page/')) {
+        return; // Let the SPA navigation handler deal with it
+      }
 
-        // Everything else is external - open in system browser
-        e.preventDefault();
-        openExternalUrl(href);
-      };
-      link.addEventListener('click', handler);
-      handlers.push(handler);
-    });
+      // Hash links (same page anchors)
+      if (href.startsWith('#')) {
+        return; // Allow default behavior
+      }
+
+      // Everything else is external - open in system browser
+      e.preventDefault();
+      e.stopPropagation();
+      openExternalUrl(href);
+    };
+
+    // Use capture phase to ensure we catch the event first
+    container.addEventListener('click', handleLinkClick, true);
 
     return () => {
-      allLinks.forEach((link, index) => {
-        link.removeEventListener('click', handlers[index]);
-      });
+      container.removeEventListener('click', handleLinkClick, true);
     };
   }, [htmlContent]);
 
