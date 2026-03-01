@@ -50,11 +50,10 @@ export function Sidebar() {
 
     const startWatching = async () => {
       try {
-        // Get workspace path from fileSystemService
         const rootHandle = fileSystemService.getRootHandle();
         if (typeof rootHandle === 'string') {
-          await invoke('watch_workspace', { workspacePath: rootHandle });
-          console.log('Started watching workspace for changes');
+          const workspacePath = `${rootHandle}/workspace`;
+          await invoke('watch_workspace', { workspacePath });
         }
       } catch (err) {
         console.error('Failed to start workspace watcher:', err);
@@ -73,7 +72,6 @@ export function Sidebar() {
     const setupListener = async () => {
       try {
         unlisten = await listen('workspace-changed', async () => {
-          console.log('Workspace changed, reloading pages...');
           await loadPages();
         });
       } catch (err) {

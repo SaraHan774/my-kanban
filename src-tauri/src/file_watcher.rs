@@ -23,6 +23,16 @@ impl FileWatcherManager {
     pub fn watch_file(&self, app: AppHandle, file_path: String) -> Result<(), String> {
         let path = PathBuf::from(&file_path);
 
+        // Get parent directory to watch (for vi/vim compatibility)
+        let parent_dir = path.parent()
+            .ok_or_else(|| "File has no parent directory".to_string())?
+            .to_path_buf();
+
+        let file_name = path.file_name()
+            .ok_or_else(|| "Invalid file path".to_string())?
+            .to_string_lossy()
+            .to_string();
+
         // Check if already watching
         let mut watchers = self.watchers.lock().unwrap();
         if watchers.contains_key(&file_path) {
@@ -31,11 +41,11 @@ impl FileWatcherManager {
 
         let app_clone = app.clone();
         let file_path_clone = file_path.clone();
-        let path_buf = path.clone();
+        let file_name_clone = file_name.clone();
 
-        // Create debounced watcher (waits 100ms after last event)
+        // Create debounced watcher (waits 200ms after last event for better vi/vim support)
         let mut debouncer = new_debouncer(
-            Duration::from_millis(100),
+            Duration::from_millis(200),
             None,
             move |result: DebounceEventResult| {
                 match result {
@@ -43,13 +53,11 @@ impl FileWatcherManager {
                         for event in events {
                             // Check if any of the event paths match our watched file
                             for event_path in &event.paths {
-                                let canonical_event = event_path.canonicalize().unwrap_or(event_path.clone());
-                                let canonical_watched = path_buf.canonicalize().unwrap_or(path_buf.clone());
-
-                                // Compare canonical paths to handle symlinks and relative paths
-                                if canonical_event == canonical_watched {
-                                    let _ = app_clone.emit("file-changed", file_path_clone.clone());
-                                    break;
+                                if let Some(name) = event_path.file_name() {
+                                    if name.to_string_lossy() == file_name_clone {
+                                        let _ = app_clone.emit("file-changed", file_path_clone.clone());
+                                        break;
+                                    }
                                 }
                             }
                         }
@@ -62,11 +70,11 @@ impl FileWatcherManager {
         )
         .map_err(|e| format!("Failed to create file watcher: {}", e))?;
 
-        // Watch the file
+        // Watch the parent directory (not the file itself - for vi/vim compatibility)
         debouncer
             .watcher()
-            .watch(&path, RecursiveMode::NonRecursive)
-            .map_err(|e| format!("Failed to watch file: {}", e))?;
+            .watch(&parent_dir, RecursiveMode::NonRecursive)
+            .map_err(|e| format!("Failed to watch directory: {}", e))?;
 
         // Store the debouncer (which contains the watcher)
         // We need to keep it alive
@@ -111,13 +119,10 @@ impl FileWatcherManager {
                         }
 
                         if has_changes {
-                            // Emit workspace-changed event to frontend
                             let _ = app_clone.emit("workspace-changed", ());
                         }
                     }
-                    Err(errors) => {
-                        eprintln!("Workspace watcher error: {:?}", errors);
-                    }
+                    Err(_) => {}
                 }
             },
         )

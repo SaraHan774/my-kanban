@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { Link } from 'react-router-dom';
+import { listen } from '@tauri-apps/api/event';
 import { useStore } from '@/store/useStore';
 import { fileSystemService, pageService, markdownService, resolveImagesInHtml } from '@/services';
 import { CreatePageModal } from '@/components/CreatePageModal';
@@ -9,11 +10,12 @@ import { TooltipWindow } from '@/components/TooltipWindow';
 import './Home.css';
 
 const DEFAULT_PALETTE = ['#3b82f6', '#f59e0b', '#22c55e', '#ef4444', '#8b5cf6', '#ec4899', '#14b8a6', '#f97316'];
+const isTauri = '__TAURI_INTERNALS__' in window;
 
 export function Home() {
   const {
     hasFileSystemAccess, setHasFileSystemAccess, setSidebarOpen,
-    pages, updatePageInStore, columnColors,
+    pages, setPages, updatePageInStore, columnColors,
     columnOrder, setColumnOrder,
     boardDensity,
     boardView, setBoardView,
@@ -27,9 +29,54 @@ export function Home() {
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number; pageId: string } | null>(null);
   const [previewCard, setPreviewCard] = useState<{ id: string; html: string; rect: DOMRect } | null>(null);
   const hoverTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [isRefreshing, setIsRefreshing] = useState(false);
 
   // 'idle' = checking, 'prompt' = needs user click, 'none' = no saved handle
   const [restoreState, setRestoreState] = useState<'idle' | 'prompt' | 'none'>('idle');
+
+  // Load pages function
+  const loadPages = useCallback(async () => {
+    if (!hasFileSystemAccess) return;
+
+    try {
+      const allPages = await pageService.getAllPages();
+      setPages(allPages);
+    } catch (error) {
+      console.error('Failed to load pages:', error);
+    }
+  }, [hasFileSystemAccess, setPages]);
+
+  // Manual refresh handler
+  const handleRefresh = async () => {
+    setIsRefreshing(true);
+    await loadPages();
+    setTimeout(() => setIsRefreshing(false), 500);
+  };
+
+  // Listen for workspace changes (Tauri only)
+  useEffect(() => {
+    if (!isTauri || !hasFileSystemAccess) return;
+
+    let unlisten: (() => void) | null = null;
+
+    const setupListener = async () => {
+      try {
+        unlisten = await listen('workspace-changed', async () => {
+          await loadPages();
+        });
+      } catch (err) {
+        console.error('Failed to setup workspace listener:', err);
+      }
+    };
+
+    setupListener();
+
+    return () => {
+      if (unlisten) {
+        unlisten();
+      }
+    };
+  }, [hasFileSystemAccess, loadPages]);
 
   // Check if a previously saved handle can be reconnected
   useEffect(() => {
@@ -468,6 +515,17 @@ export function Home() {
           </button>
         </div>
         <div className="board-actions-right">
+          <button
+            className={`board-action-btn ${isRefreshing ? 'refreshing' : ''}`}
+            onClick={handleRefresh}
+            disabled={isRefreshing}
+            title="Refresh pages from workspace"
+          >
+            <span className="material-symbols-outlined" style={{ animation: isRefreshing ? 'spin 0.5s linear infinite' : 'none' }}>
+              refresh
+            </span>
+            Refresh
+          </button>
           <button className="board-action-btn" onClick={() => setShowTodoModal(true)}>
             <span className="material-symbols-outlined">check_box</span>
             Todo
@@ -747,10 +805,18 @@ export function Home() {
       )}
 
       {showCreateModal && (
-        <CreatePageModal onClose={() => setShowCreateModal(false)} />
+        <CreatePageModal onClose={() => {
+          setShowCreateModal(false);
+          // Refresh pages after modal closes
+          setTimeout(() => loadPages(), 100);
+        }} />
       )}
       {showTodoModal && (
-        <CreateTodoModal onClose={() => setShowTodoModal(false)} />
+        <CreateTodoModal onClose={() => {
+          setShowTodoModal(false);
+          // Refresh pages after modal closes
+          setTimeout(() => loadPages(), 100);
+        }} />
       )}
       {contextMenu && (
         <ContextMenu

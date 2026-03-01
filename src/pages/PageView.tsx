@@ -3,7 +3,7 @@ import { useParams, Link, useNavigate } from 'react-router-dom';
 import { invoke } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
 import { useStore } from '@/store/useStore';
-import { pageService, markdownService, resolveImagesInHtml, clearImageCache } from '@/services';
+import { pageService, markdownService, resolveImagesInHtml, clearImageCache, fileSystemService } from '@/services';
 import { Page, Highlight, Memo } from '@/types';
 import { PageEditor, PageEditorHandle } from '@/components/PageEditor';
 import { FindBar } from '@/components/FindBar';
@@ -225,7 +225,13 @@ export function PageView() {
         // Start watching the file for changes (Tauri only)
         if (isTauri && fullPage.path) {
           try {
-            await invoke('watch_file', { filePath: fullPage.path });
+            // Get absolute path for Tauri file watcher
+            const rootHandle = fileSystemService.getRootHandle();
+            const absolutePath = typeof rootHandle === 'string'
+              ? `${rootHandle}/${fullPage.path}`
+              : fullPage.path;
+
+            await invoke('watch_file', { filePath: absolutePath });
           } catch (err) {
             console.error('Failed to start file watcher:', err);
           }
@@ -1306,11 +1312,17 @@ export function PageView() {
 
     const setupListener = async () => {
       try {
+        // Get absolute path for comparison
+        const rootHandle = fileSystemService.getRootHandle();
+        const absolutePagePath = typeof rootHandle === 'string'
+          ? `${rootHandle}/${page.path}`
+          : page.path;
+
         unlisten = await listen('file-changed', async (event: any) => {
           const changedPath = event.payload as string;
 
-          // Check if the changed file is the current page
-          if (page && page.path === changedPath) {
+          // Check if the changed file is the current page (compare absolute paths)
+          if (page && absolutePagePath === changedPath) {
             // Reload the page silently (without showing loading spinner)
             try {
               const fullPage = await pageService.loadPageWithChildren(page.path);
@@ -1339,7 +1351,11 @@ export function PageView() {
 
       // Stop watching when component unmounts
       if (isTauri && page?.path) {
-        invoke('unwatch_file', { filePath: page.path }).catch((err: any) => {
+        const rootHandle = fileSystemService.getRootHandle();
+        const absolutePath = typeof rootHandle === 'string'
+          ? `${rootHandle}/${page.path}`
+          : page.path;
+        invoke('unwatch_file', { filePath: absolutePath }).catch((err: any) => {
           console.error('Failed to stop file watcher:', err);
         });
       }
