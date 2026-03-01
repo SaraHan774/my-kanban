@@ -294,56 +294,55 @@ export function PageView() {
     };
   }, [htmlContent, navigate, pageId]);
 
-  // Process and mark external links to prevent in-app navigation
+  // CRITICAL: Intercept ALL link clicks at document level BEFORE anything else
   useEffect(() => {
-    const container = contentRef.current;
-    if (!container) return;
-
-    // Find all links and process them
-    const allLinks = container.querySelectorAll<HTMLAnchorElement>('a[href]');
-
-    allLinks.forEach((link) => {
-      const href = link.getAttribute('href');
-      if (!href) return;
-
-      // Skip internal links
-      if (link.hasAttribute('data-page-ref') ||
-          link.hasAttribute('data-page-id') ||
-          href.startsWith('/page/') ||
-          href.startsWith('#')) {
-        return;
-      }
-
-      // Mark as external link and store original href
-      link.setAttribute('data-external-url', href);
-      link.removeAttribute('href'); // Remove href to prevent default navigation
-      link.style.cursor = 'pointer';
-      link.style.color = 'var(--link-color, #3b82f6)';
-      link.style.textDecoration = 'underline';
-    });
-
-    const handleLinkClick = (e: MouseEvent) => {
+    const handleDocumentClick = (e: MouseEvent) => {
       const target = e.target as HTMLElement;
-      const link = target.closest('a') as HTMLAnchorElement | null;
+      const link = target.closest('a[href]') as HTMLAnchorElement | null;
 
       if (!link) return;
 
-      const externalUrl = link.getAttribute('data-external-url');
-      if (externalUrl) {
-        e.preventDefault();
-        e.stopPropagation();
-        e.stopImmediatePropagation();
-        console.log('[LINK CLICK] Opening external URL:', externalUrl);
-        openExternalUrl(externalUrl);
+      const href = link.getAttribute('href');
+      if (!href) return;
+
+      // Check if this is within our content area
+      const container = contentRef.current;
+      if (!container || !container.contains(link)) return;
+
+      // Internal wiki links
+      if (link.hasAttribute('data-page-ref') || link.hasAttribute('data-page-id')) {
+        return; // Allow wiki link handler to process
       }
+
+      // Internal SPA routes
+      if (href.startsWith('/page/')) {
+        return; // Allow React Router to handle
+      }
+
+      // Hash links
+      if (href.startsWith('#')) {
+        return; // Allow anchor navigation
+      }
+
+      // EVERYTHING ELSE is external - BLOCK IT and open externally
+      e.preventDefault();
+      e.stopPropagation();
+      e.stopImmediatePropagation();
+
+      // Open in external browser
+      openExternalUrl(href).catch(err => {
+        console.error('Failed to open external URL:', err);
+        alert(`Failed to open link: ${href}`);
+      });
     };
 
-    container.addEventListener('click', handleLinkClick, true);
+    // Attach to document in CAPTURE phase - this runs BEFORE any other handlers
+    document.addEventListener('click', handleDocumentClick, true);
 
     return () => {
-      container.removeEventListener('click', handleLinkClick, true);
+      document.removeEventListener('click', handleDocumentClick, true);
     };
-  }, [htmlContent]);
+  }, []); // Empty deps - run once on mount
 
   // Attach click handlers to rendered checkboxes
   useEffect(() => {
