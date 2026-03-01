@@ -30,6 +30,8 @@ interface Highlight {
   endOffset: number;
   contextBefore: string;
   contextAfter: string;
+  firstWords?: string;
+  lastWords?: string;
   createdAt: string;
 }
 
@@ -164,7 +166,7 @@ const server = new Server(
 const tools: Tool[] = [
   {
     name: 'list_pages',
-    description: 'List all pages in the workspace with their highlights and memos count',
+    description: 'List all pages/cards in the workspace. Shows title, kanban column, creation date, highlights count, and memos count. Use this to see which columns exist before creating new cards.',
     inputSchema: {
       type: 'object',
       properties: {},
@@ -172,21 +174,21 @@ const tools: Tool[] = [
   },
   {
     name: 'create_page',
-    description: 'Create a new page with content and required kanban column',
+    description: 'Create a new kanban card/page. IMPORTANT: You must specify which column the card should be placed in. Use list_pages first to see existing columns, or use common columns like "To Do", "In Progress", or "Done".',
     inputSchema: {
       type: 'object',
       properties: {
         title: {
           type: 'string',
-          description: 'Page title',
+          description: 'Page title (will be used as the card title)',
         },
         content: {
           type: 'string',
-          description: 'Page content (markdown)',
+          description: 'Page content (markdown format)',
         },
         kanbanColumn: {
           type: 'string',
-          description: 'Kanban column name (required, e.g., "To Do", "In Progress", "Done")',
+          description: 'REQUIRED: Which column to place this card in. Must match EXACTLY (case-sensitive). Common columns: "To Do", "In Progress", "Done", "Backlog", "Review". Use list_pages to see existing columns in use.',
         },
         viewType: {
           type: 'string',
@@ -380,6 +382,8 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
             return {
               filename,
               title: page.frontmatter.title,
+              kanbanColumn: page.frontmatter.kanbanColumn || '(no column)',
+              createdAt: page.frontmatter.createdAt,
               highlights: page.frontmatter.highlights?.length || 0,
               memos: page.frontmatter.memos?.length || 0,
               viewType: page.frontmatter.viewType,
@@ -519,7 +523,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         const contextAfter = contentText.substring(endOffset, Math.min(contentText.length, endOffset + 20));
 
         // Extract first and last words for robust matching
-        const words = textToFind.split(/\s+/).filter(w => w.length > 0);
+        const words = textToFind.split(/\s+/).filter((w: string) => w.length > 0);
         const firstWords = words.slice(0, 3).join(' '); // First 3 words
         const lastWords = words.slice(-3).join(' '); // Last 3 words
 
