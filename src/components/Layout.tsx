@@ -31,7 +31,6 @@ export function Layout() {
       const result = await fileSystemService.tryRestore();
       if (result === 'granted') {
         setHasFileSystemAccess(true);
-        setSidebarOpen(true);
       }
       // 'prompt' case is handled by Home.tsx reconnect UI
     };

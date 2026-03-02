@@ -22,6 +22,8 @@ import './PageView.css';
 // Tauri imports for file watching
 const isTauri = '__TAURI_INTERNALS__' in window;
 
+const DEFAULT_PALETTE = ['#3b82f6', '#f59e0b', '#22c55e', '#ef4444', '#8b5cf6', '#ec4899', '#14b8a6', '#f97316'];
+
 export function PageView() {
   const { pageId } = useParams<{ pageId: string }>();
   const navigate = useNavigate();
@@ -81,6 +83,12 @@ export function PageView() {
     [pages]
   );
 
+  // Create a stable color mapping based on alphabetically sorted columns
+  const sortedColumnNames = useMemo(
+    () => [...existingColumns].sort((a, b) => a.toLowerCase().localeCompare(b.toLowerCase())),
+    [existingColumns]
+  );
+
   const startEditing = () => {
     if (page) {
       setEditTitle(page.title);
@@ -90,10 +98,12 @@ export function PageView() {
     setEditing(true);
   };
 
-  const getColColor = (col: string) => {
+  const getColColor = useCallback((col: string) => {
     const customColor = columnColors[col.toLowerCase()];
-    return customColor || undefined;
-  };
+    if (customColor) return customColor;
+    const stableIndex = sortedColumnNames.findIndex(c => c.toLowerCase() === col.toLowerCase());
+    return DEFAULT_PALETTE[stableIndex % DEFAULT_PALETTE.length];
+  }, [columnColors, sortedColumnNames]);
 
   // Compute all unique tags across pages for autocomplete
   const allTags = useMemo(() => Array.from(new Set(pages.flatMap(p => p.tags))), [pages]);
@@ -1034,7 +1044,7 @@ export function PageView() {
               await renderHtml(fullPage.content, fullPage.path, fullPage.highlights || []);
 
               // Show a subtle notification
-              showToast('Page updated externally', 'info');
+              showToast('Page updated', 'info');
             } catch (err) {
               console.error('Failed to reload page:', err);
             }
@@ -1318,7 +1328,7 @@ export function PageView() {
                       {page.kanbanColumn ? (
                         <span
                           className="selected-column-chip"
-                          style={getColColor(page.kanbanColumn) ? { backgroundColor: getColColor(page.kanbanColumn) } : undefined}
+                          style={{ backgroundColor: getColColor(page.kanbanColumn), color: 'white' }}
                         >
                           {page.kanbanColumn}
                           <button

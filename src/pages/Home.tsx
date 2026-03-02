@@ -14,7 +14,7 @@ const isTauri = '__TAURI_INTERNALS__' in window;
 
 export function Home() {
   const {
-    hasFileSystemAccess, setHasFileSystemAccess, setSidebarOpen,
+    hasFileSystemAccess, setHasFileSystemAccess,
     pages, setPages, updatePageInStore, columnColors,
     columnOrder, setColumnOrder,
     boardDensity,
@@ -86,7 +86,6 @@ export function Home() {
       const result = await fileSystemService.tryRestore();
       if (result === 'granted') {
         setHasFileSystemAccess(true);
-        setSidebarOpen(true);
       } else if (result === 'prompt') {
         setRestoreState('prompt');
       } else {
@@ -100,7 +99,6 @@ export function Home() {
     try {
       await fileSystemService.requestDirectoryAccess();
       setHasFileSystemAccess(true);
-      setSidebarOpen(true);
     } catch (error) {
       console.error('Failed to access file system:', error);
       alert('Failed to access folder. Please try again.');
@@ -111,7 +109,6 @@ export function Home() {
     const granted = await fileSystemService.requestRestoredPermission();
     if (granted) {
       setHasFileSystemAccess(true);
-      setSidebarOpen(true);
     } else {
       // Permission denied, fall back to full folder picker
       setRestoreState('none');

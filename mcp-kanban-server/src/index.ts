@@ -240,6 +240,33 @@ const tools: Tool[] = [
     },
   },
   {
+    name: 'edit_page_section',
+    description: 'Edit a specific section of page content by finding and replacing text. Useful for inserting content in the middle, modifying specific sentences, or replacing sections. The search text must match exactly.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        filename: {
+          type: 'string',
+          description: 'The markdown filename',
+        },
+        search: {
+          type: 'string',
+          description: 'The exact text to find in the page content (must match exactly)',
+        },
+        replace: {
+          type: 'string',
+          description: 'The new text to replace it with',
+        },
+        mode: {
+          type: 'string',
+          enum: ['replace', 'insert_before', 'insert_after'],
+          description: 'Edit mode: "replace" replaces the search text, "insert_before" inserts before it, "insert_after" inserts after it (optional, defaults to "replace")',
+        },
+      },
+      required: ['filename', 'search', 'replace'],
+    },
+  },
+  {
     name: 'add_highlight',
     description: 'Add a new highlight to a page. The text will be automatically located in the content and offsets will be calculated.',
     inputSchema: {
@@ -359,6 +386,28 @@ const tools: Tool[] = [
         },
       },
       required: ['filename', 'memoId'],
+    },
+  },
+  {
+    name: 'list_images',
+    description: 'List all images in the .images folder. Returns image filenames with their sizes and creation dates. Useful for finding screenshots, news captures, magazine scans, or other images to analyze.',
+    inputSchema: {
+      type: 'object',
+      properties: {},
+    },
+  },
+  {
+    name: 'read_image',
+    description: 'Read an image file from the .images folder for OCR and analysis. Returns the image data that Claude can analyze for text extraction, content understanding, news articles, magazine content, etc. Supports common formats (png, jpg, jpeg, gif, webp).',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        filename: {
+          type: 'string',
+          description: 'The image filename (e.g., "screenshot.png", "news-article.jpg")',
+        },
+      },
+      required: ['filename'],
     },
   },
 ];
@@ -490,6 +539,49 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
             {
               type: 'text',
               text: `Page content updated successfully. ${append ? 'Content appended.' : 'Content replaced.'}`,
+            },
+          ],
+        };
+      }
+
+      case 'edit_page_section': {
+        const { filename, search, replace, mode = 'replace' } = args as any;
+
+        const page = await readPage(filename);
+
+        // Find the search text in the content
+        const searchText = search.trim();
+        const index = page.content.indexOf(searchText);
+
+        if (index === -1) {
+          throw new Error(`Text "${searchText}" not found in page content. Make sure the text matches exactly.`);
+        }
+
+        let newContent: string;
+        switch (mode) {
+          case 'replace':
+            // Replace the search text with the new text
+            newContent = page.content.substring(0, index) + replace + page.content.substring(index + searchText.length);
+            break;
+          case 'insert_before':
+            // Insert before the search text
+            newContent = page.content.substring(0, index) + replace + '\n\n' + page.content.substring(index);
+            break;
+          case 'insert_after':
+            // Insert after the search text
+            newContent = page.content.substring(0, index + searchText.length) + '\n\n' + replace + page.content.substring(index + searchText.length);
+            break;
+          default:
+            throw new Error(`Unknown mode: ${mode}`);
+        }
+
+        await writePage(filename, page.frontmatter, newContent);
+
+        return {
+          content: [
+            {
+              type: 'text',
+              text: `Section edited successfully using mode: ${mode}`,
             },
           ],
         };
@@ -675,6 +767,93 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
             },
           ],
         };
+      }
+
+      case 'list_images': {
+        const imagesPath = path.join(WORKSPACE_PATH, '.images');
+        try {
+          const files = await fs.readdir(imagesPath);
+          const imageFiles = files.filter(f =>
+            /\.(png|jpg|jpeg|gif|webp|bmp)$/i.test(f)
+          );
+
+          const imagesInfo = await Promise.all(
+            imageFiles.map(async (filename) => {
+              const stats = await fs.stat(path.join(imagesPath, filename));
+              return {
+                filename,
+                size: stats.size,
+                created: stats.birthtime.toISOString(),
+                modified: stats.mtime.toISOString(),
+              };
+            })
+          );
+
+          return {
+            content: [
+              {
+                type: 'text',
+                text: JSON.stringify(
+                  {
+                    count: imagesInfo.length,
+                    images: imagesInfo,
+                  },
+                  null,
+                  2
+                ),
+              },
+            ],
+          };
+        } catch (error) {
+          if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
+            return {
+              content: [
+                {
+                  type: 'text',
+                  text: 'No .images folder found',
+                },
+              ],
+            };
+          }
+          throw error;
+        }
+      }
+
+      case 'read_image': {
+        const { filename } = args as { filename: string };
+        const imagePath = path.join(WORKSPACE_PATH, '.images', filename);
+
+        try {
+          const imageBuffer = await fs.readFile(imagePath);
+          const base64Image = imageBuffer.toString('base64');
+
+          // Determine media type from extension
+          const ext = path.extname(filename).toLowerCase();
+          const mediaTypeMap: Record<string, string> = {
+            '.png': 'image/png',
+            '.jpg': 'image/jpeg',
+            '.jpeg': 'image/jpeg',
+            '.gif': 'image/gif',
+            '.webp': 'image/webp',
+            '.bmp': 'image/bmp',
+          };
+          const mediaType = mediaTypeMap[ext] || 'image/png';
+
+          return {
+            content: [
+              {
+                type: 'image',
+                data: base64Image,
+                mimeType: mediaType,
+              },
+            ],
+          };
+        } catch (error) {
+          if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
+            throw new Error(`Image not found: ${filename}`);
+          }
+          throw error;
+        }
       }
 
       default:

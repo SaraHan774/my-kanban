@@ -170,7 +170,7 @@ export const useStore = create<AppState>((set, get) => ({
   setConfig: (config) => set({ config }),
 
   // UI state
-  sidebarOpen: true,
+  sidebarOpen: false,
   setSidebarOpen: (open) => set({ sidebarOpen: open }),
 
   // Filter state
