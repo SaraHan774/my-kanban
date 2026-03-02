@@ -13,16 +13,18 @@
  */
 export interface Highlight {
   id: string;
-  text: string;
+  text: string;              // The highlighted text
   color: string;
   style: 'highlight' | 'underline';
-  startOffset: number;
-  endOffset: number;
-  contextBefore: string;
-  contextAfter: string;
-  firstWords?: string;  // First 3 words for matching (more robust than offsets)
-  lastWords?: string;   // Last 3 words for matching
+  startOffset: number;       // Position in markdown content (primary)
+  endOffset: number;         // Position in markdown content (primary)
+  firstWords: string;        // First 3 words (fallback for fuzzy matching)
+  lastWords: string;         // Last 3 words (fallback for fuzzy matching)
   createdAt: string;
+
+  // DEPRECATED: Keep for backward compatibility, but ignored in new code
+  contextBefore?: string;
+  contextAfter?: string;
 }
 
 export interface Memo {

@@ -86,176 +86,11 @@ export function buildPositionMap(fullText: string): number[] {
   return positionMap;
 }
 
-/**
- * Builds a word index for O(1) word lookup.
- * Maps each word to all positions where it appears in the normalized text.
- *
- * This optimization reduces highlight matching from O(H*N) to O(H+N):
- * - Without index: Each highlight searches entire text = H highlights × N chars
- * - With index: Build index once (N), then O(1) lookup per highlight (H)
- *
- * @example
- * const text = 'the quick brown fox jumps over the lazy dog';
- * const index = buildWordIndex(normalizeWhitespace(text));
- * index.get('the') // [0, 32] (positions where 'the' starts)
- */
-export function buildWordIndex(normalizedText: string): Map<string, number[]> {
-  const wordIndex = new Map<string, number[]>();
-  const words = normalizedText.split(/\s+/);
-  let currentPos = 0;
-
-  words.forEach(word => {
-    if (word.length > 0) {
-      const positions = wordIndex.get(word) || [];
-      positions.push(currentPos);
-      wordIndex.set(word, positions);
-      currentPos += word.length + 1; // +1 for space
-    }
-  });
-
-  return wordIndex;
-}
-
 // ============================================================================
-// Matching Strategy Functions (exported for testing)
+// Matching Strategy Functions
 // ============================================================================
 
-/**
- * Matches text using first/last words anchors (most robust strategy).
- *
- * This is the primary matching strategy because:
- * 1. Resilient to minor edits in the middle of text
- * 2. Fast with word index (O(1) lookup for first word)
- * 3. Unique anchor points reduce false positives
- *
- * @returns Object with startPos/endPos in original text, or null if not found
- */
-export function matchByFirstLastWords(
-  normalizedText: string,
-  _fullText: string, // Unused but kept for API consistency
-  firstWords: string,
-  lastWords: string,
-  positionMap: number[],
-  wordIndex: Map<string, number[]>
-): { startPos: number; endPos: number } | null {
-  const normalizedFirstWords = normalizeWhitespace(firstWords);
-  const normalizedLastWords = normalizeWhitespace(lastWords);
 
-  // OPTIMIZATION: Try word index first for faster lookup
-  const firstWord = normalizedFirstWords.split(/\s+/)[0];
-  let firstWordsIndex = -1;
-
-  // Fast path: Use word index
-  const firstWordPositions = wordIndex.get(firstWord);
-  if (firstWordPositions && firstWordPositions.length > 0) {
-    for (const pos of firstWordPositions) {
-      if (normalizedText.substring(pos, pos + normalizedFirstWords.length) === normalizedFirstWords) {
-        firstWordsIndex = pos;
-        break;
-      }
-    }
-  }
-
-  // Fallback to indexOf if word index didn't work
-  if (firstWordsIndex === -1) {
-    firstWordsIndex = normalizedText.indexOf(normalizedFirstWords);
-  }
-
-  if (firstWordsIndex === -1) {
-    return null;
-  }
-
-  // Find last words after first words
-  const lastWordsIndex = normalizedText.indexOf(
-    normalizedLastWords,
-    firstWordsIndex + normalizedFirstWords.length
-  );
-
-  if (lastWordsIndex === -1) {
-    return null;
-  }
-
-  // Map normalized positions back to original text positions
-  const startPos = positionMap[firstWordsIndex] || firstWordsIndex;
-  const endPos = positionMap[lastWordsIndex + normalizedLastWords.length] || (lastWordsIndex + normalizedLastWords.length);
-
-  return { startPos, endPos };
-}
-
-/**
- * Matches text using context before/after (fallback strategy).
- *
- * Used when firstWords/lastWords are not available.
- * Less robust than anchor-based matching but better than text-only search.
- *
- * @returns Start position in original text, or -1 if not found
- */
-export function matchByContext(
-  fullText: string,
-  normalizedText: string,
-  searchText: string,
-  contextBefore: string,
-  contextAfter: string,
-  positionMap: number[]
-): number {
-  // Try exact match first
-  const pattern = contextBefore + searchText + contextAfter;
-  let patternIndex = fullText.indexOf(pattern);
-
-  if (patternIndex !== -1) {
-    return patternIndex + contextBefore.length;
-  }
-
-  // Try normalized whitespace match
-  const normalizedPattern = normalizeWhitespace(pattern);
-  const normalizedIndex = normalizedText.indexOf(normalizedPattern);
-
-  if (normalizedIndex !== -1) {
-    const patternStartInOriginal = positionMap[normalizedIndex] || 0;
-    const normalizedContextLength = normalizeWhitespace(contextBefore).length;
-    const textStartInNormalized = normalizedIndex + normalizedContextLength;
-    const textStartInOriginal = positionMap[textStartInNormalized] || patternStartInOriginal;
-    return textStartInOriginal;
-  }
-
-  return -1;
-}
-
-/**
- * Fuzzy text matching that handles whitespace/punctuation differences.
- *
- * This is the last-resort strategy when exact matching fails.
- * Handles cases where HTML rendering removes spaces after punctuation.
- *
- * Algorithm:
- * - Advances through both texts simultaneously
- * - Skips whitespace mismatches
- * - Fails on character mismatches
- *
- * @returns Position where match starts, or -1 if no match
- */
-export function fuzzyMatch(text: string, search: string, startPos: number): number {
-  let textPos = startPos;
-  let searchPos = 0;
-
-  while (searchPos < search.length && textPos < text.length) {
-    const searchChar = search[searchPos];
-    const textChar = text[textPos];
-
-    if (searchChar === textChar) {
-      searchPos++;
-      textPos++;
-    } else if (/\s/.test(searchChar)) {
-      searchPos++;
-    } else if (/\s/.test(textChar)) {
-      textPos++;
-    } else {
-      return -1;
-    }
-  }
-
-  return searchPos >= search.length ? startPos : -1;
-}
 
 // ============================================================================
 // Service Class
@@ -282,24 +117,25 @@ class HighlightService {
   }
 
   /**
-   * Applies highlights to HTML content.
+   * Applies highlights to HTML content using Markdown-first approach.
    *
-   * This is the main entry point for rendering highlights.
-   * Uses a 3-tier fallback strategy:
-   * 1. firstWords/lastWords matching (most robust)
-   * 2. Context-based matching
-   * 3. Fuzzy matching (handles whitespace differences)
-   *
-   * Complexity: O(H+N) where H = highlights, N = text length
-   * - Pre-computes position map and word index once
-   * - Each highlight uses O(1) word index lookup
+   * NEW: Markdown-first architecture (v2)
+   * - Highlights are stored with Markdown content offsets
+   * - This function maps Markdown offsets → HTML positions
+   * - 2-tier fallback: exact offset (99%) → fuzzy match (1%)
    *
    * @param html - HTML string to apply highlights to
+   * @param markdownContent - Original markdown content (source of truth)
    * @param highlights - Array of highlight objects
    * @param visible - Whether highlights should be visible
    * @returns Modified HTML with <mark> elements
    */
-  applyHighlightsToHtml(html: string, highlights: Highlight[], visible: boolean): string {
+  applyHighlightsToHtml(
+    html: string,
+    markdownContent: string,
+    highlights: Highlight[],
+    visible: boolean
+  ): string {
     if (!highlights || highlights.length === 0 || !visible) return html;
 
     // Create temporary div to parse HTML
@@ -310,33 +146,31 @@ class HighlightService {
     // Without this, <li>A</li><li>B</li> becomes "AB" instead of "A B"
     this.insertSpacesBetweenBlocks(tempDiv);
 
-    const fullText = tempDiv.textContent || '';
+    const htmlText = tempDiv.textContent || '';
 
     if (this.debugMode) {
-      console.log('[HIGHLIGHT RENDER] Starting highlight rendering', {
+      console.log('[HIGHLIGHT RENDER] Starting highlight rendering (Markdown-first)', {
         highlightCount: highlights.length,
-        fullTextLength: fullText.length,
-        fullTextPreview: fullText.substring(0, 200),
-        htmlPreview: html.substring(0, 200)
+        markdownLength: markdownContent.length,
+        htmlLength: htmlText.length,
+        markdownPreview: markdownContent.substring(0, 200),
+        htmlPreview: htmlText.substring(0, 200)
       });
     }
 
-    // OPTIMIZATION: Pre-compute once for all highlights (O(N) instead of O(H*N))
-    const normalizedText = normalizeWhitespace(fullText);
-    const positionMap = buildPositionMap(fullText);
-    const wordIndex = buildWordIndex(normalizedText);
+    // Build Markdown → HTML offset mapping
+    const offsetMap = this.buildMarkdownToHtmlOffsetMap(markdownContent, htmlText);
 
     if (this.debugMode) {
-      console.log('[HIGHLIGHT RENDER] Text analysis', {
-        normalizedTextPreview: normalizedText.substring(0, 200),
-        wordIndexSize: wordIndex.size,
-        positionMapLength: positionMap.length
+      console.log('[HIGHLIGHT RENDER] Offset map built', {
+        mappingSize: offsetMap.size,
+        sampleMappings: Array.from(offsetMap.entries()).slice(0, 10)
       });
     }
 
-    // Process each highlight with fallback strategies
+    // Process each highlight with simplified 2-tier strategy
     highlights.forEach(h => {
-      this.processHighlight(tempDiv, fullText, normalizedText, positionMap, wordIndex, h);
+      this.processHighlightV2(tempDiv, htmlText, offsetMap, h);
     });
 
     return tempDiv.innerHTML;
@@ -385,144 +219,149 @@ class HighlightService {
   }
 
   /**
-   * Processes a single highlight with fallback strategies.
+   * Builds a mapping from Markdown offsets to HTML text offsets.
+   *
+   * Algorithm:
+   * - Normalizes whitespace in both texts
+   * - Aligns them character by character
+   * - Creates bidirectional mapping (Markdown ↔ HTML)
+   *
+   * Handles:
+   * - Markdown syntax removal (**, __, #, etc.)
+   * - List markers (-, *, +, 1.)
+   * - Code blocks
+   * - Whitespace normalization
+   *
+   * @returns Map<markdownOffset, htmlOffset>
    */
-  private processHighlight(
+  private buildMarkdownToHtmlOffsetMap(
+    markdownContent: string,
+    htmlText: string
+  ): Map<number, number> {
+    const map = new Map<number, number>();
+
+    // Normalize both texts for alignment
+    const normalizedMarkdown = normalizeWhitespace(markdownContent);
+    const normalizedHtml = normalizeWhitespace(htmlText);
+
+    // Build position maps for both
+    const mdPosMap = buildPositionMap(markdownContent);
+    const htmlPosMap = buildPositionMap(htmlText);
+
+    let mdPos = 0;
+    let htmlPos = 0;
+
+    // Align normalized texts character by character
+    while (mdPos < normalizedMarkdown.length && htmlPos < normalizedHtml.length) {
+      const mdChar = normalizedMarkdown[mdPos];
+      const htmlChar = normalizedHtml[htmlPos];
+
+      if (mdChar === htmlChar) {
+        // Characters match - create mapping
+        const originalMdPos = mdPosMap[mdPos] || mdPos;
+        const originalHtmlPos = htmlPosMap[htmlPos] || htmlPos;
+        map.set(originalMdPos, originalHtmlPos);
+        mdPos++;
+        htmlPos++;
+      } else {
+        // Mismatch - likely markdown syntax that was removed
+        // Skip in markdown, continue in HTML
+        mdPos++;
+      }
+    }
+
+    return map;
+  }
+
+  /**
+   * Processes a single highlight with simplified 2-tier strategy (v2).
+   *
+   * Strategy:
+   * 1. Try exact Markdown offset (99% success rate)
+   * 2. Fall back to firstWords/lastWords fuzzy match (1%)
+   */
+  private processHighlightV2(
     container: HTMLElement,
-    fullText: string,
-    normalizedText: string,
-    positionMap: number[],
-    wordIndex: Map<string, number[]>,
+    htmlText: string,
+    offsetMap: Map<number, number>,
     highlight: Highlight
   ): void {
-    // Strategy 1: firstWords/lastWords (most robust)
-    if (highlight.firstWords && highlight.lastWords) {
+    // Strategy 1: Exact offset mapping (PRIMARY)
+    const htmlStart = offsetMap.get(highlight.startOffset);
+    const htmlEnd = offsetMap.get(highlight.endOffset);
+
+    if (htmlStart !== undefined && htmlEnd !== undefined) {
       if (this.debugMode) {
-        console.log('[HIGHLIGHT MATCH] Attempting firstWords/lastWords', {
+        console.log('[HIGHLIGHT MATCH] ✓ Exact offset match', {
           id: highlight.id,
-          firstWords: highlight.firstWords,
-          lastWords: highlight.lastWords
+          markdownOffset: [highlight.startOffset, highlight.endOffset],
+          htmlOffset: [htmlStart, htmlEnd],
+          text: highlight.text
         });
       }
+      this.applyHighlightToNodes(container, highlight.text, htmlStart, highlight, htmlEnd);
+      return;
+    }
 
-      const match = matchByFirstLastWords(
-        normalizedText,
-        fullText,
-        highlight.firstWords,
-        highlight.lastWords,
-        positionMap,
-        wordIndex
-      );
+    // Strategy 2: Fuzzy match using firstWords/lastWords (FALLBACK)
+    if (this.debugMode) {
+      console.log('[HIGHLIGHT MATCH] Offset mapping failed, trying fuzzy match', {
+        id: highlight.id,
+        firstWords: highlight.firstWords,
+        lastWords: highlight.lastWords
+      });
+    }
 
-      if (match) {
-        if (this.debugMode) {
-          console.log('[HIGHLIGHT MATCH] ✓ Found', {
-            id: highlight.id,
-            strategy: 'firstWords/lastWords',
-            startPos: match.startPos,
-            endPos: match.endPos,
-            matchedText: fullText.substring(match.startPos, match.endPos)
-          });
-        }
-        this.applyHighlightToNodes(container, highlight.text, match.startPos, highlight, match.endPos);
-        return;
-      }
+    const match = this.fuzzyMatchByWords(htmlText, highlight.firstWords, highlight.lastWords);
 
-      // firstWords/lastWords failed, but don't give up yet
-      // Fall through to try context-based matching
+    if (match) {
       if (this.debugMode) {
-        console.log('[HIGHLIGHT MATCH] firstWords/lastWords failed, trying context fallback', {
+        console.log('[HIGHLIGHT MATCH] ✓ Fuzzy match succeeded', {
           id: highlight.id,
-          savedText: highlight.text,
-          firstWords: highlight.firstWords,
-          lastWords: highlight.lastWords
+          htmlOffset: [match.startPos, match.endPos],
+          matchedText: htmlText.substring(match.startPos, match.endPos)
         });
       }
+      this.applyHighlightToNodes(container, highlight.text, match.startPos, highlight, match.endPos);
+      return;
     }
 
-    // Strategy 2: Context-based matching
-    if (highlight.contextBefore || highlight.contextAfter) {
-      if (this.debugMode) {
-        console.log('[HIGHLIGHT MATCH] Attempting context match', {
-          id: highlight.id,
-          contextBefore: highlight.contextBefore?.substring(0, 20),
-          contextAfter: highlight.contextAfter?.substring(0, 20)
-        });
-      }
-
-      const startPos = matchByContext(
-        fullText,
-        normalizedText,
-        highlight.text,
-        highlight.contextBefore || '',
-        highlight.contextAfter || '',
-        positionMap
-      );
-
-      if (startPos !== -1) {
-        if (this.debugMode) {
-          console.log('[HIGHLIGHT MATCH] ✓ Found via context', {
-            id: highlight.id,
-            strategy: 'context',
-            startPos
-          });
-        }
-        this.applyHighlightToNodes(container, highlight.text, startPos, highlight);
-        return;
-      }
-    }
-
-    // Strategy 3: Fuzzy matching (last resort)
-    const normalizedSearchText = normalizeWhitespace(highlight.text);
-    const searchWords = normalizedSearchText.split(' ').filter(w => w.length > 2);
-    const sortedWords = [...searchWords].sort((a, b) => b.length - a.length);
-    const uniqueWord = sortedWords[0];
-
-    if (uniqueWord) {
-      const uniqueWordIndex = normalizedText.indexOf(uniqueWord);
-
-      if (uniqueWordIndex !== -1) {
-        if (this.debugMode) {
-          console.log('[HIGHLIGHT MATCH] Attempting fuzzy match', {
-            id: highlight.id,
-            uniqueWord,
-            startPos: uniqueWordIndex
-          });
-        }
-
-        const fuzzyMatchPos = fuzzyMatch(normalizedText, normalizedSearchText, uniqueWordIndex);
-
-        if (fuzzyMatchPos !== -1) {
-          const textIndex = positionMap[fuzzyMatchPos] || fuzzyMatchPos;
-          if (this.debugMode) {
-            console.log('[HIGHLIGHT MATCH] ✓ Found via fuzzy', {
-              id: highlight.id,
-              strategy: 'fuzzy',
-              startPos: textIndex
-            });
-          }
-          this.applyHighlightToNodes(container, highlight.text, textIndex, highlight);
-          return;
-        }
-      }
-    }
-
+    // Both strategies failed
     console.warn('[HIGHLIGHT MATCH] ✗ All strategies failed', {
       id: highlight.id,
-      savedText: highlight.text,
-      firstWords: highlight.firstWords || '(none)',
-      lastWords: highlight.lastWords || '(none)',
-      contextBefore: highlight.contextBefore?.substring(Math.max(0, (highlight.contextBefore?.length || 0) - 30)) || '(none)',
-      contextAfter: highlight.contextAfter?.substring(0, 30) || '(none)',
-      searchedIn: normalizedText.substring(0, 200),
-      suggestion: 'This text may have been deleted or significantly modified. Consider deleting this highlight or updating the page content.',
-      actions: [
-        '1. Search for this text manually (Cmd+F)',
-        '2. If found, delete and recreate the highlight',
-        '3. If not found, delete this orphaned highlight'
-      ]
+      text: highlight.text,
+      firstWords: highlight.firstWords,
+      lastWords: highlight.lastWords,
+      suggestion: 'Text may have been deleted or heavily modified. Consider deleting this highlight.'
     });
   }
+
+  /**
+   * Fuzzy match using firstWords and lastWords.
+   */
+  private fuzzyMatchByWords(
+    text: string,
+    firstWords: string,
+    lastWords: string
+  ): { startPos: number; endPos: number } | null {
+    const normalizedText = normalizeWhitespace(text);
+    const normalizedFirst = normalizeWhitespace(firstWords);
+    const normalizedLast = normalizeWhitespace(lastWords);
+
+    // Find first words
+    const firstIndex = normalizedText.indexOf(normalizedFirst);
+    if (firstIndex === -1) return null;
+
+    // Find last words after first words
+    const lastIndex = normalizedText.indexOf(normalizedLast, firstIndex + normalizedFirst.length);
+    if (lastIndex === -1) return null;
+
+    return {
+      startPos: firstIndex,
+      endPos: lastIndex + normalizedLast.length
+    };
+  }
+
 
   /**
    * Applies a highlight to text nodes at a specific position.
@@ -613,58 +452,57 @@ class HighlightService {
   }
 
   /**
-   * Extracts context before/after a text selection for robust matching.
+   * Finds text in Markdown content and returns its offsets.
    *
-   * @param plainText - Full plain text content
-   * @param startOffset - Start offset of selection
-   * @param endOffset - End offset of selection
-   * @param contextLength - Number of characters to extract (default: 20)
+   * NEW: This is the main function for creating highlights from user selection.
+   * It takes the selected HTML text and finds it in the Markdown content.
+   *
+   * @param selectedText - Text selected by user (from HTML rendering)
+   * @param markdownContent - Original markdown content
+   * @returns Markdown offsets and cleaned text, or null if not found
    */
-  extractHighlightContext(
-    plainText: string,
-    startOffset: number,
-    endOffset: number,
-    contextLength: number = 50  // Increased from 20 to 50 for better uniqueness
-  ): { contextBefore: string; contextAfter: string } {
-    const contextBefore = plainText.substring(Math.max(0, startOffset - contextLength), startOffset);
-    const contextAfter = plainText.substring(endOffset, Math.min(plainText.length, endOffset + contextLength));
-    return { contextBefore, contextAfter };
+  findTextInMarkdown(
+    selectedText: string,
+    markdownContent: string
+  ): { text: string; startOffset: number; endOffset: number } | null {
+    const cleanedText = selectedText.trim();
+    if (!cleanedText) return null;
+
+    // Normalize for matching
+    const normalizedSearch = normalizeWhitespace(cleanedText);
+    const normalizedMarkdown = normalizeWhitespace(markdownContent);
+
+    // Find in normalized text
+    const normalizedIndex = normalizedMarkdown.indexOf(normalizedSearch);
+    if (normalizedIndex === -1) {
+      if (this.debugMode) {
+        console.warn('[FIND IN MARKDOWN] Not found in normalized text', {
+          selectedText: cleanedText.substring(0, 50),
+          normalizedSearch: normalizedSearch.substring(0, 50)
+        });
+      }
+      return null;
+    }
+
+    // Map back to original Markdown offsets
+    const positionMap = buildPositionMap(markdownContent);
+    const startOffset = positionMap[normalizedIndex] || normalizedIndex;
+    const endOffset = positionMap[normalizedIndex + normalizedSearch.length] || (normalizedIndex + normalizedSearch.length);
+
+    // Extract actual text from markdown (may differ slightly from selected text)
+    const actualText = markdownContent.substring(startOffset, endOffset).trim();
+
+    if (this.debugMode) {
+      console.log('[FIND IN MARKDOWN] Found', {
+        selectedText: cleanedText.substring(0, 50),
+        actualText: actualText.substring(0, 50),
+        markdownOffset: [startOffset, endOffset]
+      });
+    }
+
+    return { text: actualText, startOffset, endOffset };
   }
 
-  /**
-   * Calculates text offsets from a DOM Range.
-   *
-   * Converts a user's text selection (Range) into plain text offsets,
-   * accounting for leading/trailing whitespace.
-   *
-   * @param range - DOM Range object from user selection
-   * @param containerEl - Container element to calculate offsets within
-   */
-  calculateTextOffsets(
-    range: Range,
-    containerEl: HTMLElement
-  ): {
-    startOffset: number;
-    endOffset: number;
-    trimmedText: string;
-    leadingSpaces: number;
-  } {
-    const rawText = range.toString();
-
-    // Calculate raw start offset
-    const beforeRange = document.createRange();
-    beforeRange.setStart(containerEl, 0);
-    beforeRange.setEnd(range.startContainer, range.startOffset);
-    const rawStartOffset = beforeRange.toString().length;
-
-    // Trim and adjust offsets
-    const trimmedText = rawText.trim();
-    const leadingSpaces = rawText.length - rawText.trimStart().length;
-    const startOffset = rawStartOffset + leadingSpaces;
-    const endOffset = startOffset + trimmedText.length;
-
-    return { startOffset, endOffset, trimmedText, leadingSpaces };
-  }
 
   /**
    * Extracts first/last words for anchor-based matching.

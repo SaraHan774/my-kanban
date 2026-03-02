@@ -93,6 +93,10 @@ graph TD
 - **Single source of truth**: Page data stored in markdown files, cached in Zustand store
 - **Persistent settings**: All user preferences saved to both localStorage (cache) and `.kanban-config.json` (durable)
 - **External links**: Always open in system browser via `openExternalUrl()` utility
+- **Type sharing with MCP server**: `mcp-kanban-server` imports types from `src/types/page.ts`
+  - ⚠️ **IMPORTANT**: When modifying `Highlight` or `Memo` types, rebuild MCP server: `cd mcp-kanban-server && npm run build`
+  - Single Source of Truth prevents type drift between frontend and MCP tools
+  - No manual synchronization needed - TypeScript enforces consistency
 
 ## Important Patterns (UPDATED)
 - **Single file per page** - `Page.md` not `Page/index.md`

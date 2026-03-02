@@ -187,7 +187,8 @@ export function PageView() {
     const contentWithLinks = convertWikiLinksToMarkdown(content, pagesRef.current);
     let html = await markdownService.toHtml(contentWithLinks);
     html = await resolveImagesInHtml(html, pagePath);
-    html = highlightService.applyHighlightsToHtml(html, highlights, highlightsVisibleRef.current);
+    // NEW: Pass markdown content for accurate offset mapping
+    html = highlightService.applyHighlightsToHtml(html, content, highlights, highlightsVisibleRef.current);
     setHtmlContent(html);
 
     // Extract ToC headings
@@ -483,38 +484,34 @@ export function PageView() {
     if (!page || !selectedRangeRef.current) return;
 
     const selection = window.getSelection();
-    const rawText = selection?.toString() || '';
-    if (!rawText) return;
+    const selectedText = selection?.toString() || '';
+    if (!selectedText.trim()) return;
 
-    const range = selectedRangeRef.current;
+    // NEW: Markdown-first approach
+    // Find the selected text in the Markdown content
+    const match = highlightService.findTextInMarkdown(selectedText, page.content);
 
-    // Calculate text offset in the plain content
-    const contentEl = contentRef.current;
-    if (!contentEl) return;
+    if (!match) {
+      showToast('Could not locate text in markdown. Try selecting again.', 'error');
+      if (highlightService.getDebugMode()) {
+        console.error('[HIGHLIGHT CREATE] Failed to find text in markdown', {
+          selectedText: selectedText.substring(0, 100),
+          markdownContent: page.content.substring(0, 200)
+        });
+      }
+      return;
+    }
 
-    // Calculate text offsets using service
-    const { startOffset, endOffset, trimmedText } = highlightService.calculateTextOffsets(range, contentEl);
-    const plainText = contentEl.textContent || '';
-
-    // Get context using service
-    const { contextBefore, contextAfter } = highlightService.extractHighlightContext(
-      plainText,
-      startOffset,
-      endOffset
-    );
-
-    // Extract first and last words using service
-    const { firstWords, lastWords } = highlightService.extractAnchorWords(trimmedText);
+    // Extract first and last words for fallback matching
+    const { firstWords, lastWords } = highlightService.extractAnchorWords(match.text);
 
     const highlight: Highlight = {
       id: crypto.randomUUID(),
-      text: trimmedText,
+      text: match.text,
       color,
       style,
-      startOffset,
-      endOffset,
-      contextBefore,
-      contextAfter,
+      startOffset: match.startOffset,  // Markdown offset
+      endOffset: match.endOffset,      // Markdown offset
       firstWords,
       lastWords,
       createdAt: new Date().toISOString(),
@@ -522,16 +519,16 @@ export function PageView() {
 
     // Debug logging when creating highlight
     if (highlightService.getDebugMode()) {
-      console.log('[HIGHLIGHT CREATE]', {
-        text: trimmedText,
+      console.log('[HIGHLIGHT CREATE] Markdown-first', {
+        selectedText: selectedText.substring(0, 50),
+        actualText: match.text.substring(0, 50),
+        markdownOffset: [match.startOffset, match.endOffset],
         firstWords,
         lastWords,
-        startOffset,
-        endOffset,
-        contextBefore: contextBefore.substring(Math.max(0, contextBefore.length - 30)),
-        contextAfter: contextAfter.substring(0, 30),
-        plainTextPreview: plainText.substring(Math.max(0, startOffset - 50), endOffset + 50),
-        containerHTML: contentEl.innerHTML.substring(0, 500)
+        markdownContext: page.content.substring(
+          Math.max(0, match.startOffset - 30),
+          Math.min(page.content.length, match.endOffset + 30)
+        )
       });
     }
 
@@ -546,7 +543,7 @@ export function PageView() {
         type: 'linked',
         note: '',
         highlightId: highlight.id,
-        highlightText: trimmedText,
+        highlightText: match.text,
         highlightColor: color,
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),

@@ -20,33 +20,8 @@ import crypto from 'crypto';
 import matter from 'gray-matter';
 import yaml from 'js-yaml';
 
-// Types matching the My Kanban app
-interface Highlight {
-  id: string;
-  text: string;
-  color: string;
-  style: 'highlight' | 'underline';
-  startOffset: number;
-  endOffset: number;
-  contextBefore: string;
-  contextAfter: string;
-  firstWords?: string;
-  lastWords?: string;
-  createdAt: string;
-}
-
-interface Memo {
-  id: string;
-  type: 'independent' | 'linked';
-  note: string;
-  highlightId?: string;
-  highlightText?: string;
-  highlightColor?: string;
-  tags?: string[];
-  createdAt: string;
-  updatedAt: string;
-  order: number;
-}
+// Import types from frontend (Single Source of Truth)
+import type { Highlight, Memo } from '../../src/types/page.js';
 
 interface PageFrontmatter {
   id: string;
@@ -601,18 +576,27 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         const textToFind = text.trim();
         const contentText = page.content;
 
-        // Find the first occurrence of the text
-        const startOffset = contentText.indexOf(textToFind);
+        // NEW: Find ALL occurrences (not just first)
+        const occurrences: number[] = [];
+        let searchPos = 0;
+        while (true) {
+          const foundPos = contentText.indexOf(textToFind, searchPos);
+          if (foundPos === -1) break;
+          occurrences.push(foundPos);
+          searchPos = foundPos + 1;
+        }
 
-        if (startOffset === -1) {
+        if (occurrences.length === 0) {
           throw new Error(`Text "${textToFind}" not found in page content. Make sure the text matches exactly.`);
         }
 
-        const endOffset = startOffset + textToFind.length;
+        if (occurrences.length > 1) {
+          console.warn(`[MCP] Found ${occurrences.length} occurrences of "${textToFind}". Highlighting the first one.`);
+        }
 
-        // Extract context (20 characters before and after)
-        const contextBefore = contentText.substring(Math.max(0, startOffset - 20), startOffset);
-        const contextAfter = contentText.substring(endOffset, Math.min(contentText.length, endOffset + 20));
+        // Use first occurrence
+        const startOffset = occurrences[0];
+        const endOffset = startOffset + textToFind.length;
 
         // Extract first and last words for robust matching
         const words = textToFind.split(/\s+/).filter((w: string) => w.length > 0);
@@ -624,13 +608,12 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
           text: textToFind,
           color,
           style,
-          startOffset,
-          endOffset,
-          contextBefore,
-          contextAfter,
+          startOffset,  // Markdown offset
+          endOffset,    // Markdown offset
           firstWords,
           lastWords,
           createdAt: new Date().toISOString(),
+          // DEPRECATED: contextBefore/After removed for stability
         };
 
         page.frontmatter.highlights = page.frontmatter.highlights || [];
