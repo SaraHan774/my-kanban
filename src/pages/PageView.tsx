@@ -918,16 +918,21 @@ export function PageView() {
 
     let marks: NodeListOf<HTMLElement> | null = null;
     let handlers: Array<{ enter: (e: MouseEvent) => void; leave: (e: MouseEvent) => void }> = [];
-    let rafId: number | null = null;
+    let observer: MutationObserver | null = null;
+    let isAttached = false;
 
-    // FIX: Wait for DOM to update after htmlContent changes
-    // React batches state updates, so DOM may not be ready immediately
     const attachHandlers = () => {
+      // Prevent double-attaching
+      if (isAttached) return;
+
       marks = container.querySelectorAll<HTMLElement>('mark.highlight[data-highlight-id]');
 
       if (marks.length === 0) {
-        return;
+        return false; // Signal that we need to keep waiting
       }
+
+      isAttached = true;
+      handlers = [];
 
       marks.forEach((mark) => {
         const handleMouseEnter = (_e: MouseEvent) => {
@@ -968,17 +973,40 @@ export function PageView() {
         mark.addEventListener('mouseleave', handleMouseLeave);
         handlers.push({ enter: handleMouseEnter, leave: handleMouseLeave });
       });
+
+      return true; // Successfully attached
     };
 
-    // Use requestAnimationFrame to ensure DOM is updated
-    rafId = requestAnimationFrame(() => {
-      attachHandlers();
-    });
+    // Try immediate attach (for cases where DOM is already ready)
+    const immediateSuccess = attachHandlers();
+
+    // If immediate attach failed, use MutationObserver to wait for DOM
+    if (!immediateSuccess) {
+      observer = new MutationObserver(() => {
+        const success = attachHandlers();
+        if (success && observer) {
+          observer.disconnect();
+          observer = null;
+        }
+      });
+
+      observer.observe(container, {
+        childList: true,
+        subtree: true
+      });
+
+      // Fallback: also try after a short delay
+      setTimeout(() => {
+        if (!isAttached) {
+          attachHandlers();
+        }
+      }, 100);
+    }
 
     return () => {
-      // Cancel pending animation frame
-      if (rafId !== null) {
-        cancelAnimationFrame(rafId);
+      // Disconnect observer
+      if (observer) {
+        observer.disconnect();
       }
 
       // Remove event listeners
