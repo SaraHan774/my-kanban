@@ -517,21 +517,6 @@ export function PageView() {
       createdAt: new Date().toISOString(),
     };
 
-    // Debug logging when creating highlight
-    if (highlightService.getDebugMode()) {
-      console.log('[HIGHLIGHT CREATE] Markdown-first', {
-        selectedText: selectedText.substring(0, 50),
-        actualText: match.text.substring(0, 50),
-        markdownOffset: [match.startOffset, match.endOffset],
-        firstWords,
-        lastWords,
-        markdownContext: page.content.substring(
-          Math.max(0, match.startOffset - 30),
-          Math.min(page.content.length, match.endOffset + 30)
-        )
-      });
-    }
-
     const updatedHighlights = [...(page.highlights || []), highlight];
 
     // If memo mode is active, create a linked memo
@@ -941,11 +926,8 @@ export function PageView() {
       marks = container.querySelectorAll<HTMLElement>('mark.highlight[data-highlight-id]');
 
       if (marks.length === 0) {
-        console.warn('[HIGHLIGHT HOVER] No marks found in DOM. Retrying...');
         return;
       }
-
-      console.log(`[HIGHLIGHT HOVER] Attaching handlers to ${marks.length} marks`);
 
       marks.forEach((mark) => {
         const handleMouseEnter = (_e: MouseEvent) => {

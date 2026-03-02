@@ -107,9 +107,6 @@ class HighlightService {
    */
   setDebugMode(enabled: boolean): void {
     this.debugMode = enabled;
-    if (enabled) {
-      console.log('[HIGHLIGHT DEBUG] Debug mode enabled');
-    }
   }
 
   getDebugMode(): boolean {
@@ -148,25 +145,8 @@ class HighlightService {
 
     const htmlText = tempDiv.textContent || '';
 
-    if (this.debugMode) {
-      console.log('[HIGHLIGHT RENDER] Starting highlight rendering (Markdown-first)', {
-        highlightCount: highlights.length,
-        markdownLength: markdownContent.length,
-        htmlLength: htmlText.length,
-        markdownPreview: markdownContent.substring(0, 200),
-        htmlPreview: htmlText.substring(0, 200)
-      });
-    }
-
     // Build Markdown → HTML offset mapping
     const offsetMap = this.buildMarkdownToHtmlOffsetMap(markdownContent, htmlText);
-
-    if (this.debugMode) {
-      console.log('[HIGHLIGHT RENDER] Offset map built', {
-        mappingSize: offsetMap.size,
-        sampleMappings: Array.from(offsetMap.entries()).slice(0, 10)
-      });
-    }
 
     // Process each highlight with simplified 2-tier strategy
     highlights.forEach(h => {
@@ -305,15 +285,6 @@ class HighlightService {
       }
     }
 
-    if (this.debugMode) {
-      console.log('[OFFSET MAP] Alignment complete', {
-        mappings: map.size,
-        mismatches: mismatchCount,
-        mdLength: normalizedMarkdown.length,
-        htmlLength: normalizedHtml.length
-      });
-    }
-
     return map;
   }
 
@@ -383,37 +354,14 @@ class HighlightService {
     const htmlEnd = offsetMap.get(highlight.endOffset);
 
     if (htmlStart !== undefined && htmlEnd !== undefined) {
-      if (this.debugMode) {
-        console.log('[HIGHLIGHT MATCH] ✓ Exact offset match', {
-          id: highlight.id,
-          markdownOffset: [highlight.startOffset, highlight.endOffset],
-          htmlOffset: [htmlStart, htmlEnd],
-          text: highlight.text
-        });
-      }
       this.applyHighlightToNodes(container, highlight.text, htmlStart, highlight, htmlEnd);
       return;
     }
 
     // Strategy 2: Fuzzy match using firstWords/lastWords (FALLBACK)
-    if (this.debugMode) {
-      console.log('[HIGHLIGHT MATCH] Offset mapping failed, trying fuzzy match', {
-        id: highlight.id,
-        firstWords: highlight.firstWords,
-        lastWords: highlight.lastWords
-      });
-    }
-
     const match = this.fuzzyMatchByWords(htmlText, highlight.firstWords, highlight.lastWords);
 
     if (match) {
-      if (this.debugMode) {
-        console.log('[HIGHLIGHT MATCH] ✓ Fuzzy match succeeded', {
-          id: highlight.id,
-          htmlOffset: [match.startPos, match.endPos],
-          matchedText: htmlText.substring(match.startPos, match.endPos)
-        });
-      }
       this.applyHighlightToNodes(container, highlight.text, match.startPos, highlight, match.endPos);
       return;
     }
@@ -457,50 +405,17 @@ class HighlightService {
     const normalizedFirst = normalizeWhitespace(firstWords);
     const normalizedLast = normalizeWhitespace(lastWords);
 
-    if (this.debugMode) {
-      console.log('[FUZZY MATCH] Attempting fuzzy match', {
-        textLength: normalizedText.length,
-        firstWords: normalizedFirst,
-        lastWords: normalizedLast
-      });
-    }
-
     // Strategy 1: Exact match (primary)
     let result = this.tryExactWordMatch(normalizedText, normalizedFirst, normalizedLast);
-    if (result) {
-      if (this.debugMode) {
-        console.log('[FUZZY MATCH] ✓ Exact match succeeded');
-      }
-      return result;
-    }
+    if (result) return result;
 
     // Strategy 2: Partial match (first 2 words, last 2 words)
-    if (this.debugMode) {
-      console.log('[FUZZY MATCH] Exact match failed, trying partial match');
-    }
     result = this.tryPartialWordMatch(normalizedText, normalizedFirst, normalizedLast);
-    if (result) {
-      if (this.debugMode) {
-        console.log('[FUZZY MATCH] ✓ Partial match succeeded');
-      }
-      return result;
-    }
+    if (result) return result;
 
     // Strategy 3: Single word match (first word, last word)
-    if (this.debugMode) {
-      console.log('[FUZZY MATCH] Partial match failed, trying single word match');
-    }
     result = this.trySingleWordMatch(normalizedText, normalizedFirst, normalizedLast);
-    if (result) {
-      if (this.debugMode) {
-        console.log('[FUZZY MATCH] ✓ Single word match succeeded');
-      }
-      return result;
-    }
-
-    if (this.debugMode) {
-      console.log('[FUZZY MATCH] ✗ All strategies failed');
-    }
+    if (result) return result;
 
     return null;
   }
@@ -679,26 +594,12 @@ class HighlightService {
     const cleanedText = selectedText.trim();
     if (!cleanedText) return null;
 
-    if (this.debugMode) {
-      console.log('[FIND IN MARKDOWN] Starting search', {
-        selectedText: cleanedText.substring(0, 100),
-        markdownLength: markdownContent.length
-      });
-    }
-
     // Strip markdown syntax and build offset mapping
     const { strippedText, offsetMap } = this.stripMarkdownSyntax(markdownContent);
 
     // Normalize both for matching
     const normalizedSearch = normalizeWhitespace(cleanedText);
     const normalizedStripped = normalizeWhitespace(strippedText);
-
-    if (this.debugMode) {
-      console.log('[FIND IN MARKDOWN] Normalized comparison', {
-        normalizedSearch: normalizedSearch.substring(0, 100),
-        normalizedStripped: normalizedStripped.substring(0, 200)
-      });
-    }
 
     // Find in stripped text
     const strippedIndex = normalizedStripped.indexOf(normalizedSearch);
@@ -738,15 +639,6 @@ class HighlightService {
 
     // Extract actual text from markdown
     const actualText = markdownContent.substring(startOffset, endOffset);
-
-    if (this.debugMode) {
-      console.log('[FIND IN MARKDOWN] ✓ Found and mapped', {
-        selectedText: cleanedText.substring(0, 50),
-        actualText: actualText.substring(0, 50),
-        strippedOffset: [originalStrippedStart, originalStrippedEnd],
-        markdownOffset: [startOffset, endOffset]
-      });
-    }
 
     return { text: actualText, startOffset, endOffset };
   }
@@ -827,16 +719,6 @@ class HighlightService {
 
     // Add final mapping
     offsetMap.set(stripped.length, markdown.length);
-
-    if (this.debugMode) {
-      console.log('[STRIP MARKDOWN] Syntax stripped', {
-        originalLength: markdown.length,
-        strippedLength: stripped.length,
-        mappings: offsetMap.size,
-        originalSample: markdown.substring(0, 100),
-        strippedSample: stripped.substring(0, 100)
-      });
-    }
 
     return { strippedText: stripped, offsetMap };
   }
