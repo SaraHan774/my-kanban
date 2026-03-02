@@ -42,3 +42,4 @@ references/
 src-tauri/target/
 src-tauri/gen/src/**/*.js
 src/**/*.d.ts
+src-tauri/gen/

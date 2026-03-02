@@ -931,54 +931,84 @@ export function PageView() {
     const container = contentRef.current;
     if (!container || editing || !highlightsVisible) return;
 
-    const marks = container.querySelectorAll<HTMLElement>('mark.highlight[data-highlight-id]');
-    const handlers: Array<{ enter: (e: MouseEvent) => void; leave: (e: MouseEvent) => void }> = [];
+    let marks: NodeListOf<HTMLElement> | null = null;
+    let handlers: Array<{ enter: (e: MouseEvent) => void; leave: (e: MouseEvent) => void }> = [];
+    let rafId: number | null = null;
 
-    marks.forEach((mark) => {
-      const handleMouseEnter = (_e: MouseEvent) => {
-        // Clear any pending close timeout
-        if (closeMenuTimeoutRef.current) {
-          clearTimeout(closeMenuTimeoutRef.current);
-          closeMenuTimeoutRef.current = null;
-        }
+    // FIX: Wait for DOM to update after htmlContent changes
+    // React batches state updates, so DOM may not be ready immediately
+    const attachHandlers = () => {
+      marks = container.querySelectorAll<HTMLElement>('mark.highlight[data-highlight-id]');
 
-        const highlightId = mark.getAttribute('data-highlight-id');
-        if (!highlightId) return;
+      if (marks.length === 0) {
+        console.warn('[HIGHLIGHT HOVER] No marks found in DOM. Retrying...');
+        return;
+      }
 
-        // Only reposition if this is a different highlight
-        // This prevents menu from jumping when hovering over different parts of a multi-line highlight
-        const isDifferentHighlight = hoveredHighlightId !== highlightId;
+      console.log(`[HIGHLIGHT HOVER] Attaching handlers to ${marks.length} marks`);
 
-        if (isDifferentHighlight) {
-          // For multi-line highlights, position based on the hovered mark element
-          // This ensures the menu appears close to the actual highlighted text
-          setHoverMenuRect(mark.getBoundingClientRect());
-        }
-
-        setHoveredHighlightId(highlightId);
-        setShowHoverMenu(true);
-      };
-
-      const handleMouseLeave = (_e: MouseEvent) => {
-        // Delay closing to allow mouse to move to menu
-        closeMenuTimeoutRef.current = setTimeout(() => {
-          if (!isMouseOverMenuRef.current) {
-            setShowHoverMenu(false);
-            setHoveredHighlightId(null);
+      marks.forEach((mark) => {
+        const handleMouseEnter = (_e: MouseEvent) => {
+          // Clear any pending close timeout
+          if (closeMenuTimeoutRef.current) {
+            clearTimeout(closeMenuTimeoutRef.current);
+            closeMenuTimeoutRef.current = null;
           }
-        }, 100);
-      };
 
-      mark.addEventListener('mouseenter', handleMouseEnter);
-      mark.addEventListener('mouseleave', handleMouseLeave);
-      handlers.push({ enter: handleMouseEnter, leave: handleMouseLeave });
+          const highlightId = mark.getAttribute('data-highlight-id');
+          if (!highlightId) return;
+
+          // Only reposition if this is a different highlight
+          // This prevents menu from jumping when hovering over different parts of a multi-line highlight
+          const isDifferentHighlight = hoveredHighlightId !== highlightId;
+
+          if (isDifferentHighlight) {
+            // For multi-line highlights, position based on the hovered mark element
+            // This ensures the menu appears close to the actual highlighted text
+            setHoverMenuRect(mark.getBoundingClientRect());
+          }
+
+          setHoveredHighlightId(highlightId);
+          setShowHoverMenu(true);
+        };
+
+        const handleMouseLeave = (_e: MouseEvent) => {
+          // Delay closing to allow mouse to move to menu
+          closeMenuTimeoutRef.current = setTimeout(() => {
+            if (!isMouseOverMenuRef.current) {
+              setShowHoverMenu(false);
+              setHoveredHighlightId(null);
+            }
+          }, 100);
+        };
+
+        mark.addEventListener('mouseenter', handleMouseEnter);
+        mark.addEventListener('mouseleave', handleMouseLeave);
+        handlers.push({ enter: handleMouseEnter, leave: handleMouseLeave });
+      });
+    };
+
+    // Use requestAnimationFrame to ensure DOM is updated
+    rafId = requestAnimationFrame(() => {
+      attachHandlers();
     });
 
     return () => {
-      marks.forEach((mark, index) => {
-        mark.removeEventListener('mouseenter', handlers[index].enter);
-        mark.removeEventListener('mouseleave', handlers[index].leave);
-      });
+      // Cancel pending animation frame
+      if (rafId !== null) {
+        cancelAnimationFrame(rafId);
+      }
+
+      // Remove event listeners
+      if (marks && handlers.length > 0) {
+        marks.forEach((mark, index) => {
+          if (handlers[index]) {
+            mark.removeEventListener('mouseenter', handlers[index].enter);
+            mark.removeEventListener('mouseleave', handlers[index].leave);
+          }
+        });
+      }
+
       // Clear timeout on cleanup
       if (closeMenuTimeoutRef.current) {
         clearTimeout(closeMenuTimeoutRef.current);
