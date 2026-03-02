@@ -172,7 +172,7 @@
 .editor-textarea {
   flex: 1;
   min-height: 400px;
-  padding: 1.25rem 2rem;
+  padding: 1.25rem 2rem 4rem 2rem; /* Increased bottom padding for better spacing */
   border: none;
   border-radius: 0;
   background-color: var(--bg-primary);
@@ -222,7 +222,7 @@
   left: 0;
   right: 0;
   bottom: 0;
-  padding: 1.25rem 2rem;
+  padding: 1.25rem 2rem 4rem 2rem; /* Match textarea padding */
   font-family: var(--font-sans);
   font-size: 0.875rem;
   line-height: 1.75;
