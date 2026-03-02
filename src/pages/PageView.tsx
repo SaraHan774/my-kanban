@@ -3,14 +3,16 @@ import { useParams, Link, useNavigate } from 'react-router-dom';
 import { invoke } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
 import { useStore } from '@/store/useStore';
-import { pageService, markdownService, resolveImagesInHtml, clearImageCache, fileSystemService, highlightService } from '@/services';
+import { pageService, markdownService, resolveImagesInHtml, clearImageCache, fileSystemService, highlightService, tocService } from '@/services';
 import { Page, Highlight, Memo } from '@/types';
+import { TocHeading } from '@/services/tocService';
 import { PageEditor, PageEditorHandle } from '@/components/PageEditor';
 import { FindBar } from '@/components/FindBar';
 import { ConfirmModal } from '@/components/ConfirmModal';
 import { HighlightPalette } from '@/components/HighlightPalette';
 import { HighlightHoverMenu } from '@/components/HighlightHoverMenu';
 import { MemoPanel } from '@/components/MemoPanel';
+import { TocPanel } from '@/components/TocPanel';
 import { Terminal } from '@/components/Terminal';
 import { useMermaid } from '@/hooks/useMermaid';
 import { convertWikiLinksToMarkdown } from '@/utils/wikiLinks';
@@ -57,6 +59,8 @@ export function PageView() {
   const resizeStartWidthRef = useRef(0);
   const [themeVersion, setThemeVersion] = useState(0); // Track theme changes for highlight re-rendering
   const [lastCreatedMemoId, setLastCreatedMemoId] = useState<string | null>(null);
+  const [showToc, setShowToc] = useState(false);
+  const [tocHeadings, setTocHeadings] = useState<TocHeading[]>([]);
 
   // Inline edit state for meta fields
   const [editTitle, setEditTitle] = useState('');
@@ -175,6 +179,10 @@ export function PageView() {
     html = await resolveImagesInHtml(html, pagePath);
     html = highlightService.applyHighlightsToHtml(html, highlights, highlightsVisibleRef.current);
     setHtmlContent(html);
+
+    // Extract ToC headings
+    const headings = tocService.extractHeadings(content);
+    setTocHeadings(headings);
   }, [/* pagesRef is stable */]);
 
   // Render mermaid diagrams after HTML content updates
@@ -711,6 +719,12 @@ export function PageView() {
     }
   }, []);
 
+  const handleTocClick = useCallback((headingId: string) => {
+    const element = document.getElementById(headingId);
+    if (element && scrollContainerRef.current) {
+      element.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+  }, []);
 
   const handleCopyLink = async () => {
     if (!page) return;
@@ -804,6 +818,13 @@ export function PageView() {
       if ((e.metaKey || e.ctrlKey) && e.key === 'f' && !editing) {
         e.preventDefault();
         setShowFindBar(prev => !prev);
+        return;
+      }
+
+      // Cmd+Shift+T for ToC toggle
+      if ((e.metaKey || e.ctrlKey) && e.shiftKey && e.key === 't' && !editing) {
+        e.preventDefault();
+        setShowToc(prev => !prev);
         return;
       }
 
@@ -1110,7 +1131,9 @@ export function PageView() {
   if (loading) {
     return (
       <div className="page-view">
-        <div className="loading">Loading page...</div>
+        <div className="loading-spinner-container">
+          <div className="spinner"></div>
+        </div>
       </div>
     );
   }
@@ -1172,6 +1195,13 @@ export function PageView() {
               </>
             ) : (
               <>
+                <button
+                  className="btn btn-secondary btn-icon"
+                  onClick={() => setShowToc(!showToc)}
+                  title="Table of Contents (Cmd+Shift+T)"
+                >
+                  <span className="material-symbols-outlined">toc</span>
+                </button>
                 <button
                   className="btn btn-secondary btn-icon"
                   onClick={() => setPageWidth(pageWidth === 'narrow' ? 'wide' : 'narrow')}
@@ -1431,6 +1461,12 @@ export function PageView() {
         </div>
       ) : (
       <div className="page-content-layout" onDoubleClick={startEditing}>
+        {showToc && !isImmerseMode && (
+          <TocPanel
+            headings={tocHeadings}
+            onHeadingClick={handleTocClick}
+          />
+        )}
         <div className={`document-view ${pageWidth === 'narrow' ? 'width-narrow' : ''}`}>
           {showFindBar && (
             <FindBar

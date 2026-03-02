@@ -17,6 +17,9 @@ marked.use({
   gfm: true,     // Enable GitHub Flavored Markdown
 });
 
+// Track heading IDs for collision handling (reset per render)
+let headingIdCounts = new Map<string, number>();
+
 // Configure marked with syntax highlighting + mermaid code block support
 marked.use(
   markedHighlight({
@@ -28,6 +31,12 @@ marked.use(
     }
   }),
   {
+    hooks: {
+      preprocess(markdown: string) {
+        headingIdCounts = new Map(); // Reset for each render
+        return markdown;
+      }
+    },
     renderer: {
       code(code: string, infostring: string | undefined): string | false {
         // Handle mermaid blocks (case-insensitive, trim whitespace)
@@ -37,6 +46,23 @@ marked.use(
           return `<div class="mermaid-block"><pre class="mermaid">${code}</pre></div>`;
         }
         return false; // fall through to default renderer
+      },
+      heading(text: string, level: number): string {
+        // Generate URL-safe slug from heading text
+        const slug = text
+          .toLowerCase()
+          .replace(/[^\w\s-]/g, '')  // Remove special chars
+          .replace(/\s+/g, '-')      // Spaces to hyphens
+          .replace(/-+/g, '-')       // Collapse multiple hyphens
+          .replace(/^-+|-+$/g, '')   // Trim leading/trailing hyphens
+          .trim();
+
+        // Handle duplicate headings with numeric suffix
+        const count = headingIdCounts.get(slug) || 0;
+        headingIdCounts.set(slug, count + 1);
+        const id = count > 0 ? `${slug}-${count}` : slug;
+
+        return `<h${level} id="${id}">${text}</h${level}>`;
       }
     }
   }

@@ -1,0 +1,133 @@
+/* Table of Contents Panel */
+.toc-panel {
+  width: 240px;
+  min-width: 240px;
+  max-width: 320px;
+  max-height: calc(100vh - 8rem);
+  margin-bottom: 4rem;
+  position: sticky;
+  top: 0;
+  align-self: flex-start;
+  display: flex;
+  flex-direction: column;
+  background-color: transparent;
+  border-right: 1px solid var(--border-color);
+  overflow: hidden;
+}
+
+/* Header */
+.toc-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 16px;
+  font-weight: 600;
+  font-size: 14px;
+  color: var(--text-primary);
+  background-color: transparent;
+  flex-shrink: 0;
+}
+
+.toc-header .material-symbols-outlined {
+  font-size: 20px;
+  color: var(--text-secondary);
+}
+
+/* Empty State */
+.toc-empty {
+  padding: 32px 16px;
+  text-align: center;
+  color: var(--text-secondary);
+  font-size: 14px;
+}
+
+/* List Container */
+.toc-list {
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: 8px 0;
+}
+
+/* List Items */
+.toc-item {
+  display: block;
+  width: 100%;
+  padding: 6px 16px;
+  text-align: left;
+  background: none;
+  border: none;
+  color: var(--text-primary);
+  font-size: 13px;
+  line-height: 1.4;
+  cursor: pointer;
+  transition: background-color 0.15s ease;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  border-left: 2px solid transparent;
+}
+
+.toc-item:hover {
+  background-color: var(--bg-hover);
+}
+
+.toc-item.active {
+  background-color: var(--bg-active);
+  border-left-color: var(--accent-primary);
+  font-weight: 500;
+}
+
+/* Hierarchical Indentation */
+.toc-level-1 {
+  padding-left: 16px;
+  font-weight: 500;
+  font-size: 14px;
+}
+
+.toc-level-2 {
+  padding-left: 28px;
+  font-size: 13px;
+}
+
+.toc-level-3 {
+  padding-left: 40px;
+  font-size: 13px;
+  color: var(--text-secondary);
+}
+
+.toc-level-4 {
+  padding-left: 52px;
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+
+.toc-level-5 {
+  padding-left: 64px;
+  font-size: 12px;
+  color: var(--text-tertiary);
+}
+
+.toc-level-6 {
+  padding-left: 76px;
+  font-size: 12px;
+  color: var(--text-tertiary);
+}
+
+/* Scrollbar Styling */
+.toc-list::-webkit-scrollbar {
+  width: 8px;
+}
+
+.toc-list::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.toc-list::-webkit-scrollbar-thumb {
+  background-color: var(--scrollbar-thumb);
+  border-radius: 4px;
+}
+
+.toc-list::-webkit-scrollbar-thumb:hover {
+  background-color: var(--scrollbar-thumb-hover);
+}
