@@ -1,3 +1,5 @@
+import type { Editor } from '@tiptap/core';
+
 export interface SlashCommand {
   id: string;
   key: string;
@@ -5,4 +7,5 @@ export interface SlashCommand {
   icon: string;
   insert: string;
   cursorOffset?: number;
+  action?: (editor: Editor) => void;
 }

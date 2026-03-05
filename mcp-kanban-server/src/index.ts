@@ -4,7 +4,8 @@
  * MCP Server for My Kanban
  *
  * Provides tools for Claude to interact with highlights and memos
- * stored in markdown files' YAML frontmatter.
+ * stored in markdown files. Highlights are stored inline as <mark> tags
+ * in the content (not in YAML frontmatter).
  */
 
 import { Server } from '@modelcontextprotocol/sdk/server/index.js';
@@ -36,18 +37,62 @@ interface PageFrontmatter {
   googleCalendarEventId?: string;
   pinned?: boolean;
   pinnedAt?: string;
-  highlights?: Highlight[];
   memos?: Memo[];
 }
 
 // Workspace path - configurable via environment variable
 const WORKSPACE_PATH = process.env.KANBAN_WORKSPACE || path.join(process.cwd(), '../workspace');
 
+// ── Highlight helpers (inline <mark> tags) ─────────────────────────
+
+/** Parse highlights from content by extracting <mark> tags */
+function parseHighlightsFromContent(content: string): Array<{ id: string; text: string; color: string; style: string; createdAt?: string }> {
+  const highlights: Array<{ id: string; text: string; color: string; style: string; createdAt?: string }> = [];
+  const markRegex = /<mark\s+data-highlight-id="([^"]*)"(?:\s+data-highlight-color="([^"]*)")?(?:\s+data-highlight-style="([^"]*)")?(?:\s+data-highlight-created="([^"]*)")?>([\s\S]*?)<\/mark>/g;
+  let match;
+  while ((match = markRegex.exec(content)) !== null) {
+    highlights.push({
+      id: match[1],
+      text: match[5],
+      color: match[2] || '#FFEB3B',
+      style: match[3] || 'highlight',
+      createdAt: match[4],
+    });
+  }
+  return highlights;
+}
+
+/** Insert a <mark> tag around the first occurrence of `text` in `content` */
+function insertHighlightTag(content: string, text: string, id: string, color: string, style: string): string {
+  const index = content.indexOf(text);
+  if (index === -1) throw new Error(`Text "${text}" not found in page content.`);
+
+  const markOpen = `<mark data-highlight-id="${id}" data-highlight-color="${color}" data-highlight-style="${style}" data-highlight-created="${new Date().toISOString()}">`;
+  const markClose = '</mark>';
+
+  return content.substring(0, index) + markOpen + text + markClose + content.substring(index + text.length);
+}
+
+/** Remove a <mark> tag by highlight ID, keeping the inner text */
+function removeHighlightTag(content: string, highlightId: string): string {
+  const regex = new RegExp(
+    `<mark\\s+data-highlight-id="${highlightId}"[^>]*>([\\s\\S]*?)<\\/mark>`,
+    'g'
+  );
+  const newContent = content.replace(regex, '$1');
+  if (newContent === content) {
+    throw new Error(`Highlight with ID ${highlightId} not found in content`);
+  }
+  return newContent;
+}
+
+// ── Page I/O helpers ───────────────────────────────────────────────
+
 // Helper: Read a page file
 async function readPage(filename: string) {
   const filePath = path.join(WORKSPACE_PATH, filename);
-  const content = await fs.readFile(filePath, 'utf-8');
-  const parsed = matter(content);
+  const rawContent = await fs.readFile(filePath, 'utf-8');
+  const parsed = matter(rawContent);
   return {
     frontmatter: normalizeFrontmatter(parsed.data),
     content: parsed.content.trim(),
@@ -60,10 +105,6 @@ async function writePage(filename: string, frontmatter: PageFrontmatter, content
   const filePath = path.join(WORKSPACE_PATH, filename);
   frontmatter.updatedAt = new Date().toISOString();
 
-  console.error(`[DEBUG] writePage called for: ${filename}`);
-  console.error(`[DEBUG] Content length: ${content.length}`);
-  console.error(`[DEBUG] Content preview (first 100 chars): ${content.substring(0, 100)}`);
-
   // Use same YAML options as markdownService.serialize
   const yamlStr = yaml.dump(frontmatter, {
     lineWidth: -1,
@@ -72,15 +113,7 @@ async function writePage(filename: string, frontmatter: PageFrontmatter, content
   });
   const fileContent = `---\n${yamlStr}---\n${content}\n`;
 
-  console.error(`[DEBUG] Full file content length: ${fileContent.length}`);
-  console.error(`[DEBUG] Writing to path: ${filePath}`);
-
   await fs.writeFile(filePath, fileContent, 'utf-8');
-
-  console.error(`[DEBUG] Write complete, verifying...`);
-  const verification = await fs.readFile(filePath, 'utf-8');
-  console.error(`[DEBUG] Verification read length: ${verification.length}`);
-  console.error(`[DEBUG] Verification content preview: ${verification.substring(0, 200)}`);
 }
 
 // Helper: List all markdown files
@@ -102,7 +135,7 @@ function sanitizeFileName(name: string): string {
     .trim();
 }
 
-// Helper: Normalize frontmatter (matching markdownService.normalizeFrontmatter)
+// Helper: Normalize frontmatter (highlights no longer in frontmatter)
 function normalizeFrontmatter(data: any): PageFrontmatter {
   const now = new Date().toISOString();
 
@@ -119,7 +152,6 @@ function normalizeFrontmatter(data: any): PageFrontmatter {
     ...(data.googleCalendarEventId && { googleCalendarEventId: data.googleCalendarEventId }),
     ...(data.pinned !== undefined && { pinned: data.pinned }),
     ...(data.pinnedAt && { pinnedAt: data.pinnedAt }),
-    highlights: Array.isArray(data.highlights) ? data.highlights : [],
     memos: Array.isArray(data.memos) ? data.memos : []
   };
 }
@@ -180,7 +212,7 @@ const tools: Tool[] = [
   },
   {
     name: 'read_page',
-    description: 'Read a specific page including all highlights and memos',
+    description: 'Read a specific page including all highlights (inline <mark> tags) and memos',
     inputSchema: {
       type: 'object',
       properties: {
@@ -243,7 +275,7 @@ const tools: Tool[] = [
   },
   {
     name: 'add_highlight',
-    description: 'Add a new highlight to a page. The text will be automatically located in the content and offsets will be calculated.',
+    description: 'Add a new highlight to a page. Inserts an inline <mark> tag around the specified text in the content.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -329,7 +361,7 @@ const tools: Tool[] = [
   },
   {
     name: 'delete_highlight',
-    description: 'Delete a highlight from a page',
+    description: 'Delete a highlight from a page (removes <mark> tag, keeps the text)',
     inputSchema: {
       type: 'object',
       properties: {
@@ -403,12 +435,13 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         const pages = await Promise.all(
           files.map(async (filename) => {
             const page = await readPage(filename);
+            const inlineHighlights = parseHighlightsFromContent(page.content);
             return {
               filename,
               title: page.frontmatter.title,
               kanbanColumn: page.frontmatter.kanbanColumn || '(no column)',
               createdAt: page.frontmatter.createdAt,
-              highlights: page.frontmatter.highlights?.length || 0,
+              highlights: inlineHighlights.length,
               memos: page.frontmatter.memos?.length || 0,
               viewType: page.frontmatter.viewType,
             };
@@ -437,17 +470,16 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
           throw new Error(`File "${filename}" already exists. Use a different title.`);
         }
 
-        // Create frontmatter (matching pageService.createPage structure)
+        // Create frontmatter (no highlights — they're inline in content)
         const frontmatter: PageFrontmatter = {
-          id: generateId(), // Now uses crypto.randomUUID()
+          id: generateId(),
           title,
-          tags: [], // Always empty - tags not added via MCP
+          tags: [],
           createdAt: new Date().toISOString(),
           updatedAt: new Date().toISOString(),
           viewType,
-          kanbanColumn, // Required field
-          ...(parentId && { parentId }), // Only include if defined
-          highlights: [],
+          kanbanColumn,
+          ...(parentId && { parentId }),
           memos: [],
         };
 
@@ -467,6 +499,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       case 'read_page': {
         const { filename } = args as { filename: string };
         const page = await readPage(filename);
+        const inlineHighlights = parseHighlightsFromContent(page.content);
         return {
           content: [
             {
@@ -475,6 +508,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
                 {
                   frontmatter: page.frontmatter,
                   content: page.content,
+                  highlights: inlineHighlights,
                 },
                 null,
                 2
@@ -486,25 +520,12 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
 
       case 'update_page_content': {
         const { filename, content, append = false } = args as any;
-
-        console.error(`[DEBUG] update_page_content called`);
-        console.error(`[DEBUG] filename: ${filename}`);
-        console.error(`[DEBUG] append: ${append}`);
-        console.error(`[DEBUG] received content length: ${content?.length || 0}`);
-        console.error(`[DEBUG] received content preview: ${content?.substring(0, 100) || '(empty)'}`);
-
         const page = await readPage(filename);
-
-        console.error(`[DEBUG] read existing content length: ${page.content.length}`);
-        console.error(`[DEBUG] read existing content: ${page.content}`);
 
         // Update content (append or replace)
         const newContent = append
           ? `${page.content}\n\n${content}`.trim()
           : content;
-
-        console.error(`[DEBUG] newContent length: ${newContent.length}`);
-        console.error(`[DEBUG] newContent preview: ${newContent.substring(0, 100)}`);
 
         // Write back with updated content, preserving frontmatter
         await writePage(filename, page.frontmatter, newContent);
@@ -535,15 +556,12 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         let newContent: string;
         switch (mode) {
           case 'replace':
-            // Replace the search text with the new text
             newContent = page.content.substring(0, index) + replace + page.content.substring(index + searchText.length);
             break;
           case 'insert_before':
-            // Insert before the search text
             newContent = page.content.substring(0, index) + replace + '\n\n' + page.content.substring(index);
             break;
           case 'insert_after':
-            // Insert after the search text
             newContent = page.content.substring(0, index + searchText.length) + '\n\n' + replace + page.content.substring(index + searchText.length);
             break;
           default:
@@ -566,66 +584,24 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         const {
           filename,
           text,
-          color = '#FFEB3B', // Default to yellow
-          style = 'highlight', // Default to highlight style
+          color = '#FFEB3B',
+          style = 'highlight',
         } = args as any;
 
         const page = await readPage(filename);
-
-        // Automatically find the text in the content and calculate offsets
         const textToFind = text.trim();
-        const contentText = page.content;
 
-        // NEW: Find ALL occurrences (not just first)
-        const occurrences: number[] = [];
-        let searchPos = 0;
-        while (true) {
-          const foundPos = contentText.indexOf(textToFind, searchPos);
-          if (foundPos === -1) break;
-          occurrences.push(foundPos);
-          searchPos = foundPos + 1;
-        }
+        // Insert <mark> tag inline in content
+        const highlightId = generateId();
+        const newContent = insertHighlightTag(page.content, textToFind, highlightId, color, style);
 
-        if (occurrences.length === 0) {
-          throw new Error(`Text "${textToFind}" not found in page content. Make sure the text matches exactly.`);
-        }
-
-        if (occurrences.length > 1) {
-          console.warn(`[MCP] Found ${occurrences.length} occurrences of "${textToFind}". Highlighting the first one.`);
-        }
-
-        // Use first occurrence
-        const startOffset = occurrences[0];
-        const endOffset = startOffset + textToFind.length;
-
-        // Extract first and last words for robust matching
-        const words = textToFind.split(/\s+/).filter((w: string) => w.length > 0);
-        const firstWords = words.slice(0, 3).join(' '); // First 3 words
-        const lastWords = words.slice(-3).join(' '); // Last 3 words
-
-        const highlight: Highlight = {
-          id: generateId(),
-          text: textToFind,
-          color,
-          style,
-          startOffset,  // Markdown offset
-          endOffset,    // Markdown offset
-          firstWords,
-          lastWords,
-          createdAt: new Date().toISOString(),
-          // DEPRECATED: contextBefore/After removed for stability
-        };
-
-        page.frontmatter.highlights = page.frontmatter.highlights || [];
-        page.frontmatter.highlights.push(highlight);
-
-        await writePage(filename, page.frontmatter, page.content);
+        await writePage(filename, page.frontmatter, newContent);
 
         return {
           content: [
             {
               type: 'text',
-              text: `Highlight added successfully. ID: ${highlight.id}, Text: "${textToFind}", Position: ${startOffset}-${endOffset}`,
+              text: `Highlight added successfully. ID: ${highlightId}, Text: "${textToFind}"`,
             },
           ],
         };
@@ -636,13 +612,14 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
 
         const page = await readPage(filename);
 
-        // If linked memo, find the highlight
+        // If linked memo, find the highlight in content
         let highlightText: string | undefined;
         let highlightColor: string | undefined;
         if (type === 'linked' && highlightId) {
-          const highlight = page.frontmatter.highlights?.find(h => h.id === highlightId);
+          const inlineHighlights = parseHighlightsFromContent(page.content);
+          const highlight = inlineHighlights.find(h => h.id === highlightId);
           if (!highlight) {
-            throw new Error(`Highlight with ID ${highlightId} not found`);
+            throw new Error(`Highlight with ID ${highlightId} not found in content`);
           }
           highlightText = highlight.text;
           highlightColor = highlight.color;
@@ -708,16 +685,11 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         const { filename, highlightId } = args as { filename: string; highlightId: string };
 
         const page = await readPage(filename);
-        const initialLength = page.frontmatter.highlights?.length || 0;
-        page.frontmatter.highlights = page.frontmatter.highlights?.filter(
-          h => h.id !== highlightId
-        );
 
-        if ((page.frontmatter.highlights?.length || 0) === initialLength) {
-          throw new Error(`Highlight with ID ${highlightId} not found`);
-        }
+        // Remove <mark> tag from content, keeping inner text
+        const newContent = removeHighlightTag(page.content, highlightId);
 
-        await writePage(filename, page.frontmatter, page.content);
+        await writePage(filename, page.frontmatter, newContent);
 
         return {
           content: [

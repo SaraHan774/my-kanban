@@ -3,7 +3,7 @@
  * High-level service for managing pages (CRUD operations)
  */
 
-import { Page, PageFrontmatter, FilterCriteria, SortOptions } from '@/types';
+import { Page, PageFrontmatter, Highlight, FilterCriteria, SortOptions } from '@/types';
 import { fileSystemService } from './fileSystemFactory';
 import { markdownService } from './markdown';
 
@@ -17,11 +17,166 @@ export class PageService {
     const content = await fileSystemService.readFile(path);
     const rawData = markdownService.parse(content, path);
 
+    // Extract legacy highlights for migration (stored in frontmatter before inline migration)
+    const { _legacyHighlights, ...frontmatter } = rawData.frontmatter as any;
+
+    // Determine highlights that need migration to inline <mark> tags
+    let highlightsToMigrate: Highlight[] = [];
+
+    // Source 1: Legacy frontmatter highlights
+    if (_legacyHighlights?.length > 0) {
+      highlightsToMigrate = _legacyHighlights;
+    }
+
+    // Source 2: Reconstruct from linked memos (fallback when highlights were lost from frontmatter)
+    if (highlightsToMigrate.length === 0 && frontmatter.memos?.length > 0) {
+      const linkedMemos = frontmatter.memos.filter(
+        (m: any) => m.type === 'linked' && m.highlightText && m.highlightId
+      );
+      if (linkedMemos.length > 0) {
+        // Only reconstruct if content doesn't already have <mark> tags for these
+        const contentHasMarks = linkedMemos.some(
+          (m: any) => rawData.content.includes(`data-highlight-id="${m.highlightId}"`)
+        );
+        if (!contentHasMarks) {
+          highlightsToMigrate = linkedMemos.map((m: any) => ({
+            id: m.highlightId,
+            text: m.highlightText,
+            color: m.highlightColor || '#FFEB3B',
+            style: 'highlight' as const,
+            createdAt: m.createdAt,
+          }));
+        }
+      }
+    }
+
+    // FILE-LEVEL MIGRATION: Insert <mark> tags directly into markdown content
+    let migratedContent = rawData.content;
+    if (highlightsToMigrate.length > 0) {
+      const result = this.migrateHighlightsToContent(migratedContent, highlightsToMigrate);
+      if (result.migrated) {
+        migratedContent = result.content;
+        // Write back the migrated file immediately (remove highlights from frontmatter too)
+        const cleanFrontmatter: PageFrontmatter = { ...frontmatter };
+        const markdown = markdownService.serialize(cleanFrontmatter, migratedContent);
+        await fileSystemService.writeFile(path, markdown);
+      }
+    }
+
     return {
-      ...rawData.frontmatter,
+      ...frontmatter,
       path,
-      content: rawData.content
+      content: migratedContent,
     };
+  }
+
+  /**
+   * Migrate highlights by inserting <mark> tags directly into markdown content.
+   * Handles markdown escape differences (e.g., \~ in raw markdown vs ~ in highlight text).
+   * @private
+   */
+  private migrateHighlightsToContent(
+    content: string,
+    highlights: Highlight[]
+  ): { content: string; migrated: boolean } {
+    let result = content;
+    let anyMigrated = false;
+
+    for (const h of highlights) {
+      if (!h.text || !h.id) continue;
+
+      // Skip if already migrated
+      if (result.includes(`data-highlight-id="${h.id}"`)) continue;
+
+      const markOpen = `<mark data-highlight-id="${h.id}" data-highlight-color="${h.color || '#FFEB3B'}" data-highlight-style="${h.style || 'highlight'}"${h.createdAt ? ` data-highlight-created="${h.createdAt}"` : ''}>`;
+      const markClose = '</mark>';
+
+      // Try exact match first
+      let idx = result.indexOf(h.text);
+
+      if (idx === -1) {
+        // Try escape-aware matching: the raw markdown may have backslash-escaped chars
+        // Common escapes in markdown: \~ \* \_ \` \[ \] \( \) \# \+ \- \. \! \| \{ \} \> \\
+        idx = this.findEscapeAwareMatch(result, h.text);
+      }
+
+      if (idx !== -1) {
+        // Find the actual matched text in content (may include backslash escapes)
+        const matchedText = this.getEscapeAwareSlice(result, h.text, idx);
+        result = result.substring(0, idx) + markOpen + matchedText + markClose + result.substring(idx + matchedText.length);
+        anyMigrated = true;
+      }
+    }
+
+    return { content: result, migrated: anyMigrated };
+  }
+
+  /**
+   * Find text in content accounting for markdown backslash escapes.
+   * For example, searching for "1~2회" should match "1\~2회" in content.
+   * @private
+   */
+  private findEscapeAwareMatch(content: string, searchText: string): number {
+    // Build a regex pattern that allows optional backslash before escapable chars
+    const escapableChars = /[~*_`\[\]()#+\-.!|{}\\>]/;
+    let pattern = '';
+    for (const ch of searchText) {
+      if (escapableChars.test(ch)) {
+        // Allow optional backslash before this character
+        pattern += '\\\\?' + this.escapeRegex(ch);
+      } else {
+        pattern += this.escapeRegex(ch);
+      }
+    }
+
+    try {
+      const regex = new RegExp(pattern);
+      const match = content.match(regex);
+      if (match && match.index !== undefined) {
+        return match.index;
+      }
+    } catch {
+      // Regex construction failed — skip
+    }
+
+    return -1;
+  }
+
+  /**
+   * Get the actual slice of content that matches the highlight text,
+   * accounting for backslash escapes.
+   * @private
+   */
+  private getEscapeAwareSlice(content: string, searchText: string, startIdx: number): string {
+    const escapableChars = /[~*_`\[\]()#+\-.!|{}\\>]/;
+    let pattern = '';
+    for (const ch of searchText) {
+      if (escapableChars.test(ch)) {
+        pattern += '\\\\?' + this.escapeRegex(ch);
+      } else {
+        pattern += this.escapeRegex(ch);
+      }
+    }
+
+    try {
+      const regex = new RegExp(pattern);
+      const match = content.substring(startIdx).match(regex);
+      if (match) {
+        return match[0];
+      }
+    } catch {
+      // fallback to searchText length
+    }
+
+    return content.substring(startIdx, startIdx + searchText.length);
+  }
+
+  /**
+   * Escape a character for use in regex.
+   * @private
+   */
+  private escapeRegex(ch: string): string {
+    return ch.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
   }
 
   /**
@@ -119,7 +274,6 @@ export class PageService {
       ...(page.googleCalendarEventId && { googleCalendarEventId: page.googleCalendarEventId }),
       ...(page.pinned !== undefined && { pinned: page.pinned }),
       ...(page.pinnedAt && { pinnedAt: page.pinnedAt }),
-      highlights: page.highlights || [],
       memos: page.memos || []
     };
 
@@ -167,7 +321,6 @@ export class PageService {
       ...(page.googleCalendarEventId && { googleCalendarEventId: page.googleCalendarEventId }),
       ...(page.pinned !== undefined && { pinned: page.pinned }),
       ...(page.pinnedAt && { pinnedAt: page.pinnedAt }),
-      highlights: page.highlights || [],
       memos: page.memos || []
     };
 

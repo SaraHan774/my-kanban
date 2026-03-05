@@ -12,6 +12,7 @@ const SANS_FONT_OPTIONS = [
   { value: 'Pretendard', label: 'Pretendard' },
   { value: 'Noto Sans', label: 'Noto Sans' },
   { value: 'Noto Sans KR', label: 'Noto Sans KR' },
+  { value: 'Noto Serif KR', label: 'Noto Serif KR' },
   { value: 'Source Sans Pro', label: 'Source Sans Pro' },
   { value: 'Roboto', label: 'Roboto' },
   { value: 'Open Sans', label: 'Open Sans' },
@@ -49,6 +50,7 @@ export function Settings() {
     highlightColors, setHighlightColors,
     pageWidth, setPageWidth,
     git: gitSettings, setGitSettings,
+    useWYSIWYG, setUseWYSIWYG,
   } = useStore();
   const [editingId, setEditingId] = useState<string | null>(null);
   const [isAdding, setIsAdding] = useState(false);
@@ -842,6 +844,60 @@ export function Settings() {
                 }}
               >
                 Wide
+              </button>
+            </div>
+          </div>
+
+          {/* WYSIWYG Editor (Phase 0 Testing) */}
+          <div style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            padding: '0.75rem 1rem',
+            background: 'var(--bg-secondary)',
+            borderRadius: '6px',
+            border: '1px solid var(--border)',
+          }}>
+            <div>
+              <div style={{ fontSize: '0.875rem', fontWeight: 500, color: 'var(--text-primary)' }}>
+                WYSIWYG Editor (Experimental)
+              </div>
+              <div style={{ fontSize: '0.75rem', color: 'var(--text-tertiary)', marginTop: '0.125rem' }}>
+                Enable Notion-like WYSIWYG editing (Phase 0 - Testing)
+              </div>
+            </div>
+            <div style={{ display: 'flex', gap: '0.5rem' }}>
+              <button
+                onClick={() => setUseWYSIWYG(false)}
+                style={{
+                  padding: '0.375rem 0.75rem',
+                  fontSize: '0.8125rem',
+                  fontWeight: 500,
+                  background: !useWYSIWYG ? 'var(--accent-primary)' : 'transparent',
+                  color: !useWYSIWYG ? 'white' : 'var(--text-secondary)',
+                  border: `1px solid ${!useWYSIWYG ? 'var(--accent-primary)' : 'var(--border)'}`,
+                  borderRadius: '4px',
+                  cursor: 'pointer',
+                  transition: 'all 0.15s ease',
+                }}
+              >
+                Classic
+              </button>
+              <button
+                onClick={() => setUseWYSIWYG(true)}
+                style={{
+                  padding: '0.375rem 0.75rem',
+                  fontSize: '0.8125rem',
+                  fontWeight: 500,
+                  background: useWYSIWYG ? 'var(--accent-primary)' : 'transparent',
+                  color: useWYSIWYG ? 'white' : 'var(--text-secondary)',
+                  border: `1px solid ${useWYSIWYG ? 'var(--accent-primary)' : 'var(--border)'}`,
+                  borderRadius: '4px',
+                  cursor: 'pointer',
+                  transition: 'all 0.15s ease',
+                }}
+              >
+                WYSIWYG
               </button>
             </div>
           </div>

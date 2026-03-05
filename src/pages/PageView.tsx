@@ -1,68 +1,47 @@
 import { useEffect, useMemo, useState, useRef, useCallback } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
-import { invoke } from '@tauri-apps/api/core';
-import { listen } from '@tauri-apps/api/event';
 import { useStore } from '@/store/useStore';
-import { pageService, markdownService, resolveImagesInHtml, clearImageCache, fileSystemService, highlightService, tocService } from '@/services';
-import { Page, Highlight, Memo } from '@/types';
-import { TocHeading } from '@/services/tocService';
-import { PageEditor, PageEditorHandle } from '@/components/PageEditor';
+import { pageService } from '@/services';
+import TiptapEditor from '@/components/TiptapEditor';
 import { FindBar } from '@/components/FindBar';
 import { ConfirmModal } from '@/components/ConfirmModal';
-import { HighlightPalette } from '@/components/HighlightPalette';
-import { HighlightHoverMenu } from '@/components/HighlightHoverMenu';
 import { MemoPanel } from '@/components/MemoPanel';
 import { TocPanel } from '@/components/TocPanel';
 import { Terminal } from '@/components/Terminal';
-import { useMermaid } from '@/hooks/useMermaid';
-import { convertWikiLinksToMarkdown } from '@/utils/wikiLinks';
+import { usePageSync } from '@/hooks/usePageSync';
+import { useHighlightManager } from '@/hooks/useHighlightManager';
 import { openExternalUrl } from '@/lib/openExternal';
 import './PageView.css';
-
-// Tauri imports for file watching
-const isTauri = '__TAURI_INTERNALS__' in window;
 
 const DEFAULT_PALETTE = ['#3b82f6', '#f59e0b', '#22c55e', '#ef4444', '#8b5cf6', '#ec4899', '#14b8a6', '#f97316'];
 
 export function PageView() {
   const { pageId } = useParams<{ pageId: string }>();
   const navigate = useNavigate();
-  const { pages, removePage, updatePageInStore, columnColors, showToast, highlightColors, config, isImmerseMode, setIsImmerseMode, pageWidth, setPageWidth } = useStore();
-  const [page, setPage] = useState<Page | null>(null);
-  const [htmlContent, setHtmlContent] = useState<string>('');
-  const [loading, setLoading] = useState(true);
-  const [editing, setEditing] = useState(false);
-  const contentRef = useRef<HTMLDivElement>(null);
+  const {
+    pages, removePage, updatePageInStore, columnColors, showToast,
+    highlightColors, config, isImmerseMode, setIsImmerseMode,
+    pageWidth, setPageWidth, slashCommands,
+  } = useStore();
+
+  // ── UI State ──────────────────────────────────────────────────────
   const scrollContainerRef = useRef<HTMLDivElement>(null);
-  const editorRef = useRef<PageEditorHandle | null>(null);
-  const [editorPreview, setEditorPreview] = useState(false);
-  const [editorSaving, setEditorSaving] = useState(false);
+  const editorContainerRef = useRef<HTMLDivElement>(null);
   const [showFindBar, setShowFindBar] = useState(false);
-  const [zoomedDiagram, setZoomedDiagram] = useState<string | null>(null);
-  const [showScrollTop, setShowScrollTop] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
-  const [showHighlightPalette, setShowHighlightPalette] = useState(false);
-  const [paletteRect, setPaletteRect] = useState<DOMRect | null>(null);
-  const [highlightsVisible, setHighlightsVisible] = useState(true);
-  const selectedRangeRef = useRef<Range | null>(null);
-  const [showHoverMenu, setShowHoverMenu] = useState(false);
-  const [hoverMenuRect, setHoverMenuRect] = useState<DOMRect | null>(null);
-  const [hoveredHighlightId, setHoveredHighlightId] = useState<string | null>(null);
-  const isMouseOverMenuRef = useRef(false);
-  const closeMenuTimeoutRef = useRef<NodeJS.Timeout | null>(null);
-  const mousePositionRef = useRef({ x: 0, y: 0 });
   const [showTerminal, setShowTerminal] = useState(false);
   const [showPageMenu, setShowPageMenu] = useState(false);
   const pageMenuRef = useRef<HTMLDivElement>(null);
+  const [showToc, setShowToc] = useState(false);
+  const [showScrollTop, setShowScrollTop] = useState(false);
+
+  // Memo state
   const [memoMode, setMemoMode] = useState(false);
   const [memoPanelWidth, setMemoPanelWidth] = useState(400);
   const isResizingRef = useRef(false);
   const resizeStartXRef = useRef(0);
   const resizeStartWidthRef = useRef(0);
-  const [themeVersion, setThemeVersion] = useState(0); // Track theme changes for highlight re-rendering
   const [lastCreatedMemoId, setLastCreatedMemoId] = useState<string | null>(null);
-  const [showToc, setShowToc] = useState(false);
-  const [tocHeadings, setTocHeadings] = useState<TocHeading[]>([]);
 
   // Inline edit state for meta fields
   const [editTitle, setEditTitle] = useState('');
@@ -72,32 +51,48 @@ export function PageView() {
   const [showTagSuggestions, setShowTagSuggestions] = useState(false);
   const [newColumnInput, setNewColumnInput] = useState('');
 
-  // Refs to always access latest values without adding to callback deps
-  const pagesRef = useRef(pages);
-  pagesRef.current = pages;
-  const highlightsVisibleRef = useRef(highlightsVisible);
-  highlightsVisibleRef.current = highlightsVisible;
+  // ── Highlight Manager ─────────────────────────────────────────────
+  const {
+    highlightsVisible,
+    editorRef,
+    handleEditorReady: onEditorReady,
+    toggleHighlightsVisibility,
+  } = useHighlightManager();
 
+  // ── Editor state: cache on every change so saves never need a live editor ──
+  const cachedEditorStateRef = useRef<{ content: string } | null>(null);
+
+  const getEditorState = useCallback(() => {
+    const editor = editorRef.current;
+    if (editor && !editor.isDestroyed) {
+      // @ts-ignore - tiptap-markdown adds this to storage
+      const md = editor.storage.markdown.getMarkdown() as string;
+      cachedEditorStateRef.current = { content: md };
+      return cachedEditorStateRef.current;
+    }
+    // Editor destroyed (unmount) or not ready — use last cached state
+    return cachedEditorStateRef.current;
+  }, [editorRef]);
+
+  // ── Page Sync (autosave) ──────────────────────────────────────────
+  const {
+    page, loading, content, setContent, saveNow, markDirty, setPage, tocHeadings,
+  } = usePageSync({
+    pageId, pages,
+    onUpdate: updatePageInStore,
+    onToast: showToast,
+    getEditorState,
+  });
+
+  // ── Derived data ──────────────────────────────────────────────────
   const existingColumns = useMemo(
     () => Array.from(new Set(pages.map(p => p.kanbanColumn).filter(Boolean) as string[])),
     [pages]
   );
-
-  // Create a stable color mapping based on alphabetically sorted columns
   const sortedColumnNames = useMemo(
     () => [...existingColumns].sort((a, b) => a.toLowerCase().localeCompare(b.toLowerCase())),
     [existingColumns]
   );
-
-  const startEditing = () => {
-    if (page) {
-      setEditTitle(page.title);
-    }
-    setEditorPreview(false);
-    setEditorSaving(false);
-    setEditing(true);
-  };
-
   const getColColor = useCallback((col: string) => {
     const customColor = columnColors[col.toLowerCase()];
     if (customColor) return customColor;
@@ -105,7 +100,6 @@ export function PageView() {
     return DEFAULT_PALETTE[stableIndex % DEFAULT_PALETTE.length];
   }, [columnColors, sortedColumnNames]);
 
-  // Compute all unique tags across pages for autocomplete
   const allTags = useMemo(() => Array.from(new Set(pages.flatMap(p => p.tags))), [pages]);
   const filteredSuggestions = useMemo(
     () => allTags.filter(
@@ -113,6 +107,41 @@ export function PageView() {
     ).slice(0, 8),
     [allTags, page?.tags, tagInput]
   );
+
+  // ── Content change handler ────────────────────────────────────────
+  const handleContentChange = useCallback((markdown: string) => {
+    // Eagerly cache editor state so saves work even after editor is destroyed
+    cachedEditorStateRef.current = { content: markdown };
+    setContent(markdown);
+  }, [setContent]);
+
+  // Editor ready handler — no migration needed, file-level migration handles it
+  const handleEditorReady = useCallback((editor: any) => {
+    onEditorReady(editor);
+  }, [onEditorReady]);
+
+  // Sync editTitle when page loads/changes
+  useEffect(() => {
+    if (page) setEditTitle(page.title);
+  }, [page?.id]);
+
+  // ── Metadata handlers (immediate save for meta fields) ────────────
+  const handleTitleSave = useCallback(async () => {
+    if (!page || editTitle.trim() === page.title) return;
+    const newTitle = editTitle.trim() || 'Untitled';
+    const updatedPage = { ...page, title: newTitle, updatedAt: new Date().toISOString() };
+    setPage(updatedPage);
+    updatePageInStore(updatedPage);
+    try { await pageService.updatePage(updatedPage); } catch (err) { console.error('Failed to save title:', err); }
+  }, [page, editTitle, updatePageInStore, setPage]);
+
+  const handleColumnChange = useCallback(async (newColumn: string) => {
+    if (!page) return;
+    const updatedPage = { ...page, kanbanColumn: newColumn || undefined, updatedAt: new Date().toISOString() };
+    setPage(updatedPage);
+    updatePageInStore(updatedPage);
+    try { await pageService.updatePage(updatedPage); } catch (err) { console.error('Failed to save column:', err); }
+  }, [page, updatePageInStore, setPage]);
 
   const handleAddTag = useCallback(async (tag: string) => {
     if (!page || page.tags.includes(tag)) return;
@@ -122,12 +151,8 @@ export function PageView() {
     updatePageInStore(updatedPage);
     setTagInput('');
     setShowTagSuggestions(false);
-    try {
-      await pageService.updatePage(updatedPage);
-    } catch (err) {
-      console.error('Failed to save tag:', err);
-    }
-  }, [page, updatePageInStore]);
+    try { await pageService.updatePage(updatedPage); } catch (err) { console.error('Failed to save tag:', err); }
+  }, [page, updatePageInStore, setPage]);
 
   const handleRemoveTag = useCallback(async (tag: string) => {
     if (!page) return;
@@ -135,36 +160,16 @@ export function PageView() {
     const updatedPage = { ...page, tags: newTags, updatedAt: new Date().toISOString() };
     setPage(updatedPage);
     updatePageInStore(updatedPage);
-    try {
-      await pageService.updatePage(updatedPage);
-    } catch (err) {
-      console.error('Failed to save tag:', err);
-    }
-  }, [page, updatePageInStore]);
-
-  const handleColumnChange = useCallback(async (newColumn: string) => {
-    if (!page) return;
-    const updatedPage = { ...page, kanbanColumn: newColumn || undefined, updatedAt: new Date().toISOString() };
-    setPage(updatedPage);
-    updatePageInStore(updatedPage);
-    try {
-      await pageService.updatePage(updatedPage);
-    } catch (err) {
-      console.error('Failed to save column:', err);
-    }
-  }, [page, updatePageInStore]);
+    try { await pageService.updatePage(updatedPage); } catch (err) { console.error('Failed to save tag:', err); }
+  }, [page, updatePageInStore, setPage]);
 
   const handleDueDateChange = useCallback(async (newDate: string) => {
     if (!page) return;
     const updatedPage = { ...page, dueDate: newDate ? new Date(newDate).toISOString() : undefined, updatedAt: new Date().toISOString() };
     setPage(updatedPage);
     updatePageInStore(updatedPage);
-    try {
-      await pageService.updatePage(updatedPage);
-    } catch (err) {
-      console.error('Failed to save due date:', err);
-    }
-  }, [page, updatePageInStore]);
+    try { await pageService.updatePage(updatedPage); } catch (err) { console.error('Failed to save due date:', err); }
+  }, [page, updatePageInStore, setPage]);
 
   const handleTagInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setTagInput(e.target.value);
@@ -182,954 +187,157 @@ export function PageView() {
     }
   };
 
-  // Centralized HTML rendering pipeline — avoids duplication across handlers
-  const renderHtml = useCallback(async (content: string, pagePath: string, highlights: Highlight[]) => {
-    const contentWithLinks = convertWikiLinksToMarkdown(content, pagesRef.current);
-    let html = await markdownService.toHtml(contentWithLinks);
-    html = await resolveImagesInHtml(html, pagePath);
-    // NEW: Pass markdown content for accurate offset mapping
-    html = highlightService.applyHighlightsToHtml(html, content, highlights, highlightsVisibleRef.current);
-    setHtmlContent(html);
+  // ── Helper: snapshot editor state into cache after mutations ──────
+  const snapshotEditorState = useCallback(() => {
+    const editor = editorRef.current;
+    if (!editor || editor.isDestroyed) return;
+    // @ts-ignore
+    const md = editor.storage.markdown.getMarkdown() as string;
+    cachedEditorStateRef.current = { content: md };
+  }, [editorRef]);
 
-    // Extract ToC headings
-    const headings = tocService.extractHeadings(content);
-    setTocHeadings(headings);
-  }, [/* pagesRef is stable */]);
+  // ── Highlight handlers ────────────────────────────────────────────
+  // Called by TiptapEditor's BubbleMenu after it applies a highlight
+  const handleBubbleHighlight = useCallback((_color: string, _style: 'highlight' | 'underline') => {
+    snapshotEditorState();
+    markDirty();
+  }, [markDirty, snapshotEditorState]);
 
-  // Render mermaid diagrams after HTML content updates
-  useMermaid(contentRef, htmlContent);
+  // Called by TiptapEditor's BubbleMenu after it changes a highlight color
+  const handleHighlightChangeColor = useCallback((_highlightId: string, _newColor: string) => {
+    snapshotEditorState();
+    markDirty();
+  }, [markDirty, snapshotEditorState]);
 
-  // Auto-clear lastCreatedMemoId after scroll completes
-  useEffect(() => {
-    if (lastCreatedMemoId) {
-      const timer = setTimeout(() => {
-        setLastCreatedMemoId(null);
-      }, 1000);
-      return () => clearTimeout(timer);
+  // Called by TiptapEditor's BubbleMenu after it deletes a highlight
+  const handleHighlightDelete = useCallback((highlightId: string) => {
+    snapshotEditorState();
+    // Remove linked memos
+    if (page?.memos?.some(m => m.highlightId === highlightId)) {
+      const updatedMemos = page.memos!.filter(m => m.highlightId !== highlightId);
+      const updatedPage = { ...page, memos: updatedMemos };
+      setPage(updatedPage);
+      updatePageInStore(updatedPage);
     }
-  }, [lastCreatedMemoId]);
+    markDirty();
+  }, [page, updatePageInStore, markDirty, setPage, snapshotEditorState]);
 
-  // Clean up blob URLs on unmount or page change
-  useEffect(() => {
-    return () => { clearImageCache(); };
-  }, [pageId]);
-
-  useEffect(() => {
-    if (pageId) {
-      loadPage(pageId);
-      setEditing(false);
-      setLastCreatedMemoId(null);
-      // Reset scroll position to top when navigating to a new page
-      scrollContainerRef.current?.scrollTo(0, 0);
-    }
-  }, [pageId]);
-
-  // Retry when pages become available (e.g., after refresh restores file system access)
-  useEffect(() => {
-    if (pageId && !page && !loading && pages.length > 0) {
-      loadPage(pageId);
-    }
-  }, [pages.length]);
-
-  const loadPage = async (id: string, silent = false) => {
-    if (!silent) setLoading(true);
-    try {
-      const foundPage = pages.find(p => p.id === id);
-      if (foundPage) {
-        const fullPage = await pageService.loadPageWithChildren(foundPage.path);
-        setPage(fullPage);
-        await renderHtml(fullPage.content, fullPage.path, fullPage.highlights || []);
-
-        // Start watching the file for changes (Tauri only)
-        if (isTauri && fullPage.path) {
-          try {
-            // Get absolute path for Tauri file watcher
-            const rootHandle = fileSystemService.getRootHandle();
-            const absolutePath = typeof rootHandle === 'string'
-              ? `${rootHandle}/${fullPage.path}`
-              : fullPage.path;
-
-            await invoke('watch_file', { filePath: absolutePath });
-          } catch (err) {
-            console.error('Failed to start file watcher:', err);
-          }
-        }
-      }
-    } catch (error) {
-      console.error('Failed to load page:', error);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  // Toggle the N-th checkbox in markdown content and auto-save
-  const handleCheckboxToggle = useCallback(async (checkboxIndex: number) => {
+  // ── Memo handlers ─────────────────────────────────────────────────
+  const handleCreateMemo = useCallback(async (memoContent?: string, highlightId?: string) => {
     if (!page) return;
-
-    let idx = 0;
-    const newContent = page.content.replace(/- \[([ x])\]/g, (match, state) => {
-      if (idx++ === checkboxIndex) {
-        return state === 'x' ? '- [ ]' : '- [x]';
-      }
-      return match;
-    });
-
-    const updatedPage = { ...page, content: newContent, updatedAt: new Date().toISOString() };
+    const newMemo: import('@/types').Memo = {
+      id: crypto.randomUUID(),
+      type: highlightId ? 'linked' : 'independent',
+      note: memoContent || '',
+      highlightId: highlightId || undefined,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+      order: (page.memos || []).length,
+    };
+    const updatedMemos = [...(page.memos || []), newMemo];
+    const updatedPage = { ...page, memos: updatedMemos, updatedAt: new Date().toISOString() };
     setPage(updatedPage);
     updatePageInStore(updatedPage);
+    setLastCreatedMemoId(newMemo.id);
+    try { await pageService.updatePage(updatedPage); } catch (err) { console.error('Failed to create memo:', err); }
+  }, [page, updatePageInStore, setPage]);
 
-    await renderHtml(newContent, page.path, page.highlights || []);
+  const handleUpdateMemo = useCallback(async (memoId: string, note: string) => {
+    if (!page) return;
+    const updatedMemos = (page.memos || []).map(m =>
+      m.id === memoId ? { ...m, note, updatedAt: new Date().toISOString() } : m
+    );
+    const updatedPage = { ...page, memos: updatedMemos, updatedAt: new Date().toISOString() };
+    setPage(updatedPage);
+    updatePageInStore(updatedPage);
+    try { await pageService.updatePage(updatedPage); } catch (err) { console.error('Failed to update memo:', err); }
+  }, [page, updatePageInStore, setPage]);
 
-    try {
-      await pageService.updatePage(updatedPage);
-    } catch (err) {
-      console.error('Failed to save checkbox state:', err);
-    }
-  }, [page, updatePageInStore, renderHtml]);
+  const handleDeleteMemo = useCallback(async (memoId: string) => {
+    if (!page) return;
+    const updatedMemos = (page.memos || []).filter(m => m.id !== memoId);
+    const updatedPage = { ...page, memos: updatedMemos, updatedAt: new Date().toISOString() };
+    setPage(updatedPage);
+    updatePageInStore(updatedPage);
+    try { await pageService.updatePage(updatedPage); } catch (err) { console.error('Failed to delete memo:', err); }
+  }, [page, updatePageInStore, setPage]);
 
-  // Attach click handlers to internal links for SPA navigation
-  useEffect(() => {
-    const container = contentRef.current;
-    if (!container) return;
+  const handleScrollToHighlight = useCallback((highlightId: string) => {
+    const editor = editorRef.current;
+    if (!editor || editor.isDestroyed) return;
 
-    const links = container.querySelectorAll<HTMLAnchorElement>('a[href^="/page/"]');
-    const handlers: Array<(e: Event) => void> = [];
-
-    links.forEach((link) => {
-      const handler = (e: Event) => {
-        e.preventDefault();
-        const href = link.getAttribute('href');
-        if (href) {
-          const targetPageId = href.replace('/page/', '');
-          // Only navigate if the target page is different from the current page
-          if (targetPageId !== pageId) {
-            navigate(href);
-          }
-        }
-      };
-      link.addEventListener('click', handler);
-      handlers.push(handler);
+    // Find the highlight mark in the document
+    let targetPos: number | null = null;
+    editor.state.doc.descendants((node, pos) => {
+      if (targetPos !== null) return false;
+      if (!node.isText || node.marks.length === 0) return;
+      const mark = node.marks.find(m => m.type.name === 'highlight' && m.attrs.id === highlightId);
+      if (mark) targetPos = pos;
     });
 
-    return () => {
-      links.forEach((link, index) => {
-        link.removeEventListener('click', handlers[index]);
-      });
-    };
-  }, [htmlContent, navigate, pageId]);
+    if (targetPos === null) return;
 
-  // CRITICAL: Intercept ALL link clicks at document level BEFORE anything else
-  useEffect(() => {
-    const handleDocumentClick = (e: MouseEvent) => {
-      const target = e.target as HTMLElement;
-      const link = target.closest('a[href]') as HTMLAnchorElement | null;
+    // Scroll the highlight into view
+    editor.commands.setTextSelection(targetPos);
+    editor.commands.scrollIntoView();
+    editor.commands.blur();
+  }, [editorRef]);
 
-      if (!link) return;
-
-      const href = link.getAttribute('href');
-      if (!href) return;
-
-      // Check if this is within our content area
-      const container = contentRef.current;
-      if (!container || !container.contains(link)) return;
-
-      // Internal wiki links
-      if (link.hasAttribute('data-page-ref') || link.hasAttribute('data-page-id')) {
-        return; // Allow wiki link handler to process
-      }
-
-      // Internal SPA routes
-      if (href.startsWith('/page/')) {
-        return; // Allow React Router to handle
-      }
-
-      // Hash links
-      if (href.startsWith('#')) {
-        return; // Allow anchor navigation
-      }
-
-      // EVERYTHING ELSE is external - BLOCK IT and open externally
-      e.preventDefault();
-      e.stopPropagation();
-      e.stopImmediatePropagation();
-
-      // Open in external browser
-      openExternalUrl(href).catch(err => {
-        console.error('Failed to open external URL:', err);
-        alert(`Failed to open link: ${href}`);
-      });
-    };
-
-    // Attach to document in CAPTURE phase - this runs BEFORE any other handlers
-    document.addEventListener('click', handleDocumentClick, true);
-
-    return () => {
-      document.removeEventListener('click', handleDocumentClick, true);
-    };
-  }, []); // Empty deps - run once on mount
-
-  // Attach click handlers to rendered checkboxes
-  useEffect(() => {
-    const container = contentRef.current;
-    if (!container) return;
-
-    const checkboxes = container.querySelectorAll<HTMLInputElement>('input[type="checkbox"]');
-    const handlers: Array<() => void> = [];
-
-    checkboxes.forEach((cb, index) => {
-      cb.disabled = false;
-      cb.style.cursor = 'pointer';
-      const handler = () => handleCheckboxToggle(index);
-      cb.addEventListener('click', handler);
-      handlers.push(handler);
-    });
-
-    return () => {
-      checkboxes.forEach((cb, index) => {
-        cb.removeEventListener('click', handlers[index]);
-      });
-    };
-  }, [htmlContent, handleCheckboxToggle]);
-
-  // Attach click handlers to mermaid diagrams for zoom functionality
-  useEffect(() => {
-    const container = contentRef.current;
-    if (!container) return;
-
-    const diagrams = container.querySelectorAll<HTMLElement>('.mermaid-block');
-    const handlers: Array<() => void> = [];
-
-    diagrams.forEach((diagram) => {
-      const handler = () => {
-        // Get the SVG content from the diagram
-        const svg = diagram.querySelector('svg');
-        if (svg) {
-          setZoomedDiagram(svg.outerHTML);
-        }
-      };
-      diagram.addEventListener('click', handler);
-      handlers.push(handler);
-    });
-
-    return () => {
-      diagrams.forEach((diagram, index) => {
-        diagram.removeEventListener('click', handlers[index]);
-      });
-    };
-  }, [htmlContent]);
-
-  const handleDelete = () => {
-    setShowDeleteConfirm(true);
-  };
+  // ── Page actions ──────────────────────────────────────────────────
+  const handleDelete = () => setShowDeleteConfirm(true);
 
   const confirmDelete = async () => {
     if (!page) return;
     const pageTitle = page.title;
     setShowDeleteConfirm(false);
-
     try {
       await pageService.deletePage(page.path);
       removePage(page.id);
-
-      // Show success toast (will persist after navigation)
       showToast(`"${pageTitle}" deleted successfully`, 'success');
-
-      // Navigate to home after a brief delay (replace history since page no longer exists)
-      setTimeout(() => {
-        navigate('/', { replace: true });
-      }, 300);
+      setTimeout(() => navigate('/', { replace: true }), 300);
     } catch (error) {
       console.error('Failed to delete page:', error);
       showToast('Failed to delete page. Please try again.', 'error');
     }
   };
 
-  // Highlight functionality uses colors from store
-
-  const handleTextSelection = useCallback(() => {
-    if (editing) return; // Don't show palette in edit mode
-
-    const selection = window.getSelection();
-    if (!selection || selection.isCollapsed || selection.rangeCount === 0) {
-      setShowHighlightPalette(false);
-      return;
-    }
-
-    const range = selection.getRangeAt(0);
-    const selectedText = selection.toString().trim();
-
-    // Ignore selections shorter than 2 characters
-    if (selectedText.length < 2) {
-      setShowHighlightPalette(false);
-      return;
-    }
-
-    // Check if selection is within the content area
-    const contentEl = contentRef.current;
-    if (!contentEl || !contentEl.contains(range.commonAncestorContainer)) {
-      setShowHighlightPalette(false);
-      return;
-    }
-
-    // Store the range for later use
-    selectedRangeRef.current = range.cloneRange();
-
-    // Pass the selection's DOMRect to TooltipWindow for positioning
-    setPaletteRect(range.getBoundingClientRect());
-
-    setShowHighlightPalette(true);
-  }, [editing]);
-
-  const applyHighlight = useCallback(async (color: string, style: 'highlight' | 'underline') => {
-    if (!page || !selectedRangeRef.current) return;
-
-    const selection = window.getSelection();
-    const selectedText = selection?.toString() || '';
-    if (!selectedText.trim()) return;
-
-    // NEW: Markdown-first approach
-    // Find the selected text in the Markdown content
-    const match = highlightService.findTextInMarkdown(selectedText, page.content);
-
-    if (!match) {
-      showToast('Could not locate text in markdown. Try selecting again.', 'error');
-      if (highlightService.getDebugMode()) {
-        console.error('[HIGHLIGHT CREATE] Failed to find text in markdown', {
-          selectedText: selectedText.substring(0, 100),
-          markdownContent: page.content.substring(0, 200)
-        });
-      }
-      return;
-    }
-
-    // Extract first and last words for fallback matching
-    const { firstWords, lastWords } = highlightService.extractAnchorWords(match.text);
-
-    const highlight: Highlight = {
-      id: crypto.randomUUID(),
-      text: match.text,
-      color,
-      style,
-      startOffset: match.startOffset,  // Markdown offset
-      endOffset: match.endOffset,      // Markdown offset
-      firstWords,
-      lastWords,
-      createdAt: new Date().toISOString(),
-    };
-
-    const updatedHighlights = [...(page.highlights || []), highlight];
-
-    // If memo mode is active, create a linked memo
-    let updatedMemos = page.memos || [];
-    if (memoMode) {
-      const newMemoId = crypto.randomUUID();
-      const linkedMemo: Memo = {
-        id: newMemoId,
-        type: 'linked',
-        note: '',
-        highlightId: highlight.id,
-        highlightText: match.text,
-        highlightColor: color,
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-        order: updatedMemos.length,
-      };
-      updatedMemos = [...updatedMemos, linkedMemo];
-      setLastCreatedMemoId(newMemoId);
-    }
-
-    const updatedPage = {
-      ...page,
-      highlights: updatedHighlights,
-      memos: updatedMemos,
-      updatedAt: new Date().toISOString(),
-    };
-
-    setPage(updatedPage);
-    updatePageInStore(updatedPage);
-
-    await renderHtml(page.content, page.path, updatedHighlights);
-
-    try {
-      await pageService.updatePage(updatedPage);
-    } catch (err) {
-      console.error('Failed to save highlight:', err);
-      showToast('Failed to save highlight', 'error');
-    }
-
-    // Clear selection
-    selection?.removeAllRanges();
-    setShowHighlightPalette(false);
-  }, [page, updatePageInStore, showToast, memoMode, renderHtml]);
-
-  const handleChangeHighlightColor = useCallback(async (highlightId: string, newColor: string) => {
-    if (!page) return;
-
-    const updatedHighlights = (page.highlights || []).map(h =>
-      h.id === highlightId ? { ...h, color: newColor } : h
-    );
-
-    const updatedPage = {
-      ...page,
-      highlights: updatedHighlights,
-      updatedAt: new Date().toISOString(),
-    };
-
-    setPage(updatedPage);
-    updatePageInStore(updatedPage);
-
-    await renderHtml(page.content, page.path, updatedHighlights);
-
-    try {
-      await pageService.updatePage(updatedPage);
-    } catch (err) {
-      console.error('Failed to update highlight:', err);
-      showToast('Failed to update highlight', 'error');
-    }
-
-    setShowHoverMenu(false);
-  }, [page, updatePageInStore, showToast, renderHtml]);
-
-  const handleDeleteHighlight = useCallback(async (highlightId: string) => {
-    if (!page) return;
-
-    const updatedHighlights = (page.highlights || []).filter(h => h.id !== highlightId);
-    // Also delete any linked memos
-    const updatedMemos = (page.memos || []).filter(m => m.highlightId !== highlightId);
-
-    const updatedPage = {
-      ...page,
-      highlights: updatedHighlights,
-      memos: updatedMemos,
-      updatedAt: new Date().toISOString(),
-    };
-
-    setPage(updatedPage);
-    updatePageInStore(updatedPage);
-
-    await renderHtml(page.content, page.path, updatedHighlights);
-
-    try {
-      await pageService.updatePage(updatedPage);
-    } catch (err) {
-      console.error('Failed to delete highlight:', err);
-      showToast('Failed to delete highlight', 'error');
-    }
-
-    setShowHoverMenu(false);
-  }, [page, updatePageInStore, showToast, renderHtml]);
-
-  // Memo CRUD operations
-  const handleCreateMemo = useCallback(async () => {
-    if (!page) return;
-
-    const newMemoId = crypto.randomUUID();
-    const newMemo: Memo = {
-      id: newMemoId,
-      type: 'independent',
-      note: '',
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-      order: (page.memos || []).length,
-    };
-
-    const updatedMemos = [...(page.memos || []), newMemo];
-    const updatedPage = {
-      ...page,
-      memos: updatedMemos,
-      updatedAt: new Date().toISOString(),
-    };
-
-    setPage(updatedPage);
-    updatePageInStore(updatedPage);
-    setLastCreatedMemoId(newMemoId);
-
-    try {
-      await pageService.updatePage(updatedPage);
-    } catch (err) {
-      console.error('Failed to save memo:', err);
-      showToast('Failed to save memo', 'error');
-    }
-  }, [page, updatePageInStore, showToast]);
-
-  const handleUpdateMemo = useCallback(async (memoId: string, note: string) => {
-    if (!page) return;
-
-    const updatedMemos = (page.memos || []).map(m =>
-      m.id === memoId ? { ...m, note, updatedAt: new Date().toISOString() } : m
-    );
-
-    const updatedPage = {
-      ...page,
-      memos: updatedMemos,
-      updatedAt: new Date().toISOString(),
-    };
-
-    setPage(updatedPage);
-    updatePageInStore(updatedPage);
-
-    try {
-      await pageService.updatePage(updatedPage);
-    } catch (err) {
-      console.error('Failed to update memo:', err);
-      showToast('Failed to update memo', 'error');
-    }
-  }, [page, updatePageInStore, showToast]);
-
-  const handleDeleteMemo = useCallback(async (memoId: string) => {
-    if (!page) return;
-
-    const updatedMemos = (page.memos || []).filter(m => m.id !== memoId);
-
-    const updatedPage = {
-      ...page,
-      memos: updatedMemos,
-      updatedAt: new Date().toISOString(),
-    };
-
-    setPage(updatedPage);
-    updatePageInStore(updatedPage);
-
-    try {
-      await pageService.updatePage(updatedPage);
-    } catch (err) {
-      console.error('Failed to delete memo:', err);
-      showToast('Failed to delete memo', 'error');
-    }
-  }, [page, updatePageInStore, showToast]);
-
-  const handleScrollToHighlight = useCallback((highlightId: string) => {
-    const contentEl = contentRef.current;
-    if (!contentEl) return;
-
-    const mark = contentEl.querySelector(`mark[data-highlight-id="${highlightId}"]`);
-    if (mark) {
-      mark.scrollIntoView({ behavior: 'smooth', block: 'center' });
-      // Flash animation
-      mark.classList.add('highlight-flash');
-      setTimeout(() => mark.classList.remove('highlight-flash'), 1000);
-    }
-  }, []);
-
-  const handleTocClick = useCallback((headingId: string) => {
-    const element = document.getElementById(headingId);
-    if (element && scrollContainerRef.current) {
-      element.scrollIntoView({ behavior: 'smooth', block: 'start' });
-    }
-  }, []);
-
   const handleCopyLink = async () => {
     if (!page) return;
-
-    // Use ID-based link format: [[page-id|Page Title]]
-    // This is safe from file name changes since ID never changes
-    const linkText = `[[${page.id}|${page.title}]]`;
-
     try {
-      await navigator.clipboard.writeText(linkText);
-      // Show a temporary toast/notification
-      const btn = document.querySelector('.copy-link-btn');
-      if (btn) {
-        const originalText = btn.textContent;
-        btn.textContent = '✓ Copied!';
-        setTimeout(() => {
-          btn.textContent = originalText;
-        }, 2000);
+      await navigator.clipboard.writeText(`[[${page.id}|${page.title}]]`);
+      showToast('Link copied!', 'success');
+    } catch { showToast('Failed to copy link', 'error'); }
+  };
+
+  // ── ToC click ─────────────────────────────────────────────────────
+  const handleTocClick = useCallback((headingId: string) => {
+    const element = document.getElementById(headingId);
+    if (element) { element.scrollIntoView({ behavior: 'smooth', block: 'start' }); return; }
+    const container = editorContainerRef.current;
+    if (!container) return;
+    const headings = container.querySelectorAll('h1, h2, h3, h4, h5, h6');
+    for (const heading of headings) {
+      const headingText = heading.textContent?.toLowerCase().replace(/\s+/g, '-');
+      if (headingText === headingId.toLowerCase()) {
+        heading.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        return;
       }
-    } catch (error) {
-      console.error('Failed to copy link:', error);
-      alert('Failed to copy link to clipboard');
     }
-  };
-
-  const handleEditorSave = async (updatedPage: Page) => {
-    setPage(updatedPage);
-    setEditing(false);
-    // Reload the page to ensure mermaid diagrams render correctly
-    await loadPage(updatedPage.id, true);
-  };
-
-  // Track editing state in a ref so event handlers always see the latest value
-  const editingRef = useRef(editing);
-  editingRef.current = editing;
-
-  // Auto-save when leaving the page for ANY reason while editing
-  // 1) beforeunload — browser/tab close (Cmd+W, refresh, etc.)
-  useEffect(() => {
-    const handleBeforeUnload = () => {
-      if (editingRef.current && editorRef.current) {
-        editorRef.current.save();
-      }
-    };
-
-    window.addEventListener('beforeunload', handleBeforeUnload);
-    return () => window.removeEventListener('beforeunload', handleBeforeUnload);
   }, []);
 
-  // 2) Route change (pageId change) or component unmount while editing
-  useEffect(() => {
-    return () => {
-      if (editingRef.current && editorRef.current) {
-        editorRef.current.save();
-      }
-    };
-  }, [pageId]);
-
-  // Keyboard shortcuts for edit mode and find
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      // Esc to exit immerse mode
-      if (e.key === 'Escape' && isImmerseMode) {
-        e.preventDefault();
-        setIsImmerseMode(false);
-        showToast('Immerse mode deactivated', 'info');
-        return;
-      }
-
-      // Cmd+Shift+I for immerse mode
-      if ((e.metaKey || e.ctrlKey) && e.shiftKey && e.key === 'i' && !editing) {
-        e.preventDefault();
-        setIsImmerseMode(!isImmerseMode);
-        showToast(isImmerseMode ? 'Immerse mode deactivated' : 'Immerse mode activated', 'info');
-        return;
-      }
-
-      // Cmd+Shift+D for highlight debug mode
-      if ((e.metaKey || e.ctrlKey) && e.shiftKey && e.key === 'd') {
-        e.preventDefault();
-        const newMode = !highlightService.getDebugMode();
-        highlightService.setDebugMode(newMode);
-        showToast(`Highlight debug: ${newMode ? 'ON' : 'OFF'}`, 'info');
-        return;
-      }
-
-      // Don't process other shortcuts in immerse mode
-      if (isImmerseMode) return;
-
-      // Cmd+F for find
-      if ((e.metaKey || e.ctrlKey) && e.key === 'f' && !editing) {
-        e.preventDefault();
-        setShowFindBar(prev => !prev);
-        return;
-      }
-
-      // Cmd+Shift+T for ToC toggle
-      if ((e.metaKey || e.ctrlKey) && e.shiftKey && e.key === 't' && !editing) {
-        e.preventDefault();
-        setShowToc(prev => !prev);
-        return;
-      }
-
-      // Cmd+Shift+M for creating a new memo
-      if ((e.metaKey || e.ctrlKey) && e.shiftKey && e.key === 'm' && !editing) {
-        e.preventDefault();
-        if (!memoMode) setMemoMode(true);
-        handleCreateMemo();
-        return;
-      }
-
-      // Cmd+M for memo mode toggle
-      if ((e.metaKey || e.ctrlKey) && e.key === 'm' && !editing) {
-        e.preventDefault();
-        setMemoMode(prev => !prev);
-        return;
-      }
-
-      // Prevent Cmd+S when not editing
-      if ((e.metaKey || e.ctrlKey) && e.key === 's' && !editing) {
-        e.preventDefault();
-        return;
-      }
-
-      // Cmd+E or just E key to enter edit mode (when not in an input)
-      const target = e.target as HTMLElement;
-      const isInputField = target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable;
-
-      if (!editing && !isInputField) {
-        if ((e.metaKey || e.ctrlKey) && e.key === 'e') {
-          e.preventDefault();
-          startEditing();
-        } else if (e.key === 'e' || e.key === 'E') {
-          e.preventDefault();
-          startEditing();
-        }
-      }
-    };
-
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [editing, memoMode, isImmerseMode, setIsImmerseMode, showToast, page, handleCreateMemo]);
-
-  // Track scroll position to show/hide scroll to top button
+  // ── Scroll to top tracking ────────────────────────────────────────
   useEffect(() => {
     const container = scrollContainerRef.current;
     if (!container) return;
-
-    const handleScroll = () => {
-      setShowScrollTop(container.scrollTop > 300);
-    };
-
+    const handleScroll = () => setShowScrollTop(container.scrollTop > 300);
+    handleScroll();
     container.addEventListener('scroll', handleScroll);
     return () => container.removeEventListener('scroll', handleScroll);
   }, []);
 
-  // Close page menu on click outside
-  useEffect(() => {
-    const handleClickOutside = (e: MouseEvent) => {
-      if (pageMenuRef.current && !pageMenuRef.current.contains(e.target as Node)) {
-        setShowPageMenu(false);
-      }
-    };
+  const scrollToTop = () => scrollContainerRef.current?.scrollTo({ top: 0, behavior: 'smooth' });
 
-    if (showPageMenu) {
-      document.addEventListener('mousedown', handleClickOutside);
-    }
-
-    return () => {
-      document.removeEventListener('mousedown', handleClickOutside);
-    };
-  }, [showPageMenu]);
-
-  // Track mouse position for palette positioning
-  useEffect(() => {
-    const handleMouseMove = (e: MouseEvent) => {
-      mousePositionRef.current = { x: e.clientX, y: e.clientY };
-    };
-
-    document.addEventListener('mousemove', handleMouseMove);
-    return () => document.removeEventListener('mousemove', handleMouseMove);
-  }, []);
-
-  // Handle text selection for highlighting
-  useEffect(() => {
-    const handleMouseUp = () => {
-      // Small delay to allow selection to complete
-      setTimeout(handleTextSelection, 50);
-    };
-
-    document.addEventListener('mouseup', handleMouseUp);
-    return () => document.removeEventListener('mouseup', handleMouseUp);
-  }, [handleTextSelection]);
-
-  // Attach hover handlers to highlight marks
-  useEffect(() => {
-    const container = contentRef.current;
-    if (!container || editing || !highlightsVisible) return;
-
-    let marks: NodeListOf<HTMLElement> | null = null;
-    let handlers: Array<{ enter: (e: MouseEvent) => void; leave: (e: MouseEvent) => void }> = [];
-    let observer: MutationObserver | null = null;
-    let isAttached = false;
-
-    const attachHandlers = () => {
-      // Prevent double-attaching
-      if (isAttached) return;
-
-      marks = container.querySelectorAll<HTMLElement>('mark.highlight[data-highlight-id]');
-
-      if (marks.length === 0) {
-        return false; // Signal that we need to keep waiting
-      }
-
-      isAttached = true;
-      handlers = [];
-
-      marks.forEach((mark) => {
-        const handleMouseEnter = (_e: MouseEvent) => {
-          // Clear any pending close timeout
-          if (closeMenuTimeoutRef.current) {
-            clearTimeout(closeMenuTimeoutRef.current);
-            closeMenuTimeoutRef.current = null;
-          }
-
-          const highlightId = mark.getAttribute('data-highlight-id');
-          if (!highlightId) return;
-
-          // Only reposition if this is a different highlight
-          // This prevents menu from jumping when hovering over different parts of a multi-line highlight
-          const isDifferentHighlight = hoveredHighlightId !== highlightId;
-
-          if (isDifferentHighlight) {
-            // For multi-line highlights, position based on the hovered mark element
-            // This ensures the menu appears close to the actual highlighted text
-            setHoverMenuRect(mark.getBoundingClientRect());
-          }
-
-          setHoveredHighlightId(highlightId);
-          setShowHoverMenu(true);
-        };
-
-        const handleMouseLeave = (_e: MouseEvent) => {
-          // Delay closing to allow mouse to move to menu
-          closeMenuTimeoutRef.current = setTimeout(() => {
-            if (!isMouseOverMenuRef.current) {
-              setShowHoverMenu(false);
-              setHoveredHighlightId(null);
-            }
-          }, 100);
-        };
-
-        mark.addEventListener('mouseenter', handleMouseEnter);
-        mark.addEventListener('mouseleave', handleMouseLeave);
-        handlers.push({ enter: handleMouseEnter, leave: handleMouseLeave });
-      });
-
-      return true; // Successfully attached
-    };
-
-    // Try immediate attach (for cases where DOM is already ready)
-    const immediateSuccess = attachHandlers();
-
-    // If immediate attach failed, use MutationObserver to wait for DOM
-    if (!immediateSuccess) {
-      observer = new MutationObserver(() => {
-        const success = attachHandlers();
-        if (success && observer) {
-          observer.disconnect();
-          observer = null;
-        }
-      });
-
-      observer.observe(container, {
-        childList: true,
-        subtree: true
-      });
-
-      // Fallback: also try after a short delay
-      setTimeout(() => {
-        if (!isAttached) {
-          attachHandlers();
-        }
-      }, 100);
-    }
-
-    return () => {
-      // Disconnect observer
-      if (observer) {
-        observer.disconnect();
-      }
-
-      // Remove event listeners
-      if (marks && handlers.length > 0) {
-        marks.forEach((mark, index) => {
-          if (handlers[index]) {
-            mark.removeEventListener('mouseenter', handlers[index].enter);
-            mark.removeEventListener('mouseleave', handlers[index].leave);
-          }
-        });
-      }
-
-      // Clear timeout on cleanup
-      if (closeMenuTimeoutRef.current) {
-        clearTimeout(closeMenuTimeoutRef.current);
-      }
-    };
-  }, [htmlContent, editing, highlightsVisible]);
-
-  // Listen for theme changes to re-render highlights with adjusted colors
-  useEffect(() => {
-    const handleThemeChange = () => {
-      setThemeVersion(v => v + 1);
-    };
-
-    // Listen for data-theme attribute changes
-    const observer = new MutationObserver((mutations) => {
-      mutations.forEach((mutation) => {
-        if (mutation.type === 'attributes' && mutation.attributeName === 'data-theme') {
-          handleThemeChange();
-        }
-      });
-    });
-
-    observer.observe(document.documentElement, { attributes: true });
-
-    // Listen for system color scheme changes
-    const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
-    const mediaQueryListener = () => handleThemeChange();
-    mediaQuery.addEventListener('change', mediaQueryListener);
-
-    return () => {
-      observer.disconnect();
-      mediaQuery.removeEventListener('change', mediaQueryListener);
-    };
-  }, []);
-
-  // Listen for file changes (Tauri only)
-  useEffect(() => {
-    if (!isTauri || !page) return;
-
-    let unlisten: (() => void) | null = null;
-
-    const setupListener = async () => {
-      try {
-        // Get absolute path for comparison
-        const rootHandle = fileSystemService.getRootHandle();
-        const absolutePagePath = typeof rootHandle === 'string'
-          ? `${rootHandle}/${page.path}`
-          : page.path;
-
-        unlisten = await listen('file-changed', async (event: any) => {
-          const changedPath = event.payload as string;
-
-          // Check if the changed file is the current page (compare absolute paths)
-          if (page && absolutePagePath === changedPath) {
-            // Reload the page silently (without showing loading spinner)
-            try {
-              const fullPage = await pageService.loadPageWithChildren(page.path);
-              setPage(fullPage);
-              updatePageInStore(fullPage);
-              await renderHtml(fullPage.content, fullPage.path, fullPage.highlights || []);
-
-              // Show a subtle notification
-              showToast('Page updated', 'info');
-            } catch (err) {
-              console.error('Failed to reload page:', err);
-            }
-          }
-        });
-      } catch (err) {
-        console.error('Failed to setup file change listener:', err);
-      }
-    };
-
-    setupListener();
-
-    return () => {
-      if (unlisten) {
-        unlisten();
-      }
-
-      // Stop watching when component unmounts
-      if (isTauri && page?.path) {
-        const rootHandle = fileSystemService.getRootHandle();
-        const absolutePath = typeof rootHandle === 'string'
-          ? `${rootHandle}/${page.path}`
-          : page.path;
-        invoke('unwatch_file', { filePath: absolutePath }).catch((err: any) => {
-          console.error('Failed to stop file watcher:', err);
-        });
-      }
-    };
-  }, [page?.path, updatePageInStore, renderHtml, showToast]);
-
-  // Ref to access latest page without adding to effect deps
-  const pageRef = useRef(page);
-  pageRef.current = page;
-
-  // Re-render ONLY when highlights visibility or theme changes (not on every page/pages change)
-  // Individual handlers already call renderHtml after their own mutations.
-  useEffect(() => {
-    const currentPage = pageRef.current;
-    if (!currentPage) return;
-
-    const reRender = async () => {
-      await renderHtml(currentPage.content, currentPage.path, currentPage.highlights || []);
-    };
-
-    reRender();
-  }, [highlightsVisible, themeVersion, renderHtml]);
-
-  // Memo panel resize handlers
+  // ── Memo panel resize ─────────────────────────────────────────────
   const handleResizeStart = useCallback((e: React.MouseEvent) => {
     isResizingRef.current = true;
     resizeStartXRef.current = e.clientX;
@@ -1140,40 +348,100 @@ export function PageView() {
   useEffect(() => {
     const handleMouseMove = (e: MouseEvent) => {
       if (!isResizingRef.current) return;
-
       const deltaX = resizeStartXRef.current - e.clientX;
       const newWidth = resizeStartWidthRef.current + deltaX;
-
-      // Get viewport width to calculate max width (50%)
       const maxWidth = window.innerWidth * 0.5;
-      const minWidth = 360;
-
-      // Constrain width between min and max
-      const constrainedWidth = Math.min(Math.max(newWidth, minWidth), maxWidth);
-      setMemoPanelWidth(constrainedWidth);
+      setMemoPanelWidth(Math.min(Math.max(newWidth, 360), maxWidth));
     };
-
-    const handleMouseUp = () => {
-      isResizingRef.current = false;
-    };
-
+    const handleMouseUp = () => { isResizingRef.current = false; };
     if (memoMode) {
       document.addEventListener('mousemove', handleMouseMove);
       document.addEventListener('mouseup', handleMouseUp);
     }
-
     return () => {
       document.removeEventListener('mousemove', handleMouseMove);
       document.removeEventListener('mouseup', handleMouseUp);
     };
   }, [memoMode]);
 
-  const scrollToTop = () => {
-    scrollContainerRef.current?.scrollTo({
-      top: 0,
-      behavior: 'smooth'
-    });
-  };
+  // Auto-clear lastCreatedMemoId
+  useEffect(() => {
+    if (lastCreatedMemoId) {
+      const timer = setTimeout(() => setLastCreatedMemoId(null), 1000);
+      return () => clearTimeout(timer);
+    }
+  }, [lastCreatedMemoId]);
+
+  // Close page menu on click outside
+  useEffect(() => {
+    if (!showPageMenu) return;
+    const handleClick = (e: MouseEvent) => {
+      if (pageMenuRef.current && !pageMenuRef.current.contains(e.target as Node)) {
+        setShowPageMenu(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClick);
+    return () => document.removeEventListener('mousedown', handleClick);
+  }, [showPageMenu]);
+
+  // Close column dropdown on click outside
+  useEffect(() => {
+    if (!showColumnDropdown) return;
+    const handleClick = (e: MouseEvent) => {
+      if (columnDropdownRef.current && !columnDropdownRef.current.contains(e.target as Node)) {
+        setShowColumnDropdown(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClick);
+    return () => document.removeEventListener('mousedown', handleClick);
+  }, [showColumnDropdown]);
+
+  // External links → system browser
+  useEffect(() => {
+    const handleDocumentClick = (e: MouseEvent) => {
+      const link = (e.target as HTMLElement).closest('a[href]') as HTMLAnchorElement | null;
+      if (!link) return;
+      const href = link.getAttribute('href');
+      if (!href) return;
+      const container = editorContainerRef.current;
+      if (!container || !container.contains(link)) return;
+      if (link.hasAttribute('data-page-ref') || link.hasAttribute('data-page-id')) return;
+      if (href.startsWith('/page/') || href.startsWith('#')) return;
+      e.preventDefault(); e.stopPropagation(); e.stopImmediatePropagation();
+      openExternalUrl(href).catch(() => {});
+    };
+    document.addEventListener('click', handleDocumentClick, true);
+    return () => document.removeEventListener('click', handleDocumentClick, true);
+  }, []);
+
+  // ── Keyboard shortcuts ────────────────────────────────────────────
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      const mod = e.metaKey || e.ctrlKey;
+      if (mod && e.key === 's') { e.preventDefault(); saveNow(); }
+      if (mod && e.key === 'f') { e.preventDefault(); setShowFindBar(prev => !prev); }
+      if (mod && (e.key === 'm' || e.key === 'M')) {
+        e.preventDefault();
+        if (e.shiftKey) {
+          if (!memoMode) setMemoMode(true);
+          handleCreateMemo();
+        } else {
+          setMemoMode(prev => !prev);
+        }
+      }
+      if (mod && e.shiftKey && (e.key === 'T' || e.key === 't')) { e.preventDefault(); setShowToc(prev => !prev); }
+      if (mod && e.shiftKey && (e.key === 'I' || e.key === 'i')) {
+        e.preventDefault();
+        setIsImmerseMode(!isImmerseMode);
+        showToast(isImmerseMode ? 'Immerse mode deactivated' : 'Immerse mode activated', 'info');
+      }
+      if (e.key === 'Escape' && isImmerseMode) { setIsImmerseMode(false); }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [saveNow, handleCreateMemo, memoMode, isImmerseMode, setIsImmerseMode, showToast]);
+
+  // ── Render ────────────────────────────────────────────────────────
 
   if (loading) {
     return (
@@ -1197,450 +465,279 @@ export function PageView() {
     <>
       <div className={`page-view-container ${showTerminal ? 'with-terminal' : ''}`}>
         <div ref={scrollContainerRef} className={`page-view ${isImmerseMode ? 'immerse-mode' : ''} ${pageWidth === 'narrow' ? 'page-narrow' : ''}`}>
-        {!isImmerseMode && (
-        <div className="page-header">
-        <div className="page-actions-bar">
-          <button className="btn-icon" onClick={() => navigate(page?.parentId ? `/page/${page.parentId}` : '/')} title="Go back">
-            <span className="material-symbols-outlined">arrow_back</span>
-          </button>
-          <div className="page-actions">
-            {editing ? (
-              <>
-                <div className="editor-mode-tabs">
-                  <button
-                    className={`mode-tab ${!editorPreview ? 'active' : ''}`}
-                    onClick={() => { if (editorPreview) { editorRef.current?.togglePreview(); setEditorPreview(false); } }}
-                  >
-                    Edit
-                  </button>
-                  <button
-                    className={`mode-tab ${editorPreview ? 'active' : ''}`}
-                    onClick={() => { if (!editorPreview) { editorRef.current?.togglePreview(); setEditorPreview(true); } }}
-                  >
-                    Preview
-                  </button>
-                </div>
-                <button
-                  className="btn-icon"
-                  onClick={() => editorRef.current?.openImagePicker()}
-                  title="Insert image"
-                >
-                  <span className="material-symbols-outlined">image</span>
+          {!isImmerseMode && (
+            <div className="page-header">
+              <div className="page-actions-bar">
+                <button className="btn-icon" onClick={() => navigate(page?.parentId ? `/page/${page.parentId}` : '/')} title="Go back">
+                  <span className="material-symbols-outlined">arrow_back</span>
                 </button>
-                <div className="actions-divider" />
-                <button className="btn-icon" onClick={() => { editorRef.current?.save(); }} title="Close (auto-saves)">
-                  <span className="material-symbols-outlined">close</span>
-                </button>
-                <button
-                  className="btn-icon"
-                  onClick={() => { editorRef.current?.save(); setEditorSaving(true); setTimeout(() => setEditorSaving(false), 2000); }}
-                  disabled={editorSaving}
-                  title="Save"
-                >
-                  <span className="material-symbols-outlined">{editorSaving ? 'hourglass_empty' : 'check'}</span>
-                </button>
-              </>
-            ) : (
-              <>
-                <button
-                  className="btn btn-secondary btn-icon"
-                  onClick={() => setShowToc(!showToc)}
-                  title="Table of Contents (Cmd+Shift+T)"
-                >
-                  <span className="material-symbols-outlined">toc</span>
-                </button>
-                <button
-                  className="btn btn-secondary btn-icon"
-                  onClick={() => setPageWidth(pageWidth === 'narrow' ? 'wide' : 'narrow')}
-                  title={pageWidth === 'narrow' ? 'Switch to wide layout' : 'Switch to narrow layout'}
-                >
-                  <span className="material-symbols-outlined">
-                    {pageWidth === 'narrow' ? 'width_wide' : 'width_normal'}
-                  </span>
-                </button>
-                <button className="btn btn-secondary btn-icon" onClick={() => startEditing()} title="Edit">
-                  <span className="material-symbols-outlined">edit</span>
-                </button>
-                <div className="page-menu-container" ref={pageMenuRef}>
+                <div className="page-actions">
                   <button
                     className="btn btn-secondary btn-icon"
-                    onClick={() => setShowPageMenu(!showPageMenu)}
-                    title="More options"
+                    onClick={() => setShowToc(!showToc)}
+                    title="Table of Contents (Cmd+Shift+T)"
                   >
-                    <span className="material-symbols-outlined">more_vert</span>
+                    <span className="material-symbols-outlined">toc</span>
                   </button>
-                  {showPageMenu && (
-                    <div className="page-menu-dropdown">
-                      <button
-                        className="page-menu-item"
-                        onClick={() => {
-                          handleCopyLink();
-                          setShowPageMenu(false);
-                        }}
-                      >
-                        <span className="material-symbols-outlined">link</span>
-                        Copy Link
-                      </button>
-                      <button
-                        className="page-menu-item"
-                        onClick={() => {
-                          setMemoMode(!memoMode);
-                          setShowPageMenu(false);
-                        }}
-                      >
-                        <span className="material-symbols-outlined">
-                          {memoMode ? 'close' : 'sticky_note_2'}
-                        </span>
-                        {memoMode ? 'Exit Memo Mode' : 'Memo Mode'}
-                      </button>
-                      <button
-                        className="page-menu-item"
-                        onClick={() => {
-                          setHighlightsVisible(!highlightsVisible);
-                          setShowPageMenu(false);
-                        }}
-                      >
-                        <span className="material-symbols-outlined">
-                          {highlightsVisible ? 'visibility_off' : 'visibility'}
-                        </span>
-                        {highlightsVisible ? 'Hide Highlights' : 'Show Highlights'}
-                      </button>
-                      <button
-                        className="page-menu-item"
-                        onClick={() => {
-                          setShowTerminal(!showTerminal);
-                          setShowPageMenu(false);
-                        }}
-                      >
-                        <span className="material-symbols-outlined">terminal</span>
-                        {showTerminal ? 'Hide Terminal' : 'Show Terminal'}
-                      </button>
-                      <div className="page-menu-divider"></div>
-                      <button
-                        className="page-menu-item page-menu-item-danger"
-                        onClick={() => {
-                          setShowPageMenu(false);
-                          handleDelete();
-                        }}
-                      >
-                        <span className="material-symbols-outlined">delete</span>
-                        Delete Page
-                      </button>
-                    </div>
-                  )}
-                </div>
-              </>
-            )}
-          </div>
-        </div>
-        <div className={`page-header-content ${pageWidth === 'narrow' ? 'width-narrow' : ''}`}>
-          <div className="editor-meta">
-            <div className="editor-field">
-              {editing ? (
-                <input
-                  type="text"
-                  value={editTitle}
-                  onChange={e => setEditTitle(e.target.value)}
-                  className="editor-title-input"
-                  placeholder="Untitled"
-                  autoFocus
-                />
-              ) : (
-                <h1 className="editor-title-input as-heading">{page.title}</h1>
-              )}
-            </div>
-            <div className="editor-props">
-              {/* Column — always interactive, auto-saves */}
-              <div className="editor-prop-row">
-                <span className="editor-prop-label">
-                  <span className="material-symbols-outlined">view_column</span>
-                  Column
-                </span>
-                <div className="editor-prop-value">
-                  <div className="column-selector" ref={columnDropdownRef}>
-                    <div
-                      className="column-selector-display"
-                      onClick={() => setShowColumnDropdown(!showColumnDropdown)}
+                  <button
+                    className="btn btn-secondary btn-icon"
+                    onClick={() => setPageWidth(pageWidth === 'narrow' ? 'wide' : 'narrow')}
+                    title={pageWidth === 'narrow' ? 'Switch to wide layout' : 'Switch to narrow layout'}
+                  >
+                    <span className="material-symbols-outlined">
+                      {pageWidth === 'narrow' ? 'width_wide' : 'width_normal'}
+                    </span>
+                  </button>
+                  <div className="page-menu-container" ref={pageMenuRef}>
+                    <button
+                      className="btn btn-secondary btn-icon"
+                      onClick={() => setShowPageMenu(!showPageMenu)}
+                      title="More options"
                     >
-                      {page.kanbanColumn ? (
-                        <span
-                          className="selected-column-chip"
-                          style={{ backgroundColor: getColColor(page.kanbanColumn), color: 'white' }}
-                        >
-                          {page.kanbanColumn}
-                          <button
-                            type="button"
-                            className="chip-remove"
-                            onClick={(e) => { e.stopPropagation(); handleColumnChange(''); }}
-                          >✕</button>
-                        </span>
-                      ) : (
-                        <span className="column-placeholder">Empty</span>
-                      )}
+                      <span className="material-symbols-outlined">more_vert</span>
+                    </button>
+                    {showPageMenu && (
+                      <div className="page-menu-dropdown">
+                        <button className="page-menu-item" onClick={() => { handleCopyLink(); setShowPageMenu(false); }}>
+                          <span className="material-symbols-outlined">link</span>
+                          Copy Link
+                        </button>
+                        <button className="page-menu-item" onClick={() => { setMemoMode(!memoMode); setShowPageMenu(false); }}>
+                          <span className="material-symbols-outlined">{memoMode ? 'close' : 'sticky_note_2'}</span>
+                          {memoMode ? 'Exit Memo Mode' : 'Memo Mode'}
+                        </button>
+                        <button className="page-menu-item" onClick={() => { toggleHighlightsVisibility(); setShowPageMenu(false); }}>
+                          <span className="material-symbols-outlined">{highlightsVisible ? 'visibility_off' : 'visibility'}</span>
+                          {highlightsVisible ? 'Hide Highlights' : 'Show Highlights'}
+                        </button>
+                        <button className="page-menu-item" onClick={() => { setShowTerminal(!showTerminal); setShowPageMenu(false); }}>
+                          <span className="material-symbols-outlined">terminal</span>
+                          {showTerminal ? 'Hide Terminal' : 'Show Terminal'}
+                        </button>
+                        <div className="page-menu-divider"></div>
+                        <button className="page-menu-item page-menu-item-danger" onClick={() => { setShowPageMenu(false); handleDelete(); }}>
+                          <span className="material-symbols-outlined">delete</span>
+                          Delete Page
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+              <div className={`page-header-content ${pageWidth === 'narrow' ? 'width-narrow' : ''}`}>
+                <div className="editor-meta">
+                  <div className="editor-field">
+                    <textarea
+                      value={editTitle}
+                      onChange={e => {
+                        setEditTitle(e.target.value.replace(/\n/g, ''));
+                        e.target.style.height = 'auto';
+                        e.target.style.height = e.target.scrollHeight + 'px';
+                      }}
+                      onBlur={handleTitleSave}
+                      onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); (e.target as HTMLElement).blur(); } }}
+                      className="editor-title-input"
+                      placeholder="Untitled"
+                      rows={1}
+                      ref={el => { if (el) { el.style.height = 'auto'; el.style.height = el.scrollHeight + 'px'; } }}
+                    />
+                  </div>
+                  <div className="editor-props">
+                    {/* Column */}
+                    <div className="editor-prop-row">
+                      <span className="editor-prop-label">
+                        <span className="material-symbols-outlined">view_column</span>
+                        Column
+                      </span>
+                      <div className="editor-prop-value">
+                        <div className="column-selector" ref={columnDropdownRef}>
+                          <div className="column-selector-display" onClick={() => setShowColumnDropdown(!showColumnDropdown)}>
+                            {page.kanbanColumn ? (
+                              <span className="selected-column-chip" style={{ backgroundColor: getColColor(page.kanbanColumn), color: 'white' }}>
+                                {page.kanbanColumn}
+                                <button type="button" className="chip-remove" onClick={(e) => { e.stopPropagation(); handleColumnChange(''); }}>✕</button>
+                              </span>
+                            ) : (
+                              <span className="column-placeholder">Empty</span>
+                            )}
+                          </div>
+                          {showColumnDropdown && (
+                            <div className="column-dropdown">
+                              {existingColumns.length > 0 && (
+                                <div className="column-chips">
+                                  {existingColumns.map(col => (
+                                    <button
+                                      key={col} type="button"
+                                      className={`column-chip ${page.kanbanColumn === col ? 'active' : ''}`}
+                                      style={getColColor(col)
+                                        ? page.kanbanColumn === col
+                                          ? { backgroundColor: getColColor(col), color: 'white', borderColor: 'transparent' }
+                                          : { borderColor: getColColor(col), color: getColColor(col) }
+                                        : undefined}
+                                      onClick={() => { handleColumnChange(col); setShowColumnDropdown(false); }}
+                                    >
+                                      {col}
+                                    </button>
+                                  ))}
+                                </div>
+                              )}
+                              <div className="column-new-input">
+                                <input
+                                  type="text" value={newColumnInput}
+                                  onChange={e => setNewColumnInput(e.target.value)}
+                                  onKeyDown={e => { if (e.key === 'Enter' && newColumnInput.trim()) { handleColumnChange(newColumnInput.trim()); setNewColumnInput(''); setShowColumnDropdown(false); }}}
+                                  placeholder="New column..."
+                                />
+                                <button type="button" className="btn btn-sm"
+                                  onClick={() => { if (newColumnInput.trim()) { handleColumnChange(newColumnInput.trim()); setNewColumnInput(''); setShowColumnDropdown(false); }}}
+                                  disabled={!newColumnInput.trim()}
+                                >Add</button>
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      </div>
                     </div>
-                    {showColumnDropdown && (
-                      <div className="column-dropdown">
-                        {existingColumns.length > 0 && (
-                          <div className="column-chips">
-                            {existingColumns.map(col => (
-                              <button
-                                key={col}
-                                type="button"
-                                className={`column-chip ${page.kanbanColumn === col ? 'active' : ''}`}
-                                style={getColColor(col)
-                                  ? page.kanbanColumn === col
-                                    ? { backgroundColor: getColColor(col), color: 'white', borderColor: 'transparent' }
-                                    : { borderColor: getColColor(col), color: getColColor(col) }
-                                  : undefined}
-                                onClick={() => { handleColumnChange(col); setShowColumnDropdown(false); }}
-                              >
-                                {col}
-                              </button>
+                    {/* Tags */}
+                    <div className="editor-prop-row">
+                      <span className="editor-prop-label">
+                        <span className="material-symbols-outlined">sell</span>
+                        Tags
+                      </span>
+                      <div className="editor-prop-value">
+                        <div className="page-tags-section">
+                          {page.tags.map(tag => (
+                            <span key={tag} className="page-tag">
+                              {tag}
+                              <button className="tag-remove-btn" onClick={() => handleRemoveTag(tag)}>×</button>
+                            </span>
+                          ))}
+                          <div className="tag-input-wrapper">
+                            <input
+                              className="tag-inline-input"
+                              value={tagInput}
+                              onChange={handleTagInputChange}
+                              onKeyDown={handleTagKeyDown}
+                              onFocus={() => setShowTagSuggestions(true)}
+                              onBlur={() => setTimeout(() => setShowTagSuggestions(false), 150)}
+                              placeholder={page.tags.length === 0 ? "Add tag..." : "+"}
+                            />
+                            {showTagSuggestions && tagInput && filteredSuggestions.length > 0 && (
+                              <div className="tag-suggestions">
+                                {filteredSuggestions.map(tag => (
+                                  <button key={tag} onMouseDown={() => handleAddTag(tag)}>{tag}</button>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                    {/* Due Date */}
+                    <div className="editor-prop-row">
+                      <span className="editor-prop-label">
+                        <span className="material-symbols-outlined">calendar_today</span>
+                        Due Date
+                      </span>
+                      <div className="editor-prop-value">
+                        <input type="date" value={page.dueDate ? page.dueDate.slice(0, 10) : ''} onChange={e => handleDueDateChange(e.target.value)} />
+                      </div>
+                    </div>
+                    {/* Created */}
+                    <div className="editor-prop-row">
+                      <span className="editor-prop-label">
+                        <span className="material-symbols-outlined">schedule</span>
+                        Created
+                      </span>
+                      <div className="editor-prop-value">
+                        <span className="editor-prop-static">{new Date(page.createdAt).toLocaleString()}</span>
+                      </div>
+                    </div>
+                    {/* Updated */}
+                    <div className="editor-prop-row">
+                      <span className="editor-prop-label">
+                        <span className="material-symbols-outlined">update</span>
+                        Updated
+                      </span>
+                      <div className="editor-prop-value">
+                        <span className="editor-prop-static">{new Date(page.updatedAt).toLocaleString()}</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          <div className="page-content-layout">
+            {showToc && !isImmerseMode && (
+              <TocPanel headings={tocHeadings} onHeadingClick={handleTocClick} />
+            )}
+            <div ref={editorContainerRef} className={`document-view ${pageWidth === 'narrow' ? 'width-narrow' : ''}`}>
+              {showFindBar && (
+                <FindBar content={content} contentRef={{ current: null }} onClose={() => setShowFindBar(false)} />
+              )}
+              <TiptapEditor
+                content={content}
+                onChange={handleContentChange}
+                onEditorReady={handleEditorReady}
+                readOnly={false}
+                pagePath={page.path}
+                pages={pages}
+                onNavigate={(pid: string) => navigate(`/page/${pid}`)}
+                slashCommands={slashCommands}
+                highlightColors={highlightColors}
+                onHighlight={handleBubbleHighlight}
+                onHighlightChangeColor={handleHighlightChangeColor}
+                onHighlightDelete={handleHighlightDelete}
+              />
+
+              {page.children && page.children.length > 0 && (
+                <div className="sub-pages">
+                  <h2>Sub-pages</h2>
+                  <div className="sub-pages-list">
+                    {page.children.map(child => (
+                      <Link key={child.id} to={`/page/${child.id}`} className="sub-page-card">
+                        <h3>{child.title}</h3>
+                        {child.tags.length > 0 && (
+                          <div className="tags">
+                            {child.tags.map(tag => (
+                              <span key={tag} className="tag-small">{tag}</span>
                             ))}
                           </div>
                         )}
-                        <div className="column-new-input">
-                          <input
-                            type="text"
-                            value={newColumnInput}
-                            onChange={e => setNewColumnInput(e.target.value)}
-                            onKeyDown={e => { if (e.key === 'Enter' && newColumnInput.trim()) { handleColumnChange(newColumnInput.trim()); setNewColumnInput(''); setShowColumnDropdown(false); }}}
-                            placeholder="New column..."
-                          />
-                          <button
-                            type="button"
-                            className="btn btn-sm"
-                            onClick={() => { if (newColumnInput.trim()) { handleColumnChange(newColumnInput.trim()); setNewColumnInput(''); setShowColumnDropdown(false); }}}
-                            disabled={!newColumnInput.trim()}
-                          >Add</button>
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                </div>
-              </div>
-              {/* Tags — always interactive, auto-saves */}
-              <div className="editor-prop-row">
-                <span className="editor-prop-label">
-                  <span className="material-symbols-outlined">sell</span>
-                  Tags
-                </span>
-                <div className="editor-prop-value">
-                  <div className="page-tags-section">
-                    {page.tags.map(tag => (
-                      <span key={tag} className="page-tag">
-                        {tag}
-                        <button className="tag-remove-btn" onClick={() => handleRemoveTag(tag)}>×</button>
-                      </span>
+                      </Link>
                     ))}
-                    <div className="tag-input-wrapper">
-                      <input
-                        className="tag-inline-input"
-                        value={tagInput}
-                        onChange={handleTagInputChange}
-                        onKeyDown={handleTagKeyDown}
-                        onFocus={() => setShowTagSuggestions(true)}
-                        onBlur={() => setTimeout(() => setShowTagSuggestions(false), 150)}
-                        placeholder={page.tags.length === 0 ? "Add tag..." : "+"}
-                      />
-                      {showTagSuggestions && tagInput && filteredSuggestions.length > 0 && (
-                        <div className="tag-suggestions">
-                          {filteredSuggestions.map(tag => (
-                            <button key={tag} onMouseDown={() => handleAddTag(tag)}>{tag}</button>
-                          ))}
-                        </div>
-                      )}
-                    </div>
                   </div>
                 </div>
-              </div>
-              {/* Due Date — always interactive, auto-saves */}
-              <div className="editor-prop-row">
-                <span className="editor-prop-label">
-                  <span className="material-symbols-outlined">calendar_today</span>
-                  Due Date
-                </span>
-                <div className="editor-prop-value">
-                  <input
-                    type="date"
-                    value={page.dueDate ? page.dueDate.slice(0, 10) : ''}
-                    onChange={e => handleDueDateChange(e.target.value)}
-                  />
-                </div>
-              </div>
-              {/* Created */}
-              <div className="editor-prop-row">
-                <span className="editor-prop-label">
-                  <span className="material-symbols-outlined">schedule</span>
-                  Created
-                </span>
-                <div className="editor-prop-value">
-                  <span className="editor-prop-static">{new Date(page.createdAt).toLocaleString()}</span>
-                </div>
-              </div>
-              {/* Updated */}
-              <div className="editor-prop-row">
-                <span className="editor-prop-label">
-                  <span className="material-symbols-outlined">update</span>
-                  Updated
-                </span>
-                <div className="editor-prop-value">
-                  <span className="editor-prop-static">{new Date(page.updatedAt).toLocaleString()}</span>
-                </div>
-              </div>
+              )}
             </div>
           </div>
         </div>
-      </div>
-        )}
 
-      {editing ? (
-        <div className={`page-content-layout`}>
-          <PageEditor
-            page={page}
-            onSave={handleEditorSave}
-            onCancel={() => { editorRef.current?.save(); }}
-            hideMeta
-            hideToolbar
-            editorRef={editorRef}
-            metaOverrides={{ title: editTitle, kanbanColumn: page.kanbanColumn || '', tags: page.tags.join(', '), dueDate: page.dueDate ? page.dueDate.slice(0, 10) : '' }}
-          />
-        </div>
-      ) : (
-      <div className="page-content-layout" onDoubleClick={startEditing}>
-        {showToc && !isImmerseMode && (
-          <TocPanel
-            headings={tocHeadings}
-            onHeadingClick={handleTocClick}
-          />
-        )}
-        <div className={`document-view ${pageWidth === 'narrow' ? 'width-narrow' : ''}`}>
-          {showFindBar && (
-            <FindBar
-              content={page.content}
-              contentRef={contentRef}
-              onClose={() => setShowFindBar(false)}
-            />
-          )}
-          <div
-            ref={contentRef}
-            className="markdown-content"
-            dangerouslySetInnerHTML={{ __html: htmlContent }}
-          />
-
-          {page.children && page.children.length > 0 && (
-            <div className="sub-pages">
-              <h2>Sub-pages</h2>
-              <div className="sub-pages-list">
-                {page.children.map(child => (
-                  <Link key={child.id} to={`/page/${child.id}`} className="sub-page-card">
-                    <h3>{child.title}</h3>
-                    {child.tags.length > 0 && (
-                      <div className="tags">
-                        {child.tags.map(tag => (
-                          <span key={tag} className="tag-small">{tag}</span>
-                        ))}
-                      </div>
-                    )}
-                  </Link>
-                ))}
-              </div>
+        {memoMode && (
+          <>
+            <div className="memo-resize-handle" onMouseDown={handleResizeStart} />
+            <div className="memo-panel-wrapper" style={{ width: `${memoPanelWidth}px` }}>
+              <MemoPanel
+                memos={page.memos || []}
+                onCreateMemo={() => handleCreateMemo()}
+                onUpdateMemo={handleUpdateMemo}
+                onDeleteMemo={handleDeleteMemo}
+                onScrollToHighlight={handleScrollToHighlight}
+                lastCreatedMemoId={lastCreatedMemoId}
+              />
             </div>
-          )}
-        </div>
-
+          </>
+        )}
+        {showTerminal && <Terminal workspacePath={config.workspacePath} />}
       </div>
-      )}
-      </div>
-      {memoMode && (
-        <>
-          <div
-            className="memo-resize-handle"
-            onMouseDown={handleResizeStart}
-          />
-          <div
-            className="memo-panel-wrapper"
-            style={{ width: `${memoPanelWidth}px` }}
-          >
-            <MemoPanel
-              memos={page.memos || []}
-              onCreateMemo={handleCreateMemo}
-              onUpdateMemo={handleUpdateMemo}
-              onDeleteMemo={handleDeleteMemo}
-              onScrollToHighlight={handleScrollToHighlight}
-              lastCreatedMemoId={lastCreatedMemoId}
-            />
-          </div>
-        </>
-      )}
-      {showTerminal && <Terminal workspacePath={config.workspacePath} />}
-      </div>
-
-      {/* Mermaid diagram zoom modal */}
-      {zoomedDiagram && (
-        <div
-          className="diagram-zoom-modal"
-          onClick={() => setZoomedDiagram(null)}
-        >
-          <div
-            className="diagram-zoom-content"
-            dangerouslySetInnerHTML={{ __html: zoomedDiagram }}
-          />
-        </div>
-      )}
 
       {/* Scroll to top button */}
-      {showScrollTop && !editing && !isImmerseMode && (
-        <button
-          className="scroll-to-top"
-          onClick={scrollToTop}
-          title="Scroll to top"
-        >
+      {showScrollTop && !isImmerseMode && (
+        <button className="scroll-to-top" onClick={scrollToTop} title="Scroll to top">
           <span className="material-symbols-outlined">arrow_upward</span>
         </button>
-      )}
-
-      {/* Highlight palette */}
-      {showHighlightPalette && paletteRect && (
-        <HighlightPalette
-          anchorRect={paletteRect}
-          colors={highlightColors}
-          onHighlight={applyHighlight}
-          onClose={() => setShowHighlightPalette(false)}
-        />
-      )}
-
-      {/* Highlight hover menu */}
-      {showHoverMenu && hoveredHighlightId && hoverMenuRect && page && (
-        <div
-          onMouseEnter={() => {
-            isMouseOverMenuRef.current = true;
-            if (closeMenuTimeoutRef.current) {
-              clearTimeout(closeMenuTimeoutRef.current);
-              closeMenuTimeoutRef.current = null;
-            }
-          }}
-          onMouseLeave={() => {
-            isMouseOverMenuRef.current = false;
-            closeMenuTimeoutRef.current = setTimeout(() => {
-              setShowHoverMenu(false);
-              setHoveredHighlightId(null);
-            }, 100);
-          }}
-        >
-          <HighlightHoverMenu
-            highlightId={hoveredHighlightId}
-            currentColor={page.highlights?.find(h => h.id === hoveredHighlightId)?.color || highlightColors[0]}
-            colors={highlightColors}
-            anchorRect={hoverMenuRect}
-            onChangeColor={handleChangeHighlightColor}
-            onDelete={handleDeleteHighlight}
-            onClose={() => {
-              setShowHoverMenu(false);
-              setHoveredHighlightId(null);
-            }}
-          />
-        </div>
       )}
 
       {/* Delete confirmation modal */}

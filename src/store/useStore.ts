@@ -24,6 +24,7 @@ const persistSettings = (state: {
   highlightColors: string[];
   pageWidth: 'narrow' | 'wide';
   git: GitSettings;
+  useWYSIWYG: boolean;
 }) => {
   configService.save({
     columnColors: state.columnColors,
@@ -38,6 +39,7 @@ const persistSettings = (state: {
     highlightColors: state.highlightColors,
     pageWidth: state.pageWidth,
     git: state.git,
+    useWYSIWYG: state.useWYSIWYG,
   });
 };
 
@@ -127,6 +129,10 @@ interface AppState {
   // Git settings (persisted)
   git: GitSettings;
   setGitSettings: (git: GitSettings) => void;
+
+  // WYSIWYG editor (persisted)
+  useWYSIWYG: boolean;
+  setUseWYSIWYG: (useWYSIWYG: boolean) => void;
 
   // Toast notification (not persisted)
   toast: { message: string; type: 'success' | 'error' | 'info' } | null;
@@ -307,6 +313,14 @@ export const useStore = create<AppState>((set, get) => ({
     persistSettings({ ...state, git });
   },
 
+  // WYSIWYG editor
+  useWYSIWYG: initialSettings.useWYSIWYG ?? false,
+  setUseWYSIWYG: (useWYSIWYG) => {
+    set({ useWYSIWYG });
+    const state = get();
+    persistSettings({ ...state, useWYSIWYG });
+  },
+
   // Toast notification
   toast: null,
   showToast: (message, type = 'success') => {
@@ -340,6 +354,7 @@ export const useStore = create<AppState>((set, get) => ({
         highlightColors: fileSettings.highlightColors || ['#FFEB3B', '#C5E1A5', '#90CAF9', '#FFCC80', '#F48FB1'],
         pageWidth: fileSettings.pageWidth || 'narrow',
         git: fileSettings.git,
+        useWYSIWYG: fileSettings.useWYSIWYG ?? false,
       });
       // Sync localStorage cache
       configService.saveToLocalStorage(fileSettings);
@@ -359,6 +374,7 @@ export const useStore = create<AppState>((set, get) => ({
         highlightColors: state.highlightColors,
         pageWidth: state.pageWidth,
         git: state.git,
+        useWYSIWYG: state.useWYSIWYG,
       });
     }
   },

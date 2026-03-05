@@ -22,6 +22,7 @@ const LS_SIDEBAR_WIDTH = 'kanban-sidebar-width';
 const LS_HIGHLIGHT_COLORS = 'kanban-highlight-colors';
 const LS_PAGE_WIDTH = 'kanban-page-width';
 const LS_GIT_SETTINGS = 'kanban-git-settings';
+const LS_USE_WYSIWYG = 'kanban-use-wysiwyg';
 
 export interface FontSettings {
   // Content fonts (page view - reading area)
@@ -82,6 +83,7 @@ export interface KanbanSettings {
   highlightColors: string[];
   pageWidth: 'narrow' | 'wide';
   git: GitSettings;
+  useWYSIWYG: boolean; // Feature flag for Tiptap WYSIWYG editor (Phase 0-8 migration)
 }
 
 const DEFAULT_GIT_SETTINGS: GitSettings = {
@@ -108,6 +110,7 @@ const DEFAULT_SETTINGS: KanbanSettings = {
   highlightColors: ['#FFEB3B', '#C5E1A5', '#90CAF9', '#FFCC80', '#F48FB1'],
   pageWidth: 'narrow',
   git: DEFAULT_GIT_SETTINGS,
+  useWYSIWYG: false, // Default to old editor (safe rollout)
 };
 
 class ConfigService {
@@ -150,6 +153,7 @@ class ConfigService {
         highlightColors: parsed.highlightColors ?? DEFAULT_SETTINGS.highlightColors,
         pageWidth: parsed.pageWidth ?? DEFAULT_SETTINGS.pageWidth,
         git: parsed.git ?? DEFAULT_SETTINGS.git,
+        useWYSIWYG: parsed.useWYSIWYG ?? DEFAULT_SETTINGS.useWYSIWYG,
       };
     } catch {
       return null;
@@ -240,6 +244,11 @@ class ConfigService {
       if (git) settings.git = JSON.parse(git);
     } catch { /* ignore */ }
 
+    try {
+      const useWYSIWYG = localStorage.getItem(LS_USE_WYSIWYG);
+      if (useWYSIWYG) settings.useWYSIWYG = JSON.parse(useWYSIWYG);
+    } catch { /* ignore */ }
+
     return settings;
   }
 
@@ -259,6 +268,7 @@ class ConfigService {
     localStorage.setItem(LS_HIGHLIGHT_COLORS, JSON.stringify(settings.highlightColors));
     localStorage.setItem(LS_PAGE_WIDTH, settings.pageWidth);
     localStorage.setItem(LS_GIT_SETTINGS, JSON.stringify(settings.git));
+    localStorage.setItem(LS_USE_WYSIWYG, JSON.stringify(settings.useWYSIWYG));
   }
 
   /**

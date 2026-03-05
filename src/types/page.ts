@@ -16,15 +16,10 @@ export interface Highlight {
   text: string;              // The highlighted text
   color: string;
   style: 'highlight' | 'underline';
-  startOffset: number;       // Position in markdown content (primary)
-  endOffset: number;         // Position in markdown content (primary)
-  firstWords: string;        // First 3 words (fallback for fuzzy matching)
-  lastWords: string;         // Last 3 words (fallback for fuzzy matching)
   createdAt: string;
-
-  // DEPRECATED: Keep for backward compatibility, but ignored in new code
-  contextBefore?: string;
-  contextAfter?: string;
+  // Legacy fields (only present during migration from frontmatter-based storage)
+  from?: number;
+  to?: number;
 }
 
 export interface Memo {
@@ -89,8 +84,8 @@ export interface PageFrontmatter {
   googleCalendarEventId?: string;
   pinned?: boolean;
   pinnedAt?: string;
-  highlights?: Highlight[];
   memos?: Memo[];
+  // highlights are now stored inline as <mark> tags in content, not in frontmatter
 }
 
 /**

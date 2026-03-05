@@ -155,10 +155,10 @@ export class MarkdownService {
    * Normalize frontmatter data to ensure all required fields exist
    * @private
    */
-  private normalizeFrontmatter(data: any): PageFrontmatter {
+  private normalizeFrontmatter(data: any): PageFrontmatter & { _legacyHighlights?: any[] } {
     const now = new Date().toISOString();
 
-    return {
+    const result: PageFrontmatter & { _legacyHighlights?: any[] } = {
       id: data.id || crypto.randomUUID(),
       title: data.title || 'Untitled',
       tags: Array.isArray(data.tags) ? data.tags : [],
@@ -171,9 +171,15 @@ export class MarkdownService {
       ...(data.googleCalendarEventId && { googleCalendarEventId: data.googleCalendarEventId }),
       ...(data.pinned !== undefined && { pinned: data.pinned }),
       ...(data.pinnedAt && { pinnedAt: data.pinnedAt }),
-      highlights: Array.isArray(data.highlights) ? data.highlights : [],
       memos: Array.isArray(data.memos) ? data.memos : []
     };
+
+    // Preserve legacy highlights for migration (not serialized back to frontmatter)
+    if (Array.isArray(data.highlights) && data.highlights.length > 0) {
+      result._legacyHighlights = data.highlights;
+    }
+
+    return result;
   }
 
   /**

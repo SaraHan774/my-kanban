@@ -9,5 +9,5 @@ export * from './imageService';
 export * from './migration';
 export * from './graphService';
 export * from './gitService';
-export * from './highlightService';
 export * from './tocService';
+export { linkService } from './linkService';
