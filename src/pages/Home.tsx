@@ -28,6 +28,7 @@ export function Home() {
   const [draggedCardId, setDraggedCardId] = useState<string | null>(null);
   const [draggedColumn, setDraggedColumn] = useState<string | null>(null);
   const [showCreateModal, setShowCreateModal] = useState(false);
+  const [createModalColumn, setCreateModalColumn] = useState<string | undefined>(undefined);
   const [showTodoModal, setShowTodoModal] = useState(false);
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number; pageId: string } | null>(null);
   const [previewCard, setPreviewCard] = useState<{ id: string; html: string; rect: DOMRect } | null>(null);
@@ -580,7 +581,16 @@ export function Home() {
               <div key={col} className="compact-col-wrap">
                 <div className="compact-column">
                   <div className="compact-column-header">
-                    <h4>{col}</h4>
+                    <div className="compact-column-header-left">
+                      <h4>{col}</h4>
+                      <button
+                        className="column-add-btn"
+                        onClick={() => { setCreateModalColumn(col); setShowCreateModal(true); }}
+                        title={`Add note to ${col}`}
+                      >
+                        <span className="material-symbols-outlined">add</span>
+                      </button>
+                    </div>
                     <span className="compact-card-count">{columnCards.length}</span>
                   </div>
                   <div className="compact-column-list">
@@ -603,7 +613,16 @@ export function Home() {
             <div className="compact-col-wrap">
               <div className="compact-column">
                 <div className="compact-column-header">
-                  <h4>Uncategorized</h4>
+                  <div className="compact-column-header-left">
+                    <h4>Uncategorized</h4>
+                    <button
+                      className="column-add-btn"
+                      onClick={() => { setCreateModalColumn(undefined); setShowCreateModal(true); }}
+                      title="Add note"
+                    >
+                      <span className="material-symbols-outlined">add</span>
+                    </button>
+                  </div>
                   <span className="compact-card-count">{uncategorizedCards.length}</span>
                 </div>
                 <div className="compact-column-list">
@@ -643,7 +662,17 @@ export function Home() {
                   onDragStart={(e) => handleColumnDragStart(col, e)}
                   onDragEnd={() => setDraggedColumn(null)}
                 >
-                  <h3><span className="material-symbols-outlined column-drag-handle">drag_indicator</span>{col}</h3>
+                  <div className="column-header-left">
+                    <span className="material-symbols-outlined column-drag-handle">drag_indicator</span>
+                    <h3>{col}</h3>
+                    <button
+                      className="column-add-btn"
+                      onClick={(e) => { e.stopPropagation(); setCreateModalColumn(col); setShowCreateModal(true); }}
+                      title={`Add note to ${col}`}
+                    >
+                      <span className="material-symbols-outlined">add</span>
+                    </button>
+                  </div>
                   <span className="card-count">{columnCards.length}</span>
                 </div>
                 <div className="column-content">
@@ -708,10 +737,17 @@ export function Home() {
               onDrop={(e) => handleDropUncategorized(e)}
             >
               <div className="column-header" style={{ borderTopColor: '#6b7280' }}>
-                <h3>Uncategorized</h3>
-                <span className="card-count">
-                  {uncategorizedCards.length}
-                </span>
+                <div className="column-header-left">
+                  <h3>Uncategorized</h3>
+                  <button
+                    className="column-add-btn"
+                    onClick={(e) => { e.stopPropagation(); setCreateModalColumn(undefined); setShowCreateModal(true); }}
+                    title="Add note"
+                  >
+                    <span className="material-symbols-outlined">add</span>
+                  </button>
+                </div>
+                <span className="card-count">{uncategorizedCards.length}</span>
               </div>
               <div className="column-content">
                 {uncategorizedCards.map(card => {
@@ -860,11 +896,14 @@ export function Home() {
       )}
 
       {showCreateModal && (
-        <CreatePageModal onClose={() => {
-          setShowCreateModal(false);
-          // Refresh pages after modal closes
-          setTimeout(() => loadPages(), 100);
-        }} />
+        <CreatePageModal
+          defaultColumn={createModalColumn}
+          onClose={() => {
+            setShowCreateModal(false);
+            setCreateModalColumn(undefined);
+            setTimeout(() => loadPages(), 100);
+          }}
+        />
       )}
       {showTodoModal && (
         <CreateTodoModal onClose={() => {

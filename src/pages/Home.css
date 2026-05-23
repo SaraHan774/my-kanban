@@ -288,9 +288,6 @@
   font-size: 1rem;
   font-weight: 600;
   font-family: 'Space Grotesk', var(--font-sans);
-  display: flex;
-  align-items: center;
-  gap: 0.75rem;
 }
 
 .column-drag-handle {
@@ -311,6 +308,56 @@
   border-radius: 12px;
   font-size: 0.8125rem;
   font-weight: 500;
+}
+
+.column-header-left {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  min-width: 0;
+}
+
+.column-header-left h3 {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 600;
+  font-family: 'Space Grotesk', var(--font-sans);
+}
+
+.column-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+}
+
+.column-add-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text-secondary);
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 0.15s, background 0.15s, color 0.15s;
+  flex-shrink: 0;
+}
+
+.column-add-btn .material-symbols-outlined {
+  font-size: 1rem;
+}
+
+.column-add-btn:hover {
+  background: var(--bg-tertiary);
+  color: var(--text-primary);
+}
+
+.column-header:hover .column-add-btn,
+.compact-column-header:hover .column-add-btn {
+  opacity: 1;
 }
 
 .column-content {
@@ -686,6 +733,14 @@
   text-overflow: ellipsis;
   white-space: nowrap;
   letter-spacing: -0.005em;
+}
+
+.compact-column-header-left {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  min-width: 0;
+  overflow: hidden;
 }
 
 /* Count Badge - Whisper, not shout */

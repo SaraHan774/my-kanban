@@ -8,9 +8,10 @@ import './CreatePageModal.css';
 interface CreatePageModalProps {
   onClose: () => void;
   parentId?: string; // Parent page ID for creating subpages
+  defaultColumn?: string; // Pre-select a column when opened from a column header
 }
 
-export function CreatePageModal({ onClose, parentId }: CreatePageModalProps) {
+export function CreatePageModal({ onClose, parentId, defaultColumn }: CreatePageModalProps) {
   const navigate = useNavigate();
   const { addPage, pagesArray, config, columnColors } = useStore();
   const pages = pagesArray;
@@ -28,9 +29,9 @@ export function CreatePageModal({ onClose, parentId }: CreatePageModalProps) {
     return `${y}-${m}-${d} ${h}:${min}`;
   });
 
-  // Inherit parent's column if creating a subpage
+  // Inherit parent's column if creating a subpage, or use defaultColumn from column header
   const [selectedColumn, setSelectedColumn] = useState(
-    parentPage?.kanbanColumn || ''
+    parentPage?.kanbanColumn || defaultColumn || ''
   );
   const [newColumnInput, setNewColumnInput] = useState('');
   const [showDropdown, setShowDropdown] = useState(false);
