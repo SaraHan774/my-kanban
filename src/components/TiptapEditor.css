@@ -116,8 +116,10 @@
 /* Horizontal rule */
 .tiptap-editor hr {
   border: none;
-  border-top: 1px solid var(--border);
-  margin: 2em 0;
+  height: 1px;
+  background-color: var(--border-color, #d0dae5);
+  opacity: 0.5;
+  margin: 1.5em 0;
 }
 
 /* Links */
